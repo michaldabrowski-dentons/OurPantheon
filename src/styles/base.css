@@ -1,0 +1,97 @@
+@import './tokens.css';
+@import './materials.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.45;
+  color: var(--marble-light);
+  background-color: var(--stone-deep);
+  background-image:
+    var(--noise),
+    radial-gradient(ellipse at 50% -10%, rgba(255, 220, 150, 0.16), transparent 55%),
+    linear-gradient(180deg, #2b231c 0%, var(--stone-deep) 60%, #120d0a 100%);
+  background-blend-mode: soft-light, normal, normal;
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0;
+  line-height: 1.15;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--ink);
+}
+
+a {
+  color: var(--gold-light);
+}
+
+:focus-visible {
+  outline: 3px solid var(--gold-light);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--lapis-light);
+  color: var(--gold-light);
+}
+
+/* Scrollbars carved into stone */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--sandstone-dark) rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

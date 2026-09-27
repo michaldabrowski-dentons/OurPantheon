@@ -1,0 +1,120 @@
+.page {
+  min-height: 100%;
+  padding: clamp(16px, 3vw, 40px) var(--gutter);
+  display: grid;
+  gap: 20px;
+  justify-items: center;
+  align-content: start;
+}
+
+.head {
+  width: min(1200px, 100%);
+  display: grid;
+  gap: 8px;
+  text-align: center;
+}
+.head h1 {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+}
+.head p {
+  color: var(--marble-vein);
+  font-size: 1.05rem;
+  max-width: 70ch;
+  margin: 0 auto;
+}
+
+.columns {
+  width: min(1200px, 100%);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+@media (max-width: 860px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.column {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 12px;
+  min-height: 360px;
+}
+.column h2 {
+  font-size: 1.3rem;
+  text-align: center;
+}
+.hint {
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  text-align: center;
+  font-style: italic;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 10px;
+  min-height: 160px;
+}
+
+.entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 3px;
+  background: rgba(255, 250, 235, 0.55);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+.entry p {
+  flex: 1;
+  line-height: 1.35;
+}
+.entry small {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+}
+.remove {
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 1rem;
+  padding: 0 4px;
+}
+.remove:hover {
+  color: #7d2c22;
+}
+
+.add {
+  display: flex;
+  gap: 8px;
+}
+.add input {
+  flex: 1;
+}
+
+.footer {
+  width: min(1200px, 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.counts {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: var(--marble-vein);
+}
+.counts b {
+  color: var(--gold-light);
+  font-family: var(--font-display);
+}

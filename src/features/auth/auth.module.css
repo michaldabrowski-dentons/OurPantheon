@@ -1,0 +1,93 @@
+.center {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+}
+
+.card {
+  width: min(520px, 100%);
+  display: grid;
+  gap: 18px;
+}
+
+.lead {
+  font-size: 1.1rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.lead code {
+  font-size: 0.9em;
+  background: rgba(0, 0, 0, 0.08);
+  padding: 0 0.3em;
+  border-radius: 3px;
+}
+
+.templeHead {
+  text-align: center;
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.templeHead h1 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 900;
+}
+
+.templeHead p {
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 10px;
+}
+
+.pick {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  border-radius: 4px;
+  opacity: 0.75;
+  transition: opacity var(--t-glow), transform var(--t-press);
+}
+.pick:hover {
+  opacity: 1;
+}
+.pick.selected {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+.pick span {
+  display: block;
+}
+.pickName {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  margin-top: 4px;
+  color: var(--ink-soft);
+}
+
+.signout {
+  border: 0;
+  background: transparent;
+  color: var(--marble-vein);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  padding: 4px 8px;
+}
+.signout:hover {
+  color: var(--gold-light);
+}

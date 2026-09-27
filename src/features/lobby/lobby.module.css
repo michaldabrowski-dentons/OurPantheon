@@ -1,0 +1,211 @@
+.page {
+  min-height: 100%;
+  padding: clamp(16px, 4vw, 48px) var(--gutter);
+  display: grid;
+  gap: 28px;
+  justify-items: center;
+  align-content: start;
+}
+
+.hero {
+  text-align: center;
+  display: grid;
+  gap: 8px;
+  max-width: 720px;
+}
+.hero h1 {
+  font-size: clamp(2rem, 6vw, 3.4rem);
+  font-weight: 900;
+}
+.hero p {
+  font-size: 1.2rem;
+  font-style: italic;
+  color: var(--marble-vein);
+}
+
+.who {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  color: var(--marble-vein);
+  font-size: 0.95rem;
+}
+
+.twoUp {
+  width: min(960px, 100%);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.myGames {
+  width: min(960px, 100%);
+  display: grid;
+  gap: 12px;
+}
+
+.gameRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-radius: var(--radius-slab);
+  background: rgba(0, 0, 0, 0.12);
+  box-shadow: var(--recess-shadow);
+}
+.gameRow strong {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+}
+.gameRow small {
+  color: var(--ink-soft);
+}
+
+/* Waiting room */
+.room {
+  min-height: 100%;
+  padding: clamp(16px, 3vw, 40px) var(--gutter);
+  display: grid;
+  gap: 24px;
+  justify-items: center;
+  align-content: start;
+}
+
+.roomGrid {
+  width: min(1100px, 100%);
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.4fr);
+  gap: 24px;
+}
+@media (max-width: 760px) {
+  .roomGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.code {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  text-align: center;
+}
+.codeValue {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+  font-weight: 900;
+  letter-spacing: 0.35em;
+  padding: 8px 16px 8px 24px;
+  border-radius: 6px;
+}
+.codeHint {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+.roster {
+  display: grid;
+  gap: 10px;
+}
+.seat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-slab);
+  background: rgba(0, 0, 0, 0.1);
+  box-shadow: var(--recess-shadow);
+}
+.seat.empty {
+  opacity: 0.5;
+  font-style: italic;
+  justify-content: center;
+}
+.seatNames {
+  display: grid;
+  line-height: 1.2;
+}
+.seatNames strong {
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+}
+.seatNames small {
+  color: var(--ink-soft);
+}
+.hostMark {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-family: var(--font-display);
+  letter-spacing: 0.1em;
+  color: var(--gold-light);
+  background: var(--lapis);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+.frescoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 10px;
+}
+.frescoPick {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  opacity: 0.7;
+  transition: opacity var(--t-glow), transform var(--t-press);
+}
+.frescoPick:hover {
+  opacity: 1;
+}
+.frescoPick.selected {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+.frescoPick small {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.topbar {
+  width: min(1100px, 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.topbar h1 {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
+.linkBtn {
+  border: 0;
+  background: transparent;
+  color: var(--marble-vein);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  padding: 4px 8px;
+}
+.linkBtn:hover {
+  color: var(--gold-light);
+}

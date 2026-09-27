@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+<defs>
+<filter id="pl"><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" seed="07"/><feColorMatrix values="0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.2 0 0 0 0.35 0"/></filter>
+<filter id="cr"><feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="2" seed="21"/><feColorMatrix values="0 0 0 0 0.2 0 0 0 0 0.15 0 0 0 0 0.1 0 0 0 0.25 -0.05"/></filter>
+<radialGradient id="bg" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#efe6d2"/><stop offset="1" stop-color="#c9b894"/></radialGradient>
+</defs>
+<rect width="200" height="200" fill="url(#bg)"/>
+<rect width="200" height="200" filter="url(#cr)"/>
+<path d="M20 160 80 60l30 45 20-25 50 80z" fill="#6e6353"/><path d="M80 60l18 30-12 6-8-12-8 14-12-6z" fill="#e9e2d2"/>
+<rect width="200" height="200" filter="url(#pl)" opacity=".9"/>
+<path d="M0 30l40 25 10-15 60 30 20-10 70 20" fill="none" stroke="#8a7a60" stroke-width="1" opacity=".5"/>
+</svg>

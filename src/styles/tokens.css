@@ -1,0 +1,86 @@
+/* Our Pantheon — material tokens.
+   Light comes from the top-left. Raised = light top-left edge, dark bottom-right.
+   Engraved = dark inner top edge, light bottom edge. */
+:root {
+  /* stone */
+  --stone-deep: #1f1813;
+  --stone-dark: #3a2f26;
+  --primary-stone: #5a4b3d;
+  --basalt: #2c2621;
+
+  /* marble */
+  --marble: #d9d0bf;
+  --marble-light: #efe8d9;
+  --marble-vein: #a89b86;
+  --marble-shadow: #8f8370;
+
+  /* sandstone */
+  --sandstone: #c8a46f;
+  --sandstone-light: #e2c48f;
+  --sandstone-dark: #8c6a3c;
+
+  /* gold */
+  --gold: #d3a53a;
+  --gold-light: #f7de8f;
+  --gold-inlay: #b98a24;
+  --gold-dark: #6f4f0c;
+
+  /* lapis lazuli */
+  --lapis: #1f3f8a;
+  --lapis-light: #3d67c9;
+  --lapis-dark: #10224c;
+
+  /* parchment & clay */
+  --parchment: #ead9ae;
+  --parchment-dark: #c9ad72;
+  --parchment-ink: #3a2a18;
+  --clay: #a5744c;
+  --clay-dark: #6a4526;
+  --clay-light: #c9a07a;
+  --plaster: #e7ddcb;
+  --plaster-dark: #bfb29c;
+
+  /* ink & light */
+  --ink: #2a1f16;
+  --ink-soft: #5c4a3a;
+  --divine-aura: rgba(255, 216, 120, 0.85);
+  --divine-aura-soft: rgba(255, 216, 120, 0.35);
+  --sleep-veil: rgba(20, 24, 48, 0.55);
+
+  /* shadows */
+  --engraved-shadow: 0 1px 0 rgba(255, 255, 255, 0.45), 0 -1px 0 rgba(0, 0, 0, 0.55);
+  --engraved-shadow-dark: 0 1px 0 rgba(255, 240, 200, 0.28), 0 -1px 1px rgba(0, 0, 0, 0.9);
+  --embossed-shadow: 0 -1px 0 rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.35);
+  --slab-shadow:
+    inset 2px 2px 3px rgba(255, 255, 255, 0.35),
+    inset -3px -3px 5px rgba(0, 0, 0, 0.35),
+    0 6px 10px rgba(0, 0, 0, 0.45),
+    0 14px 24px rgba(0, 0, 0, 0.35);
+  --slab-shadow-pressed:
+    inset 4px 4px 8px rgba(0, 0, 0, 0.55),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.15),
+    0 1px 2px rgba(0, 0, 0, 0.4);
+  --panel-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.35),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.35),
+    0 10px 30px rgba(0, 0, 0, 0.5);
+  --recess-shadow:
+    inset 3px 3px 8px rgba(0, 0, 0, 0.55),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.25);
+
+  /* type */
+  --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --font-body: 'Cormorant Garamond', 'Garamond', Georgia, serif;
+
+  /* rhythm */
+  --radius-slab: 4px;
+  --radius-gem: 10px;
+  --gutter: 16px;
+  --press-depth: 3px;
+  --t-press: 90ms;
+  --t-glow: 220ms;
+
+  /* noise texture (SVG turbulence, reused by all materials) */
+  --noise: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --veins: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><filter id='v'><feTurbulence type='turbulence' baseFrequency='0.012 0.02' numOctaves='2' seed='7'/><feColorMatrix values='0 0 0 0 0.25  0 0 0 0 0.2  0 0 0 0 0.15  0 0 0 0.35 -0.1'/></filter><rect width='100%' height='100%' filter='url(%23v)'/></svg>");
+}

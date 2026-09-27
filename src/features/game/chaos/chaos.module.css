@@ -1,0 +1,244 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+  background: radial-gradient(ellipse at 50% 40%, rgba(40, 28, 18, 0.7), rgba(8, 5, 3, 0.94));
+  overflow-y: auto;
+}
+
+.stage {
+  display: grid;
+  gap: 22px;
+  justify-items: center;
+  width: min(760px, 100%);
+}
+
+.stageTitle {
+  font-size: clamp(1.4rem, 4vw, 2.2rem);
+  text-align: center;
+}
+.stageSub {
+  color: var(--marble-vein);
+  text-align: center;
+  max-width: 60ch;
+  font-style: italic;
+}
+
+/* The relic */
+.scene {
+  perspective: 1400px;
+  width: min(420px, 90vw);
+  aspect-ratio: 3 / 4;
+  position: relative;
+}
+.card {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  border-radius: 18px;
+}
+.face {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  backface-visibility: hidden;
+  display: grid;
+  place-items: center;
+  box-shadow:
+    inset 3px 3px 5px rgba(255, 240, 200, 0.45),
+    inset -6px -6px 12px rgba(50, 30, 5, 0.65),
+    0 24px 40px rgba(0, 0, 0, 0.7),
+    0 0 0 6px var(--gold-dark),
+    0 0 0 9px var(--gold-light);
+}
+.back {
+  transform: rotateY(180deg);
+}
+/* thickness */
+.edge {
+  position: absolute;
+  inset: 4px -6px -8px 4px;
+  border-radius: 18px;
+  background: linear-gradient(90deg, var(--gold-dark), #4a3408);
+  transform: translateZ(-2px);
+  backface-visibility: hidden;
+}
+
+/* front: golden tablet with chaos sigil */
+.front {
+  background-color: var(--gold);
+  background-image:
+    var(--noise),
+    radial-gradient(circle at 30% 25%, rgba(255, 250, 220, 0.55), transparent 45%),
+    linear-gradient(160deg, var(--gold-light), var(--gold) 45%, var(--gold-inlay) 75%, var(--gold-dark));
+  background-blend-mode: multiply, normal, normal;
+  cursor: pointer;
+  transition: filter var(--t-glow);
+}
+.front:hover {
+  filter: brightness(1.06) drop-shadow(0 0 24px var(--divine-aura));
+}
+.sigil {
+  width: 62%;
+  height: auto;
+  filter: drop-shadow(1px 2px 0 rgba(255, 245, 210, 0.7)) drop-shadow(-1px -1px 0 rgba(70, 45, 5, 0.9));
+}
+.frontLabel {
+  position: absolute;
+  bottom: 22px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  letter-spacing: 0.35em;
+  font-weight: 900;
+  color: #4b3407;
+  text-shadow: 0 1px 0 rgba(255, 245, 210, 0.8), 0 -1px 0 rgba(70, 45, 5, 0.9);
+}
+
+/* back: dark lapis stone with dice */
+.back {
+  background-color: var(--lapis-dark);
+  background-image:
+    var(--noise),
+    radial-gradient(circle at 50% 30%, rgba(90, 130, 220, 0.5), transparent 55%),
+    linear-gradient(180deg, var(--lapis), var(--lapis-dark));
+  background-blend-mode: overlay, normal, normal;
+  color: var(--gold-light);
+  padding: 24px;
+  text-align: center;
+  align-content: center;
+  gap: 16px;
+}
+.back h3 {
+  font-size: 1.3rem;
+  letter-spacing: 0.2em;
+}
+.backDice {
+  transform: scale(1.35);
+  margin: 18px 0;
+}
+.backHint {
+  font-size: 1rem;
+  color: var(--marble);
+  font-style: italic;
+}
+
+/* dust */
+.dust {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.mote {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(230, 210, 160, 0.95), rgba(180, 150, 100, 0));
+}
+
+/* die choice */
+.choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+}
+@media (max-width: 560px) {
+  .choice {
+    grid-template-columns: 1fr;
+  }
+}
+.choiceBtn {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+  padding: 14px;
+  border-radius: 6px;
+}
+.choiceBtn strong {
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+}
+.choiceBtn small {
+  color: var(--ink-soft);
+}
+
+/* result */
+.result {
+  width: 100%;
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+}
+.resultHead {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+.resultCat {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.25em;
+  color: var(--ink-soft);
+}
+.resultTitle {
+  font-size: 1.8rem;
+}
+.resultText {
+  font-size: 1.15rem;
+  text-align: center;
+  line-height: 1.45;
+}
+.questions {
+  display: grid;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: var(--radius-slab);
+  background: rgba(0, 0, 0, 0.08);
+  box-shadow: var(--recess-shadow);
+  list-style: none;
+  margin: 0;
+}
+.questions li {
+  display: grid;
+  grid-template-columns: 1.6em 1fr;
+  gap: 6px;
+  line-height: 1.4;
+  text-align: left;
+}
+.questions li::before {
+  content: counter(q, lower-alpha) '.';
+  counter-increment: q;
+  font-family: var(--font-display);
+  color: var(--ink-soft);
+}
+.questions {
+  counter-reset: q;
+}
+.related {
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.resultFoot {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.skip {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--marble-vein);
+  font-size: 0.95rem;
+}

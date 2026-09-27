@@ -1,0 +1,153 @@
+/* Materials: reusable surfaces. Compose with layout classes; never restyle these in features. */
+
+.marble {
+  background-color: var(--marble);
+  background-image:
+    var(--veins),
+    var(--noise),
+    linear-gradient(135deg, var(--marble-light) 0%, var(--marble) 45%, var(--marble-vein) 100%);
+  background-blend-mode: multiply, overlay, normal;
+  color: var(--ink);
+  box-shadow: var(--panel-shadow);
+  border: 1px solid rgba(60, 45, 30, 0.35);
+}
+
+.basalt {
+  background-color: var(--basalt);
+  background-image:
+    var(--noise),
+    radial-gradient(ellipse at 30% 20%, rgba(255, 235, 200, 0.08), transparent 60%),
+    linear-gradient(160deg, #3b322a 0%, var(--basalt) 55%, var(--stone-deep) 100%);
+  background-blend-mode: soft-light, normal, normal;
+  color: var(--marble-light);
+}
+
+.sandstone {
+  background-color: var(--sandstone);
+  background-image:
+    var(--noise),
+    repeating-linear-gradient(
+      178deg,
+      rgba(0, 0, 0, 0) 0 14px,
+      rgba(90, 60, 20, 0.08) 14px 16px
+    ),
+    linear-gradient(135deg, var(--sandstone-light), var(--sandstone) 50%, var(--sandstone-dark));
+  background-blend-mode: multiply, normal, normal;
+  color: var(--ink);
+  box-shadow: var(--panel-shadow);
+}
+
+.parchment {
+  background-color: var(--parchment);
+  background-image:
+    var(--noise),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 250, 230, 0.55), transparent 70%),
+    radial-gradient(ellipse at 0% 0%, rgba(120, 80, 20, 0.25), transparent 40%),
+    radial-gradient(ellipse at 100% 100%, rgba(120, 80, 20, 0.3), transparent 40%),
+    linear-gradient(180deg, var(--parchment), var(--parchment-dark));
+  background-blend-mode: multiply, normal, normal, normal, normal;
+  color: var(--parchment-ink);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 8px 18px rgba(0, 0, 0, 0.45);
+  /* frayed edge */
+  clip-path: polygon(
+    0% 2%, 3% 0%, 12% 1%, 25% 0%, 40% 1.5%, 55% 0%, 70% 1%, 85% 0%, 97% 1%, 100% 3%,
+    99.5% 20%, 100% 40%, 99% 60%, 100% 80%, 99.5% 97%,
+    97% 100%, 85% 99%, 70% 100%, 55% 98.5%, 40% 100%, 25% 99%, 12% 100%, 3% 99%, 0% 97%,
+    0.5% 80%, 0% 60%, 1% 40%, 0% 20%
+  );
+}
+
+.clay-tablet {
+  background-color: var(--clay);
+  background-image:
+    var(--noise),
+    radial-gradient(ellipse at 20% 10%, rgba(255, 225, 190, 0.35), transparent 55%),
+    linear-gradient(160deg, var(--clay-light), var(--clay) 50%, var(--clay-dark));
+  background-blend-mode: multiply, normal, normal;
+  color: #2c1a0e;
+  border-radius: 14px 12px 16px 10px;
+  box-shadow:
+    inset 2px 2px 4px rgba(255, 240, 220, 0.35),
+    inset -4px -4px 8px rgba(40, 20, 5, 0.55),
+    0 8px 16px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+/* cuneiform-style border */
+.clay-tablet::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2px solid transparent;
+  border-image: repeating-linear-gradient(
+      90deg,
+      rgba(50, 25, 8, 0.7) 0 6px,
+      transparent 6px 10px,
+      rgba(50, 25, 8, 0.7) 10px 12px,
+      transparent 12px 18px
+    )
+    2;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.plaster {
+  background-color: var(--plaster);
+  background-image:
+    var(--noise),
+    radial-gradient(circle at 70% 30%, rgba(255, 255, 255, 0.5), transparent 50%),
+    linear-gradient(180deg, var(--plaster), var(--plaster-dark));
+  background-blend-mode: multiply, normal, normal;
+}
+
+.gold-bevel {
+  border: 3px solid;
+  border-image: linear-gradient(135deg, var(--gold-light), var(--gold) 35%, var(--gold-dark) 70%, var(--gold-light)) 1;
+}
+
+.lapis-inlay {
+  background: linear-gradient(135deg, var(--lapis-light), var(--lapis) 55%, var(--lapis-dark));
+  color: var(--gold-light);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.5),
+    0 0 0 1px var(--gold-dark);
+}
+
+/* Text treatments */
+.engraved {
+  font-family: var(--font-display);
+  text-shadow: var(--engraved-shadow);
+  letter-spacing: 0.06em;
+}
+.engraved-dark {
+  font-family: var(--font-display);
+  text-shadow: var(--engraved-shadow-dark);
+  letter-spacing: 0.06em;
+}
+.gold-text {
+  background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 45%, var(--gold-inlay) 60%, var(--gold-light) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.7));
+}
+
+/* Recessed slot (for inputs, lists) */
+.recess {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.06));
+  box-shadow: var(--recess-shadow);
+  border-radius: var(--radius-slab);
+}
+
+/* Stone joints for the altar grid */
+.altar-joints {
+  background-image:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.45) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.45) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 120px 120px, 120px 120px;
+  background-position: 0 0, 0 0, 1px 1px, 1px 1px;
+}

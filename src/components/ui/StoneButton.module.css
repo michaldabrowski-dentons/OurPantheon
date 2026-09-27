@@ -1,0 +1,109 @@
+.btn {
+  --face: var(--primary-stone);
+  --face-light: #7a6754;
+  --face-dark: #3d3128;
+  --text: var(--marble-light);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  padding: 0.7em 1.4em;
+  border: 0;
+  border-radius: var(--radius-slab);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  text-shadow: var(--engraved-shadow-dark);
+  background-color: var(--face);
+  background-image:
+    var(--noise),
+    linear-gradient(160deg, var(--face-light) 0%, var(--face) 50%, var(--face-dark) 100%);
+  background-blend-mode: multiply, normal;
+  box-shadow: var(--slab-shadow);
+  transform: translateY(0);
+  transition:
+    transform var(--t-press) ease-out,
+    box-shadow var(--t-press) ease-out,
+    filter var(--t-glow) ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.08) drop-shadow(0 0 10px var(--divine-aura-soft));
+}
+
+.btn:active:not(:disabled),
+.btn.pressed {
+  transform: translateY(var(--press-depth));
+  box-shadow: var(--slab-shadow-pressed);
+  filter: brightness(0.92);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  filter: saturate(0.4);
+}
+
+/* variants */
+.gold {
+  --face: var(--gold);
+  --face-light: var(--gold-light);
+  --face-dark: var(--gold-dark);
+  --text: #3a2a05;
+  text-shadow: 0 1px 0 rgba(255, 245, 200, 0.6), 0 -1px 0 rgba(60, 40, 0, 0.6);
+}
+
+.lapis {
+  --face: var(--lapis);
+  --face-light: var(--lapis-light);
+  --face-dark: var(--lapis-dark);
+  --text: var(--gold-light);
+}
+
+.clay {
+  --face: var(--clay);
+  --face-light: var(--clay-light);
+  --face-dark: var(--clay-dark);
+  --text: #fbefd9;
+}
+
+.danger {
+  --face: #7d2c22;
+  --face-light: #a5473a;
+  --face-dark: #4a170f;
+  --text: #f6dcd0;
+}
+
+/* sizes */
+.sm {
+  padding: 0.4em 0.9em;
+  font-size: 0.8rem;
+}
+.lg {
+  padding: 0.95em 2em;
+  font-size: 1.15rem;
+}
+
+.block {
+  display: flex;
+  width: 100%;
+}
+
+/* divine aura for the active element */
+.aura {
+  animation: aura 2.4s ease-in-out infinite;
+}
+@keyframes aura {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 6px var(--divine-aura-soft));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px var(--divine-aura));
+  }
+}
