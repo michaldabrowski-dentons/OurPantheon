@@ -1,4 +1,4 @@
--- Our Pantheon VTT — game logic as SECURITY DEFINER RPCs.
+-- Our Pantheon VTT: game logic as SECURITY DEFINER RPCs.
 -- Every function checks auth.uid() membership itself; clients never write game state directly.
 
 -- ---------- helpers ----------

@@ -17,14 +17,12 @@
   font-size: 0.8rem;
   color: var(--ink-soft);
 }
+/* chips rest straight on the marble: no recessed panel inside the panel */
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 8px;
-  border-radius: var(--radius-slab);
-  background: rgba(0, 0, 0, 0.1);
-  box-shadow: var(--recess-shadow);
+  padding: 2px 0;
 }
 .chip {
   border: 0;
@@ -63,6 +61,7 @@
 .chip.on.lapis {
   background: linear-gradient(180deg, var(--lapis-light), var(--lapis));
   color: var(--gold-light);
+  box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.6), 0 0 6px rgba(255, 216, 120, 0.2);
 }
 .custom {
   display: flex;

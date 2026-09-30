@@ -1,39 +1,45 @@
+/* A block of dark stone. At rest it is part of the temple; under the hand it warms. */
 .btn {
   --face: var(--primary-stone);
-  --face-light: #7a6754;
-  --face-dark: #3d3128;
-  --text: var(--marble-light);
+  --face-light: #2e2622;
+  --face-dark: #0d0a09;
+  --text: #e9d9b8;
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5em;
   padding: 0.7em 1.4em;
-  border: 0;
+  border: 1px solid rgba(255, 205, 140, 0.1);
   border-radius: var(--radius-slab);
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 0.95rem;
   letter-spacing: 0.08em;
   color: var(--text);
-  text-shadow: var(--engraved-shadow-dark);
+  text-shadow: var(--carved-glow);
   background-color: var(--face);
   background-image:
     var(--noise),
     linear-gradient(160deg, var(--face-light) 0%, var(--face) 50%, var(--face-dark) 100%);
-  background-blend-mode: multiply, normal;
+  background-blend-mode: soft-light, normal;
   box-shadow: var(--slab-shadow);
   transform: translateY(0);
   transition:
     transform var(--t-press) ease-out,
-    box-shadow var(--t-press) ease-out,
+    box-shadow var(--t-glow) ease,
+    border-color var(--t-glow) ease,
     filter var(--t-glow) ease;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 
 .btn:hover:not(:disabled) {
-  filter: brightness(1.08) drop-shadow(0 0 10px var(--divine-aura-soft));
+  border-color: rgba(255, 205, 140, 0.34);
+  filter: brightness(1.08);
+  box-shadow:
+    var(--slab-shadow),
+    0 0 26px -4px var(--torch-soft);
 }
 
 .btn:active:not(:disabled),
@@ -45,8 +51,9 @@
 
 .btn:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.5;
   filter: saturate(0.4);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9);
 }
 
 /* variants */
@@ -55,9 +62,16 @@
   --face-light: var(--gold-light);
   --face-dark: var(--gold-dark);
   --text: #3a2a05;
+  border-color: rgba(255, 230, 170, 0.35);
   text-shadow: 0 1px 0 rgba(255, 245, 200, 0.6), 0 -1px 0 rgba(60, 40, 0, 0.6);
 }
+.gold:hover:not(:disabled) {
+  box-shadow:
+    var(--slab-shadow),
+    0 0 30px -2px var(--divine-aura-soft);
+}
 
+/* ancient lapis: a muted, dark accent, gilt lettering */
 .lapis {
   --face: var(--lapis);
   --face-light: var(--lapis-light);
@@ -77,6 +91,109 @@
   --face-light: #a5473a;
   --face-dark: #4a170f;
   --text: #f6dcd0;
+}
+
+/* Light marble: the same slab as the dialogs, carved and heavy. The letters are cut into it. */
+.marbleFace {
+  --text: var(--ink);
+  color: var(--ink);
+  background-color: var(--marble);
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0) 55%),
+    var(--veins),
+    var(--noise),
+    linear-gradient(160deg, var(--marble-light) 0%, var(--marble) 55%, #cfc4b0 100%);
+  background-blend-mode: normal, multiply, overlay, normal;
+  background-size: 100% 100%, 240px 240px, 220px 220px, 100% 100%;
+  border: 1px solid rgba(40, 28, 16, 0.5);
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75),
+    0 -1px 0 rgba(0, 0, 0, 0.45);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.75),
+    inset -2px -3px 6px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(255, 215, 150, 0.1),
+    0 4px 8px rgba(0, 0, 0, 0.7),
+    0 14px 26px rgba(0, 0, 0, 0.65);
+}
+.marbleFace:hover:not(:disabled) {
+  border-color: rgba(40, 28, 16, 0.5);
+  filter: brightness(1.04);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.75),
+    inset -2px -3px 6px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(255, 215, 150, 0.28),
+    0 4px 8px rgba(0, 0, 0, 0.7),
+    0 14px 26px rgba(0, 0, 0, 0.65),
+    0 0 30px -4px var(--torch-soft);
+}
+/* pressed into the altar: it sinks, and the light leaves its top edge */
+.marbleFace:active:not(:disabled),
+.marbleFace.pressed {
+  transform: translateY(2px);
+  filter: brightness(0.94);
+  box-shadow:
+    inset 3px 3px 8px rgba(0, 0, 0, 0.45),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.marbleFace:disabled {
+  opacity: 0.55;
+  filter: saturate(0.5) brightness(0.85);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+/* a round medallion of polished marble: an icon over a tiny caption, a carved ring inside the rim */
+.round {
+  width: 66px;
+  height: 66px;
+  padding: 0 !important;
+  border-radius: 50%;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1;
+  background-image:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 42%),
+    var(--veins),
+    var(--noise),
+    radial-gradient(circle at 50% 60%, var(--marble-light) 0%, var(--marble) 60%, #c9bda8 100%);
+  background-blend-mode: normal, multiply, overlay, normal;
+  background-size: 100% 100%, 180px 180px, 220px 220px, 100% 100%;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+    0 0 0 1px rgba(40, 28, 16, 0.6),
+    0 5px 10px rgba(0, 0, 0, 0.75),
+    0 14px 26px rgba(0, 0, 0, 0.6);
+}
+.round::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  border: 1px solid rgba(111, 79, 12, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 1px 0 rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+.round:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 4px 10px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.4),
+    0 0 0 1px rgba(40, 28, 16, 0.6),
+    0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.round small {
+  font-size: 0.55rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.round svg {
+  display: block;
+  color: var(--gold-dark);
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.7));
 }
 
 /* sizes */

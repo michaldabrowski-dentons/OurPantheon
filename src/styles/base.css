@@ -13,20 +13,52 @@ body,
   height: 100%;
 }
 
+/* ---------- The void and the torch ----------
+   A single warm spotlight falls from above the altar. Its edges die into pitch black. */
 body {
   margin: 0;
   font-family: var(--font-body);
   font-size: 18px;
   line-height: 1.45;
   color: var(--marble-light);
-  background-color: var(--stone-deep);
+  background-color: var(--void);
   background-image:
-    var(--noise),
-    radial-gradient(ellipse at 50% -10%, rgba(255, 220, 150, 0.16), transparent 55%),
-    linear-gradient(180deg, #2b231c 0%, var(--stone-deep) 60%, #120d0a 100%);
-  background-blend-mode: soft-light, normal, normal;
+    radial-gradient(ellipse 58% 46% at 50% 18%, rgba(255, 196, 120, 0.17), rgba(255, 180, 100, 0.06) 42%, transparent 72%),
+    radial-gradient(ellipse 80% 62% at 50% 24%, #241b14, #120e0b 45%, var(--void) 78%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Dust motes glowing in the torchlight. Masked so the grain lives only in the lit cone.
+   The layer is static and only its opacity breathes: that stays on the compositor and
+   never repaints the screen. Animating background-position here stalled first paint. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--dust);
+  background-size: 320px 320px;
+  opacity: 0.2;
+  mix-blend-mode: screen;
+  -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 25%, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.35) 45%, transparent 80%);
+  mask-image: radial-gradient(ellipse 60% 55% at 50% 25%, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.35) 45%, transparent 80%);
+  animation: dust-breathe 11s ease-in-out infinite;
+}
+@keyframes dust-breathe {
+  0%,
+  100% {
+    opacity: 0.14;
+  }
+  50% {
+    opacity: 0.24;
+  }
+}
+
+#root {
+  position: relative;
+  z-index: 1;
 }
 
 h1,
@@ -66,14 +98,47 @@ a {
 }
 
 ::selection {
-  background: var(--lapis-light);
+  background: var(--gold-dark);
   color: var(--gold-light);
 }
 
 /* Scrollbars carved into stone */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--sandstone-dark) rgba(0, 0, 0, 0.35);
+  scrollbar-color: #2a221c rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- Emerging from the darkness ----------
+   Nothing snaps onto the screen. Set --emerge-delay per item to stagger a group. */
+.emerge-from-dark {
+  /* `backwards` holds the dark state through the stagger delay, then releases
+     transform/filter so hover lifts and active glows keep working afterwards */
+  animation: emerge-from-dark var(--t-emerge) var(--ease-emerge) backwards;
+  animation-delay: var(--emerge-delay, 0ms);
+}
+@keyframes emerge-from-dark {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: brightness(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+}
+/* the darkness itself thickening behind a dialog */
+.veil-in {
+  animation: veil-in var(--t-emerge) ease-out backwards;
+}
+@keyframes veil-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

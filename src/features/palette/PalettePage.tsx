@@ -7,24 +7,24 @@ import { StoneButton } from '@/components/ui/StoneButton'
 import { MarblePanel, Notice, inputClass } from '@/components/ui/Primitives'
 import styles from './palette.module.css'
 
-const COLUMNS: { key: PaletteColumn; title: string; hint: string; material: 'marble' | 'sandstone' | 'clay-tablet' }[] = [
+const COLUMNS: { key: PaletteColumn; title: string; hint: string; tone: string }[] = [
   {
     key: 'yes',
     title: 'Tak',
     hint: 'Rzeczy, które MOGŁYBY pojawić się w grze. Każdy dodaje je do świata swobodnie.',
-    material: 'marble',
+    tone: styles.yes,
   },
   {
     key: 'veil',
     title: 'Zasłony',
     hint: 'Prawdopodobnie istnieją, ale nie będą w centrum uwagi. Gdy się pojawią: cięcie do czerni.',
-    material: 'sandstone',
+    tone: styles.veil,
   },
   {
     key: 'no',
     title: 'Nie',
     hint: 'Zakazane. Nie pojawi się w grze w ogóle, nigdy, i nie istnieje w świecie.',
-    material: 'clay-tablet',
+    tone: styles.no,
   },
 ]
 
@@ -54,10 +54,10 @@ export function PalettePage({ embedded }: { embedded?: boolean }) {
     if (error) setError(error.message)
   }
 
-  async function startGame() {
+  async function next() {
     setError(null)
     try {
-      await rpc('start_game', { p_game_id: game.id })
+      await rpc('open_creation', { p_game_id: game.id })
     } catch (err) {
       setError((err as Error).message)
     }
@@ -82,8 +82,8 @@ export function PalettePage({ embedded }: { embedded?: boolean }) {
 
       <div className={styles.columns}>
         {COLUMNS.map((col) => (
-          <MarblePanel key={col.key} material={col.material} className={styles.column}>
-            <h2 className={col.material === 'clay-tablet' ? 'engraved-dark' : 'engraved'}>{col.title}</h2>
+          <MarblePanel key={col.key} className={[styles.column, col.tone].join(' ')}>
+            <h2 className="engraved">{col.title}</h2>
             <p className={styles.hint}>{col.hint}</p>
             <div className={['recess', styles.list].join(' ')}>
               {palette
@@ -132,11 +132,11 @@ export function PalettePage({ embedded }: { embedded?: boolean }) {
             ))}
           </div>
           {isHost ? (
-            <StoneButton variant="gold" size="lg" onClick={startGame}>
-              Rozpocznij Pierwszą Erę
+            <StoneButton variant="gold" size="lg" onClick={next}>
+              Dalej: Stwarzanie Świata
             </StoneButton>
           ) : (
-            <span style={{ color: 'var(--marble-vein)' }}>Gospodarz rozpocznie Pierwszą Erę, gdy paleta będzie gotowa.</span>
+            <span className={styles.wait}>Gospodarz otworzy Stwarzanie Świata, gdy paleta będzie gotowa.</span>
           )}
         </footer>
       )}

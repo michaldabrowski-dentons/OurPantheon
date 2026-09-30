@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import styles from './TraitPicker.module.css'
+
+const collator = new Intl.Collator('pl')
 
 export function TraitPicker({
   label,
@@ -20,6 +22,8 @@ export function TraitPicker({
 }) {
   const [custom, setCustom] = useState('')
   const full = max !== undefined && value.length >= max
+  // every list of things to choose from is read alphabetically
+  const sorted = useMemo(() => [...options].sort((a, b) => collator.compare(a, b)), [options])
 
   function toggle(opt: string) {
     if (value.includes(opt)) onChange(value.filter((v) => v !== opt))
@@ -45,7 +49,7 @@ export function TraitPicker({
         </span>
       </div>
       <div className={styles.chips}>
-        {options.map((opt) => {
+        {sorted.map((opt) => {
           const on = value.includes(opt)
           return (
             <button

@@ -55,7 +55,7 @@ export const FACTION_DESIRES = [
 export const ORTHODOXY_REQUIREMENTS: { name: string; text: string }[] = [
   { name: 'Szerzyć', text: 'Rozgłaszać słowo o tobie lub konkretnej idei albo zwiększać swoją liczebność.' },
   { name: 'Bronić', text: 'Chronić lub zachowywać coś, co wybierzesz: miejsce, cywilizację, ideę, przedmiot.' },
-  { name: 'Uciskać', text: 'Gromić wybraną przez ciebie grupę: cywilizację, ortodoksję, frakcję, istotę.' },
+  { name: 'Uciskać', text: 'Gromić wybraną przez ciebie grupę: cywilizację, religię, frakcję, istotę.' },
   { name: 'Folgować', text: 'Świętowanie, uczty, hulanki, rytualne spożywanie czegoś.' },
   { name: 'Pokutować', text: 'Pokuta za grzechy własne lub cudze. Opisz te grzechy.' },
   { name: 'Wstrzymywać się', text: 'Wstrzemięźliwość od czegoś lub unikanie czegoś, kogoś lub jakiegoś miejsca.' },

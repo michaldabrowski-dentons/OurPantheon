@@ -1,4 +1,4 @@
--- Our Pantheon VTT — core schema
+-- Our Pantheon VTT: core schema
 create extension if not exists pgcrypto;
 
 -- ---------- enums ----------

@@ -17,10 +17,11 @@
   font-size: clamp(1.6rem, 4vw, 2.4rem);
 }
 .head p {
-  color: var(--marble-vein);
+  color: #cfc3ad;
   font-size: 1.05rem;
   max-width: 70ch;
   margin: 0 auto;
+  line-height: 1.5;
 }
 
 .columns {
@@ -35,20 +36,111 @@
   }
 }
 
+/* three marble slabs, each with a coloured inlay along the top edge */
 .column {
   display: grid;
   grid-template-rows: auto auto 1fr auto;
   gap: 12px;
   min-height: 360px;
+  border-top: 4px solid var(--gold-inlay);
+}
+/* Tak: the heavens. Faded fresco sky, white light from above, gold at the rim. */
+.column.yes {
+  border-top-color: #f3e2a8;
+  background-color: #dbe6ee;
+  background-image:
+    var(--veins),
+    var(--noise),
+    radial-gradient(ellipse 80% 45% at 50% -8%, rgba(255, 255, 255, 0.95), transparent 70%),
+    radial-gradient(ellipse 60% 30% at 20% 30%, rgba(255, 255, 255, 0.45), transparent 70%),
+    linear-gradient(180deg, #f2f6f9 0%, #d7e3ec 50%, #b8cbd9 100%);
+  background-blend-mode: multiply, overlay, normal, normal, normal;
+  color: #21323f;
+  border-color: rgba(255, 235, 190, 0.6);
+  box-shadow:
+    var(--marble-slab-shadow),
+    0 0 0 1px rgba(255, 240, 200, 0.35),
+    0 0 70px -10px rgba(220, 235, 255, 0.45);
+}
+.column.yes h2 {
+  color: #2b4257;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 14px rgba(255, 250, 220, 0.9);
+}
+.column.yes .hint {
+  color: #3c5265;
+}
+.column.yes .list {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), rgba(120, 150, 180, 0.12));
+  box-shadow: inset 0 2px 6px rgba(60, 90, 120, 0.25), inset 0 -1px 0 rgba(255, 255, 255, 0.6);
+}
+.column.yes .entry {
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 2px 6px rgba(60, 90, 120, 0.2);
+}
+.column.yes .entry small {
+  color: #5a7186;
+}
+.column.veil {
+  border-top-color: var(--sandstone-dark);
+}
+/* Nie: the pit. Charred stone, embers glowing from below, no light from above. */
+.column.no {
+  border-top-color: #ff7a2a;
+  background-color: #170a07;
+  background-image:
+    var(--noise),
+    radial-gradient(ellipse 90% 45% at 50% 108%, rgba(255, 96, 24, 0.55), transparent 70%),
+    radial-gradient(ellipse 40% 20% at 25% 100%, rgba(255, 150, 60, 0.35), transparent 70%),
+    linear-gradient(180deg, #2a1410 0%, #150907 55%, #050202 100%);
+  background-blend-mode: soft-light, normal, normal, normal;
+  color: #f1d9c8;
+  border-color: rgba(255, 120, 40, 0.35);
+  box-shadow:
+    var(--marble-slab-shadow),
+    0 0 0 1px rgba(255, 110, 40, 0.25),
+    0 0 60px -8px rgba(255, 90, 20, 0.5);
+}
+.column.no h2 {
+  color: #ffb28a;
+  text-shadow: 0 0 14px rgba(255, 100, 30, 0.7), 0 1px 0 #000;
+}
+.column.no .hint {
+  color: #d9b8a5;
+}
+.column.no .list {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(90, 30, 10, 0.25));
+  box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.9), inset 0 -1px 0 rgba(255, 120, 50, 0.2);
+}
+.column.no .entry {
+  background: rgba(70, 24, 12, 0.78);
+  color: #f6e3d5;
+  box-shadow: 0 1px 0 rgba(255, 140, 80, 0.18) inset, 0 2px 6px rgba(0, 0, 0, 0.7);
+}
+.column.no .entry small {
+  color: #d29a7c;
+}
+.column.no .remove {
+  color: #d29a7c;
+}
+.column.no .remove:hover {
+  color: #ffb28a;
+}
+.column.no input {
+  background: linear-gradient(180deg, #3a1d14, #26110b);
+  color: #f6e3d5;
+  box-shadow: inset 2px 2px 6px rgba(0, 0, 0, 0.8);
+}
+.column.no input::placeholder {
+  color: #a8785f;
 }
 .column h2 {
   font-size: 1.3rem;
   text-align: center;
 }
 .hint {
-  font-size: 0.95rem;
-  line-height: 1.35;
-  color: var(--ink-soft);
+  font-size: 0.98rem;
+  line-height: 1.4;
+  color: var(--ink);
   text-align: center;
   font-style: italic;
 }
@@ -67,7 +159,7 @@
   gap: 10px;
   padding: 8px 10px;
   border-radius: 3px;
-  background: rgba(255, 250, 235, 0.55);
+  background: rgba(255, 250, 235, 0.65);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 2px 4px rgba(0, 0, 0, 0.25);
 }
 .entry p {
@@ -112,9 +204,13 @@
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
-  color: var(--marble-vein);
+  color: #cfc3ad;
 }
 .counts b {
   color: var(--gold-light);
   font-family: var(--font-display);
+}
+.wait {
+  color: var(--marble-vein);
+  font-style: italic;
 }

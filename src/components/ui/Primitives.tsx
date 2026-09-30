@@ -12,7 +12,7 @@ export function MarblePanel({
   ...rest
 }: HTMLAttributes<HTMLDivElement> & { material?: Material; tight?: boolean; children?: ReactNode }) {
   return (
-    <div className={[material, styles.panel, tight ? styles.tight : '', className ?? ''].join(' ')} {...rest}>
+    <div className={[material, 'emerge-from-dark', styles.panel, tight ? styles.tight : '', className ?? ''].join(' ')} {...rest}>
       {children}
     </div>
   )
@@ -119,8 +119,8 @@ export function Modal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
   return (
-    <div className={styles.backdrop} onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <div className={[material, styles.dialog, wide ? styles.wide : ''].join(' ')} role="dialog" aria-modal="true">
+    <div className={['veil-in', styles.backdrop].join(' ')} onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
+      <div className={[material, 'emerge-from-dark', styles.dialog, wide ? styles.wide : ''].join(' ')} role="dialog" aria-modal="true">
         <div className={styles.dialogHead}>
           <h3 className="engraved">{title}</h3>
           {onClose && (
@@ -132,6 +132,77 @@ export function Modal({
         {children}
       </div>
     </div>
+  )
+}
+
+// ---------- ConfirmDialog ----------
+export function ConfirmDialog({
+  title,
+  children,
+  confirmLabel = 'Potwierdź',
+  cancelLabel = 'Wróć',
+  danger,
+  busy,
+  onConfirm,
+  onClose,
+}: {
+  title: ReactNode
+  children: ReactNode
+  confirmLabel?: string
+  cancelLabel?: string
+  danger?: boolean
+  busy?: boolean
+  onConfirm: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className={['veil-in', styles.backdrop, styles.backdropTop].join(' ')} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={['marble', 'emerge-from-dark', styles.dialog, styles.confirm].join(' ')} role="alertdialog" aria-modal="true">
+        <h3 className="engraved">{title}</h3>
+        <div className={styles.confirmBody}>{children}</div>
+        <div className={styles.confirmFoot}>
+          <button
+            type="button"
+            className={[styles.confirmBtn, danger ? styles.confirmDanger : styles.confirmGold].join(' ')}
+            disabled={busy}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+          <button type="button" className={[styles.confirmBtn, styles.confirmQuiet].join(' ')} disabled={busy} onClick={onClose}>
+            {cancelLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------- Toggle: a gold switch set into the marble ----------
+export function Toggle({
+  checked,
+  onChange,
+  label,
+  hint,
+  disabled,
+}: {
+  checked: boolean
+  onChange: (next: boolean) => void
+  label: ReactNode
+  hint?: ReactNode
+  disabled?: boolean
+}) {
+  return (
+    <label className={[styles.toggle, checked ? styles.toggleOn : '', disabled ? styles.toggleDisabled : ''].join(' ')}>
+      <input type="checkbox" role="switch" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span className={styles.toggleTrack} aria-hidden>
+        <span className={styles.toggleKnob} />
+      </span>
+      <span className={styles.toggleText}>
+        <strong>{label}</strong>
+        {hint && <small>{hint}</small>}
+      </span>
+    </label>
   )
 }
 

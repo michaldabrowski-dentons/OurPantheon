@@ -45,7 +45,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (loading) {
     return (
       <div className={styles.center}>
-        <p className="engraved">Ogień na ołtarzu się rozpala…</p>
+        <p className="engraved">Ogień w świątyni się rozpala…</p>
       </div>
     )
   }

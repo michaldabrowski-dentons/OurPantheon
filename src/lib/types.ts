@@ -1,12 +1,14 @@
 // Row types mirroring supabase/migrations/0001_schema.sql
 
-export type GameStatus = 'lobby' | 'palette' | 'playing' | 'finished'
+export type GameStatus = 'lobby' | 'palette' | 'creation' | 'playing' | 'finished'
 export type GamePhase = 'rolling' | 'gods' | 'chaos'
 export type PaletteColumn = 'yes' | 'veil' | 'no'
 export type EntityKind = 'creature' | 'civilization' | 'faction' | 'orthodoxy' | 'avatar'
 export type EntityStatus = 'active' | 'dead' | 'destroyed'
 export type GodRole = 'creator' | 'co_creator'
 export type LinkRelation = 'member_species' | 'variant_of' | 'linked'
+/** grammatical gender of a god's name: m bóg (stworzył), f bogini (stworzyła), n bóstwo (stworzyło) */
+export type GodGender = 'm' | 'f' | 'n'
 
 export interface Profile {
   id: string
@@ -35,6 +37,8 @@ export interface Player {
   game_id: string
   user_id: string
   god_name: string
+  god_description: string
+  god_gender: GodGender
   avatar_key: string
   seat_order: number
   logos: number
@@ -112,10 +116,14 @@ export interface DiceRoll {
   d2: number
   total?: number
   tier?: 'strong' | 'mixed' | 'weak'
+  /** added to the two dice (the avatar's -2, extra Words) */
+  modifier?: number
   bonus_streak?: number
   bonus_orthodoxy?: number
   category?: string
   entry?: number
+  /** which chaos card of the round (chaos_reveal rows) */
+  seq?: number
 }
 
 export interface ActionLog {
@@ -146,12 +154,33 @@ export interface ChaosDraw {
   revealed_by: string | null
   resolution_notes: string
   revealed_at: string
+  /** which card of the round this is; the highest is the live one */
+  seq: number
 }
 
 export interface EraVote {
   game_id: string
   player_id: string
   target_era: number
+  created_at: string
+}
+
+/** A custom answer written by a player during World Creation */
+export interface CreationOption {
+  id: string
+  game_id: string
+  question_key: string
+  label: string
+  created_by: string | null
+  created_at: string
+}
+
+/** One vote per god per question; option_key is a preset letter or a CreationOption id */
+export interface CreationVote {
+  game_id: string
+  question_key: string
+  player_id: string
+  option_key: string
   created_at: string
 }
 

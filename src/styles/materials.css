@@ -1,23 +1,25 @@
 /* Materials: reusable surfaces. Compose with layout classes; never restyle these in features. */
 
+/* Light marble: the one bright thing in the temple. A thick slab resting in the dark. */
 .marble {
   background-color: var(--marble);
   background-image:
     var(--veins),
     var(--noise),
-    linear-gradient(135deg, var(--marble-light) 0%, var(--marble) 45%, var(--marble-vein) 100%);
+    linear-gradient(135deg, var(--marble-light) 0%, var(--marble) 50%, #cfc4b0 100%);
   background-blend-mode: multiply, overlay, normal;
   color: var(--ink);
-  box-shadow: var(--panel-shadow);
-  border: 1px solid rgba(60, 45, 30, 0.35);
+  box-shadow: var(--marble-slab-shadow);
+  border: 1px solid rgba(40, 28, 16, 0.4);
 }
 
+/* Obsidian: the chrome of the temple. It nearly vanishes into the void. */
 .basalt {
   background-color: var(--basalt);
   background-image:
     var(--noise),
-    radial-gradient(ellipse at 30% 20%, rgba(255, 235, 200, 0.08), transparent 60%),
-    linear-gradient(160deg, #3b322a 0%, var(--basalt) 55%, var(--stone-deep) 100%);
+    radial-gradient(ellipse at 50% 0%, rgba(255, 200, 130, 0.07), transparent 65%),
+    linear-gradient(180deg, #161211 0%, var(--basalt) 55%, var(--stone-deep) 100%);
   background-blend-mode: soft-light, normal, normal;
   color: var(--marble-light);
 }
@@ -34,7 +36,7 @@
     linear-gradient(135deg, var(--sandstone-light), var(--sandstone) 50%, var(--sandstone-dark));
   background-blend-mode: multiply, normal, normal;
   color: var(--ink);
-  box-shadow: var(--panel-shadow);
+  box-shadow: var(--marble-slab-shadow);
 }
 
 .parchment {
@@ -49,7 +51,7 @@
   color: var(--parchment-ink);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.5) inset,
-    0 8px 18px rgba(0, 0, 0, 0.45);
+    0 8px 18px rgba(0, 0, 0, 0.65);
   /* frayed edge */
   clip-path: polygon(
     0% 2%, 3% 0%, 12% 1%, 25% 0%, 40% 1.5%, 55% 0%, 70% 1%, 85% 0%, 97% 1%, 100% 3%,
@@ -71,7 +73,7 @@
   box-shadow:
     inset 2px 2px 4px rgba(255, 240, 220, 0.35),
     inset -4px -4px 8px rgba(40, 20, 5, 0.55),
-    0 8px 16px rgba(0, 0, 0, 0.5);
+    0 12px 28px rgba(0, 0, 0, 0.7);
   position: relative;
 }
 /* cuneiform-style border */
@@ -106,12 +108,26 @@
   border-image: linear-gradient(135deg, var(--gold-light), var(--gold) 35%, var(--gold-dark) 70%, var(--gold-light)) 1;
 }
 
-.lapis-inlay {
-  background: linear-gradient(135deg, var(--lapis-light), var(--lapis) 55%, var(--lapis-dark));
+/* Obsidian with gold: for the Era plaque, room codes and the like. Dark stone, lit letters. */
+.obsidian-inlay {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 200, 130, 0.14), transparent 60%),
+    linear-gradient(180deg, #1b1613, #0a0807);
   color: var(--gold-light);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    inset 0 -2px 3px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 225, 170, 0.14),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.8),
+    0 0 0 1px var(--gold-dark),
+    0 0 18px -4px var(--torch-faint);
+}
+
+/* Ancient lapis: muted, dark, only where a cool accent is truly needed. */
+.lapis-inlay {
+  background: linear-gradient(180deg, var(--lapis-light), var(--lapis) 55%, var(--lapis-dark));
+  color: var(--gold-light);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.6),
     0 0 0 1px var(--gold-dark);
 }
 
@@ -126,12 +142,19 @@
   text-shadow: var(--engraved-shadow-dark);
   letter-spacing: 0.06em;
 }
+/* letters carved into dark stone, catching the torch */
+.carved-glow {
+  font-family: var(--font-display);
+  color: #e9d9b8;
+  text-shadow: var(--carved-glow);
+  letter-spacing: 0.06em;
+}
 .gold-text {
   background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 45%, var(--gold-inlay) 60%, var(--gold-light) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.7));
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.8)) drop-shadow(0 0 10px rgba(255, 200, 120, 0.25));
 }
 
 /* Recessed slot (for inputs, lists) */
@@ -139,15 +162,4 @@
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.06));
   box-shadow: var(--recess-shadow);
   border-radius: var(--radius-slab);
-}
-
-/* Stone joints for the altar grid */
-.altar-joints {
-  background-image:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.45) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(0, 0, 0, 0.45) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-  background-size: 120px 120px, 120px 120px, 120px 120px, 120px 120px;
-  background-position: 0 0, 0 0, 1px 1px, 1px 1px;
 }

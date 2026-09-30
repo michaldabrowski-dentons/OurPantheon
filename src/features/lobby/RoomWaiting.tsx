@@ -7,6 +7,8 @@ import { frescoSrc } from '@/data/frescoes'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { MarblePanel, EngravedTitle, TextField, FrescoFrame, Notice } from '@/components/ui/Primitives'
 import { FrescoPicker } from './FrescoPicker'
+import { GenderPicker } from './GenderPicker'
+import type { GodGender } from '@/lib/types'
 import styles from './lobby.module.css'
 
 export function RoomWaiting() {
@@ -19,6 +21,8 @@ export function RoomWaiting() {
   const isHost = game.host_id === user.id
 
   const [godName, setGodName] = useState('')
+  const [godDesc, setGodDesc] = useState('')
+  const [gender, setGender] = useState<GodGender>('n')
   const [avatar, setAvatar] = useState('fresco-01')
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,6 +31,8 @@ export function RoomWaiting() {
   useEffect(() => {
     if (me && !dirty) {
       setGodName(me.god_name)
+      setGodDesc(me.god_description ?? '')
+      setGender(me.god_gender ?? 'n')
       setAvatar(me.avatar_key)
     }
   }, [me, dirty])
@@ -35,7 +41,7 @@ export function RoomWaiting() {
     setBusy(true)
     setError(null)
     try {
-      await rpc('set_god', { p_game_id: game.id, p_god_name: godName, p_avatar_key: avatar })
+      await rpc('set_god', { p_game_id: game.id, p_god_name: godName, p_avatar_key: avatar, p_god_description: godDesc, p_god_gender: gender })
       setDirty(false)
     } catch (err) {
       setError((err as Error).message)
@@ -65,8 +71,8 @@ export function RoomWaiting() {
       <div className={styles.roomGrid}>
         <MarblePanel material="sandstone" style={{ display: 'grid', gap: 18, alignContent: 'start' }}>
           <div className={styles.code}>
-            <span className="engraved" style={{ fontSize: '0.85rem', color: 'var(--ink-soft)' }}>Kod świątyni</span>
-            <span className={['lapis-inlay', styles.codeValue].join(' ')}>{game.code}</span>
+            <span className="engraved" style={{ fontSize: '0.85rem', color: 'var(--ink-soft)' }}>Kod świata</span>
+            <span className={['obsidian-inlay', styles.codeValue].join(' ')}>{game.code}</span>
             <span className={styles.codeHint}>Podaj kod albo prześlij łącze:</span>
             <StoneButton size="sm" onClick={() => navigator.clipboard?.writeText(shareUrl)}>
               Kopiuj łącze
@@ -80,7 +86,10 @@ export function RoomWaiting() {
                 <FrescoFrame src={frescoSrc(p.avatar_key)} alt="" size={48} round />
                 <div className={styles.seatNames}>
                   <strong>{p.god_name || 'Bóstwo bez imienia'}</strong>
-                  <small>{profiles[p.user_id]?.display_name ?? '…'}</small>
+                  <small>
+                    {profiles[p.user_id]?.display_name ?? '…'}
+                    {p.god_description ? ` · ${p.god_description}` : ''}
+                  </small>
                 </div>
                 {p.user_id === game.host_id && <span className={styles.hostMark}>GOSPODARZ</span>}
               </div>
@@ -112,6 +121,25 @@ export function RoomWaiting() {
               setDirty(true)
             }}
           />
+          <TextField
+            id="god_desc"
+            label="Czym jest twoje bóstwo (krótko)"
+            placeholder="np. bogini rzek, cierpliwości i powodzi"
+            maxLength={120}
+            value={godDesc}
+            onChange={(e) => {
+              setGodDesc(e.target.value)
+              setDirty(true)
+            }}
+          />
+          <GenderPicker
+            value={gender}
+            name={godName}
+            onChange={(g) => {
+              setGender(g)
+              setDirty(true)
+            }}
+          />
           <div>
             <span className="engraved" style={{ fontSize: '0.8rem', color: 'var(--ink-soft)' }}>Fresk</span>
             <FrescoPicker
@@ -127,8 +155,8 @@ export function RoomWaiting() {
             {busy ? 'Zapisywanie…' : dirty ? 'Zapisz bóstwo' : 'Zapisano'}
           </StoneButton>
           <p style={{ color: 'var(--ink-soft)' }}>
-            Imię i wygląd możesz zmienić także później. Zaczynasz z 5 Logos. Nie deklaruj się bogiem czegoś
-            konkretnego: kultury same nadadzą ci znaczenie.
+            Imię, opis i wygląd możesz zmienić także później. Nikt nie zaczyna ze Słowami: pierwsza runda otwiera się
+            rzutem wszystkich. Opis to tylko punkt wyjścia: kultury same nadadzą ci znaczenie.
           </p>
         </MarblePanel>
       </div>

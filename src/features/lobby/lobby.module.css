@@ -68,6 +68,10 @@
 .gameRow small {
   color: var(--ink-soft);
 }
+.rowActions {
+  display: flex;
+  gap: 8px;
+}
 
 /* Waiting room */
 .room {
@@ -145,7 +149,8 @@
   font-family: var(--font-display);
   letter-spacing: 0.1em;
   color: var(--gold-light);
-  background: var(--lapis);
+  background: linear-gradient(180deg, #1b1613, #0a0807);
+  box-shadow: 0 0 0 1px var(--gold-dark);
   padding: 2px 8px;
   border-radius: 3px;
 }

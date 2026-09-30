@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -68,16 +68,45 @@ let players = await q('select * from players where game_id = $1 order by seat_or
 ok(players.length === 2 && players[1].seat_order === 2, 'second god seated')
 ok((await rpcErr(`select open_palette($1)`, [game.id])) !== null, 'non-host cannot open palette')
 await as(A)
+await db.query(`select set_god($1, 'Ta Pod Rzeką', 'fresco-06', 'bogini rzek i cierpliwości', 'f')`, [game.id])
+const godRow = (await q('select god_description, god_gender from players where user_id = $1', [A]))[0]
+ok(godRow.god_description === 'bogini rzek i cierpliwości' && godRow.god_gender === 'f', 'god description and gender saved')
+ok((await rpcErr(`select set_god($1, 'X', 'fresco-06', '', 'x')`, [game.id])) !== null, 'unknown gender refused')
 await db.query(`select open_palette($1)`, [game.id])
 await db.query(`insert into palette_entries (game_id, player_id, "column", text) values ($1, $2, 'yes', 'sterowce')`, [game.id, players[0].id])
-await db.query(`select start_game($1)`, [game.id])
+
+console.log('\n# world creation')
+ok((await rpcErr(`select vote_creation($1, 'shape', 'a')`, [game.id])) !== null, 'no voting before creation opens')
+await db.query(`select open_creation($1)`, [game.id])
 let g = (await q('select * from games where id = $1', [game.id]))[0]
+ok(g.status === 'creation', 'status -> creation')
+await db.query(`select vote_creation($1, 'shape', 'a')`, [game.id])
+await db.query(`select vote_creation($1, 'shape', 'b')`, [game.id])
+let votes = await q('select * from creation_votes where game_id = $1', [game.id])
+ok(votes.length === 1 && votes[0].option_key === 'b', 'one vote per god per question, last choice wins')
+await db.query(`select vote_creation($1, 'shape', 'b')`, [game.id])
+ok((await q('select count(*)::int as n from creation_votes where game_id = $1', [game.id]))[0].n === 0, 'voting again for the same option withdraws it')
+await as(B)
+const [custom] = await q(`select * from add_creation_option($1, 'shape', 'Grzbiet śpiącego wieloryba')`, [game.id])
+votes = await q('select * from creation_votes where game_id = $1', [game.id])
+ok(custom.label === 'Grzbiet śpiącego wieloryba' && votes.length === 1 && votes[0].option_key === custom.id, 'custom answer added and its author votes for it')
+await as(A)
+await db.query(`select vote_creation($1, 'shape', $2)`, [game.id, custom.id])
+ok((await rpcErr(`select start_game($1, '[{"text":"Na początku był świat, a był to grzbiet śpiącego wieloryba."},{"text":"  "}]'::jsonb)`, [game.id])) === null, 'host starts the game from creation')
+g = (await q('select * from games where id = $1', [game.id]))[0]
 ok(g.status === 'playing' && g.phase === 'rolling' && g.round_number === 1 && g.era === 1, 'game started: era 1, round 1, rolling')
+ok((await q('select max(logos)::int as m from players where game_id = $1', [game.id]))[0].m === 0, 'nobody starts with Logos: everyone rolls')
+const prologue = await q(`select * from actions_log where game_id = $1 and action_key = 'prologue'`, [game.id])
+ok(prologue.length === 1 && prologue[0].round_number === 0 && prologue[0].summary === 'Na początku był świat, a był to grzbiet śpiącego wieloryba.', 'prologue written as round 0, blank lines skipped')
+ok((await rpcErr(`select start_game($1, '[]'::jsonb)`, [game.id])) !== null, 'cannot start twice')
 
 console.log('\n# round 1: logos rolls')
 ok((await rpcErr(`select perform_action($1, 'shape_land')`, [game.id])) !== null, 'no actions during rolling phase')
 const [rollA] = await q(`select * from roll_logos($1)`, [game.id])
 ok(rollA.die1 >= 1 && rollA.die1 <= 6 && rollA.total === rollA.die1 + rollA.die2, `A rolled ${rollA.die1}+${rollA.die2}`)
+ok((await q('select logos from players where user_id = $1 and game_id = $2', [A, game.id]))[0].logos === rollA.total, 'Logos after the first roll equals the roll alone')
+const rollLine = (await q(`select summary from actions_log where action_key = 'logos_roll' order by created_at desc limit 1`))[0].summary
+ok(rollLine.startsWith('Ta Pod Rzeką budzi się i śni nowe Słowa') && rollLine.endsWith(`Nowych Słów jest ${rollA.total}.`), 'logos roll written as a verse')
 ok((await rpcErr(`select roll_logos($1)`, [game.id])) !== null, 'cannot roll twice')
 g = (await q('select * from games where id = $1', [game.id]))[0]
 ok(g.phase === 'rolling', 'still rolling until everyone rolled')
@@ -141,6 +170,12 @@ const creature = await q(
 )
 ok(creature[0].logos_delta === -10 && creature[0].entity_id, 'creature created for 10 logos')
 await topUp()
+const sapient = await q(
+  `select * from perform_action($1, 'create_sapient', $2::jsonb)`,
+  [game.id, JSON.stringify({ summary: 'Sowy', entity: { op: 'create', kind: 'creature', name: 'Sowy', traits: ['Rozumne', 'Nocne'] } })],
+)
+ok(sapient[0].logos_delta === -15, 'sapient creature costs 15 in era I')
+await topUp()
 const civ = await q(
   `select * from perform_action($1, 'create_civilization', $2::jsonb)`,
   [game.id, JSON.stringify({ summary: 'Lud Manuli', entity: { op: 'create', kind: 'civilization', name: 'Stoicy', traits: ['Zachowawcza'], specialties: ['Rolnictwo'], flaws: ['Magia'], species_ids: [creature[0].entity_id] } })],
@@ -156,17 +191,62 @@ const orth = await q(
 const pins = await q('select * from entity_gods where entity_id = $1', [orth[0].entity_id])
 ok(pins.length === 1 && pins[0].player_id === actor.id, 'orthodoxy pinned to its god')
 ok((await q('select parent_civilization_id from entities where id = $1', [orth[0].entity_id]))[0].parent_civilization_id === civ[0].entity_id, 'orthodoxy pinned to civilization')
-ok((await rpcErr(`select perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, JSON.stringify({ use_avatar_action: true, entity: { op: 'create', kind: 'avatar', name: 'x' } })])) !== null, 'free avatar action refused without an avatar')
+ok((await rpcErr(`select perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, JSON.stringify({ use_avatar_action: true, entity: { op: 'create', kind: 'avatar', name: 'x', conditions: ['a'] } })])) !== null, 'free avatar action refused without an avatar')
+ok((await rpcErr(`select perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, JSON.stringify({ entity: { op: 'create', kind: 'avatar', name: 'Bez uwarunkowań' } })])) !== null, 'an avatar without conditions is refused')
+ok((await rpcErr(`select perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, JSON.stringify({ entity: { op: 'create', kind: 'avatar', name: 'Za dużo', conditions: ['a', 'b', 'c', 'd'] } })])) !== null, 'an avatar with four conditions is refused')
 const av = await q(`select * from perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, JSON.stringify({ entity: { op: 'create', kind: 'avatar', name: 'Posąg', conditions: ['Są nieożywionym przedmiotem.'] } })])
+ok(av[0].entity_id !== null, 'avatar created with one condition')
 await topUp()
 const free = await q(`select * from perform_action($1, 'great_miracle', $2::jsonb)`, [game.id, JSON.stringify({ use_avatar_action: true, summary: 'Kontynent unosi się.' })])
 ok(free[0].logos_delta === 0 && free[0].is_avatar_free_action, 'avatar free action costs 0')
+ok((await q('select status from entities where id = $1', [av[0].entity_id]))[0].status === 'dead', 'a Great Miracle through the avatar destroys it')
+ok((await q(`select count(*)::int as n from actions_log where action_key = 'entity_edit' and entity_id = $1 and summary like 'I spłonął awatar%Wielkim Cudzie%'`, [av[0].entity_id]))[0].n === 1, 'the destruction is a Chronicle line, told in the past')
 ok((await rpcErr(`select perform_action($1, 'great_miracle', $2::jsonb)`, [game.id, JSON.stringify({ use_avatar_action: true })])) !== null, 'second free avatar action in a round refused')
-ok(av[0].entity_id !== null, 'avatar created')
+// test-only: bring the avatar back and reopen the free action to check the once-per-Era creature rule
+await db.query('update entities set status = $2 where id = $1', [av[0].entity_id, 'active'])
+await db.query('update players set avatar_action_used = false where id = $1', [actor.id])
+await topUp()
+const freeCreature = await q(`select * from perform_action($1, 'create_creature', $2::jsonb)`, [game.id, JSON.stringify({ use_avatar_action: true, entity: { op: 'create', kind: 'creature', name: 'Ćmy', traits: ['Nocne'] } })])
+ok(freeCreature[0].logos_delta === 0 && freeCreature[0].entity_id, 'the avatar creates a creature for free once')
+await db.query('update players set avatar_action_used = false where id = $1', [actor.id])
+await topUp()
+ok((await rpcErr(`select perform_action($1, 'create_sapient', $2::jsonb)`, [game.id, JSON.stringify({ use_avatar_action: true, entity: { op: 'create', kind: 'creature', name: 'Znowu', traits: ['Rozumne'] } })])) !== null, 'a second creature through the avatar in the same Era is refused')
+ok(!(await q('select avatar_action_used from players where id = $1', [actor.id]))[0].avatar_action_used, 'the refused action does not spend the free action')
+
+console.log('\n# free edits: religion <-> faction, sapient, avatar death, removal')
+await db.query(`select edit_entity($1, '{"kind":"faction"}'::jsonb)`, [orth[0].entity_id])
+ok((await q('select count(*)::int as n from entity_gods where entity_id = $1', [orth[0].entity_id]))[0].n === 0, 'religion -> faction drops its gods')
+await db.query(`select edit_entity($1, '{"kind":"orthodoxy","requirements":["Szerzyć","Bronić"]}'::jsonb)`, [orth[0].entity_id])
+const rePins = await q('select * from entity_gods where entity_id = $1', [orth[0].entity_id])
+ok(rePins.length === 1 && rePins[0].player_id === actor.id, 'faction -> religion pins the editing god')
+ok((await rpcErr(`select edit_entity($1, '{"kind":"avatar"}'::jsonb)`, [orth[0].entity_id])) !== null, 'other kind changes refused')
+await db.query(`select edit_entity($1, '{"traits":["Łagodne"]}'::jsonb)`, [creature[0].entity_id])
+ok((await q('select traits from entities where id = $1', [creature[0].entity_id]))[0].traits.join() === 'Łagodne', 'traits patched (sapience toggled off)')
+await db.query(`select edit_entity($1, $2::jsonb)`, [civ[0].entity_id, JSON.stringify({ name: 'Stoicy Znad Rzeki', image_key: 'fresco-05', description: 'Liczą pory roku po barwie wody.', specialties: ['Rolnictwo', 'Handel'], flaws: ['Magia', 'Ziemia'] })])
+const civRow = (await q('select * from entities where id = $1', [civ[0].entity_id]))[0]
+ok(civRow.name === 'Stoicy Znad Rzeki' && civRow.image_key === 'fresco-05' && civRow.specialties.length === 2 && civRow.flaws.join() === 'Magia,Ziemia', 'full edit: name, fresco, description, specialties, flaws')
+await db.query(`select edit_entity($1, $2::jsonb)`, [orth[0].entity_id, JSON.stringify({ parent_civilization_id: '', desires: ['Ochrona'], faction_type: 'Rodzina' })])
+const orthRow = (await q('select * from entities where id = $1', [orth[0].entity_id]))[0]
+ok(orthRow.parent_civilization_id === null && orthRow.desires.join() === 'Ochrona' && orthRow.faction_type === 'Rodzina', 'full edit: civilization unset, desires, type')
+await db.query(`select edit_entity($1, $2::jsonb)`, [orth[0].entity_id, JSON.stringify({ parent_civilization_id: civ[0].entity_id })])
+ok((await rpcErr(`select edit_entity($1, $2::jsonb)`, [orth[0].entity_id, JSON.stringify({ parent_civilization_id: creature[0].entity_id })])) !== null, 'parent must be a civilization of this game')
+await db.query(`select edit_entity($1, '{"status":"dead"}'::jsonb)`, [av[0].entity_id])
+ok((await q('select status from entities where id = $1', [av[0].entity_id]))[0].status === 'dead', 'avatar marked dead')
+ok((await rpcErr(`select edit_entity($1, '{"status":"dead"}'::jsonb)`, [creature[0].entity_id])) !== null, 'death only for avatars')
+await db.query(`select edit_entity($1, '{"status":"active"}'::jsonb)`, [av[0].entity_id])
+await topUp()
+const fac = await q(`select * from perform_action($1, 'create_faction', $2::jsonb)`, [game.id, JSON.stringify({ entity: { op: 'create', kind: 'faction', name: 'Rada', faction_type: 'Organ rządzący', parent_civilization_id: civ[0].entity_id } })])
+await db.query(`select delete_entity($1)`, [fac[0].entity_id])
+ok((await q('select count(*)::int as n from entities where id = $1', [fac[0].entity_id]))[0].n === 0, 'faction removed')
+ok((await q(`select summary from actions_log where action_key = 'entity_removed'`))[0].summary === 'Rada', 'removal written to the chronicle as the name (the verse is composed in the client)')
+ok((await q(`select count(*)::int as n from actions_log where action_key = 'entity_edit' and summary like 'I stała się religia Cisi neutralną frakcją%'`))[0].n === 1, 'religion -> faction told in the past')
 
 console.log('\n# rest -> chaos')
 const dice = await q(`select * from log_dice_roll($1, 'test')`, [game.id])
-ok(dice[0].roll.total === dice[0].roll.d1 + dice[0].roll.d2, 'shared dice logged')
+ok(dice[0].roll.total === dice[0].roll.d1 + dice[0].roll.d2 && dice[0].roll.modifier === 0, 'shared dice logged')
+const penalised = await q(`select * from log_dice_roll($1, 'Stworzenie Frakcji', -2)`, [game.id])
+ok(penalised[0].roll.total === penalised[0].roll.d1 + penalised[0].roll.d2 - 2 && penalised[0].roll.modifier === -2, "the avatar's -2 is applied to the roll")
+ok((await rpcErr(`select log_dice_roll($1, 'x', 9)`, [game.id])) !== null, 'roll modifier is bounded')
 await db.query(`select adjust_logos($1, 5, 'Danina')`, [game.id])
 ok((await rpcErr(`select adjust_logos($1, 9, 'za dużo')`, [game.id])) !== null, 'adjust_logos bounded')
 await db.query(`select rest($1)`, [game.id])
@@ -175,21 +255,33 @@ ok(g.phase === 'gods' && g.current_turn_player_id !== actor.id, 'after rest, tur
 const otherP = (await q('select * from players where game_id = $1 and id <> $2', [game.id, actor.id]))[0]
 await as(otherP.user_id)
 await db.query(`select transfer_logos($1, $2, 1)`, [game.id, actor.id])
+ok((await q(`select summary from actions_log where action_key = 'transfer'`))[0].summary === actor.god_name, 'transfer keeps the receiving god (the verse is composed in the client)')
+ok((await q(`select logos_words(2) as a, logos_words(5) as b, logos_words(22) as c, logos_words(12) as d`))[0].a === '2 Słowa' && (await q(`select logos_words(12) as d`))[0].d === '12 Słów', 'logos_words plural forms')
 await db.query(`select rest($1)`, [game.id])
+ok((await q(`select summary from actions_log where action_key = 'rest' order by created_at desc limit 1`))[0].summary.endsWith('odpoczywa. Zachowuje swoje Słowa i milczy do końca rundy.'), 'rest written as a verse')
 g = (await q('select * from games where id = $1', [game.id]))[0]
 ok(g.phase === 'chaos' && g.current_turn_player_id === null, 'everyone resting -> chaos phase')
-ok((await rpcErr(`select vote_advance_era($1)`, [game.id])) !== null, 'era vote refused before round 5')
+ok((await rpcErr(`select vote_advance_era($1)`, [game.id])) === null, 'era vote allowed in round 1')
+await db.query(`select vote_advance_era($1)`, [game.id])
+ok((await q('select count(*)::int as n from era_votes where game_id = $1', [game.id]))[0].n === 0, 'era vote toggled back off')
 
 console.log('\n# chaos card')
+const first = (await q(`select * from reveal_chaos($1)`, [game.id]))[0]
+ok(first.die1 >= 1 && first.die2 <= 6 && first.category_key === null && first.seq === 1, 'chaos revealed, dice only')
+await db.query(`select set_chaos_notes($1, 'Pierwsza karta bez sensu.')`, [game.id])
 const draw = (await q(`select * from reveal_chaos($1)`, [game.id]))[0]
-ok(draw.die1 >= 1 && draw.die2 <= 6 && draw.category_key === null, 'chaos revealed, dice only')
-ok((await rpcErr(`select reveal_chaos($1)`, [game.id])) !== null, 'cannot reveal twice in a round')
+ok(draw.seq === 2 && draw.id !== first.id, 'second reveal deals the next card (seq 2)')
+ok((await q(`select summary from actions_log where action_key = 'chaos_reveal' order by created_at desc limit 1`))[0].summary.includes('kolejną Kartę Chaosu'), 'redraw logged as another card')
 await as(actor.user_id)
 ok((await rpcErr(`select choose_chaos_die($1, 1)`, [game.id])) !== null, 'only the revealer chooses the die')
 await as(otherP.user_id)
-const chosen = (await q(`select * from choose_chaos_die($1, 2::smallint)`, [game.id]))[0]
+const chosen = (await q(`select * from choose_chaos_die($1, 2::smallint, 'Konflikt', 'Wojny, bitwy, spory, sport.')`, [game.id]))[0]
 const cats = ['region', 'event', 'people', 'magic', 'culture', 'disaster']
 ok(chosen.category_key === cats[draw.die2 - 1] && chosen.entry_index === draw.die1, `die 2 (${draw.die2}) -> ${chosen.category_key}, entry ${chosen.entry_index}`)
+ok((await q(`select summary from actions_log where action_key = 'chaos_choice'`))[0].summary.includes('Konflikt'), 'chosen entry text written to the chronicle')
+const answer = (await q(`select * from answer_chaos_question($1, 'O co chodzi?', 'O sól.')`, [game.id]))[0]
+ok(answer.action_key === 'chaos_answer' && answer.summary === 'O co chodzi? O sól.' && answer.player_id === otherP.id, 'chaos answer logged under the answering god')
+ok((await rpcErr(`select answer_chaos_question($1, 'Q', '   ')`, [game.id])) !== null, 'empty answer refused')
 await db.query(`select set_chaos_notes($1, 'Rzeka zmienia bieg.')`, [game.id])
 
 console.log('\n# round end bookkeeping')
@@ -198,6 +290,9 @@ await db.query(`select end_chaos_phase($1)`, [game.id])
 g = (await q('select * from games where id = $1', [game.id]))[0]
 players = await q('select * from players where game_id = $1 order by seat_order', [game.id])
 ok(g.round_number === 2 && g.phase === 'rolling', 'round 2, rolling')
+const chaosNotes = await q(`select summary from actions_log where action_key = 'chaos_notes' order by created_at`)
+ok(chaosNotes.length === 2 && chaosNotes[0].summary === 'Pierwsza karta bez sensu.' && chaosNotes[1].summary === 'Rzeka zmienia bieg.', 'every card description of the round copied to the chronicle')
+ok((await q(`select resolution_notes from chaos_draws where id = $1`, [first.id]))[0].resolution_notes === 'Pierwsza karta bez sensu.', 'notes go to the live card only')
 ok(players.every((p) => !p.is_resting && !p.has_rolled && !p.avatar_action_used), 'flags reset')
 ok(players.find((p) => p.id === otherP.id).low_logos_streak === 1, 'low-logos streak +1 for the god who ended at 3')
 ok(players.find((p) => p.id === actor.id).low_logos_streak === 0, 'no streak for the god above 5')
@@ -231,12 +326,21 @@ ok((await q('select * from games'))[0] === undefined, 'outsider sees no games')
 ok((await q('select * from players'))[0] === undefined, 'outsider sees no players')
 await as(A)
 ok((await q('select * from games')).length === 1, 'member sees their game')
-ok((await q('select * from entities')).length === 4, 'member sees all 4 entities')
+ok((await q('select * from entities')).length === 6, 'member sees all 6 entities')
+ok((await q('select * from creation_options')).length === 1, 'member sees creation options')
 const pal = await rpcErr(`insert into palette_entries (game_id, player_id, "column", text) values ($1, $2, 'no', 'x')`, [game.id, players[1].id])
 ok(pal !== null, 'cannot insert palette entry as another player')
 const direct = await rpcErr('update players set logos = 999 where game_id = $1', [game.id])
 ok(direct !== null || (await q('select logos from players where user_id = $1', [A]))[0].logos !== 999, 'direct logos edit blocked by RLS')
 await db.exec('reset role')
+
+console.log('\n# deleting a world')
+await as(B)
+ok((await rpcErr(`select delete_game($1)`, [game.id])) !== null, 'non-host cannot delete the world')
+await as(A)
+await db.query(`select delete_game($1)`, [game.id])
+ok((await q('select count(*)::int as n from games'))[0].n === 0, 'host deleted the world')
+ok((await q('select count(*)::int as n from entities'))[0].n === 0 && (await q('select count(*)::int as n from actions_log'))[0].n === 0, 'everything cascaded')
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exit(failures === 0 ? 0 : 1)

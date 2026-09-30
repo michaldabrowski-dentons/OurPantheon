@@ -8,6 +8,7 @@ import { StoneButton } from '@/components/ui/StoneButton'
 import { MarblePanel, EngravedTitle, Notice } from '@/components/ui/Primitives'
 import { RoomWaiting } from './RoomWaiting'
 import { PalettePage } from '@/features/palette/PalettePage'
+import { WorldCreationPage } from '@/features/creation/WorldCreationPage'
 import { GamePage } from '@/features/game/GamePage'
 import styles from './lobby.module.css'
 
@@ -54,11 +55,11 @@ export function RoomPage() {
     return (
       <div className={styles.room}>
         <MarblePanel style={{ width: 'min(480px, 100%)', display: 'grid', gap: 16 }}>
-          <EngravedTitle>Brama świątyni {code.toUpperCase()}</EngravedTitle>
+          <EngravedTitle>Świat {code.toUpperCase()}</EngravedTitle>
           <p>Nie zasiadasz jeszcze w tym panteonie.</p>
           {error && <Notice tone="error">{error}</Notice>}
           <div className={styles.actions}>
-            <StoneButton variant="gold" onClick={join}>Dołącz do stołu</StoneButton>
+            <StoneButton variant="gold" onClick={join}>Dołącz do świata</StoneButton>
             <StoneButton onClick={() => navigate('/')}>Wróć</StoneButton>
           </div>
         </MarblePanel>
@@ -99,5 +100,6 @@ function RoomLoaded({ gameId }: { gameId: string | null }) {
   }
   if (game.status === 'lobby') return <RoomWaiting />
   if (game.status === 'palette') return <PalettePage />
+  if (game.status === 'creation') return <WorldCreationPage />
   return <GamePage />
 }

@@ -5,7 +5,7 @@
   display: grid;
   place-items: center;
   padding: var(--gutter);
-  background: radial-gradient(ellipse at 50% 40%, rgba(40, 28, 18, 0.7), rgba(8, 5, 3, 0.94));
+  background: radial-gradient(ellipse 70% 60% at 50% 40%, rgba(24, 17, 12, 0.8), rgba(3, 2, 2, 0.96));
   overflow-y: auto;
 }
 
@@ -33,6 +33,11 @@
   width: min(420px, 90vw);
   aspect-ratio: 3 / 4;
   position: relative;
+  transition: width 0.6s var(--ease-emerge);
+}
+/* once the dice are out, the relic steps back to make room for the choice */
+.sceneDrawn {
+  width: min(300px, 70vw);
 }
 .card {
   position: absolute;
@@ -99,12 +104,12 @@
   text-shadow: 0 1px 0 rgba(255, 245, 210, 0.8), 0 -1px 0 rgba(70, 45, 5, 0.9);
 }
 
-/* back: dark lapis stone with dice */
+/* back: ancient lapis, nearly black, with dice */
 .back {
   background-color: var(--lapis-dark);
   background-image:
     var(--noise),
-    radial-gradient(circle at 50% 30%, rgba(90, 130, 220, 0.5), transparent 55%),
+    radial-gradient(circle at 50% 30%, rgba(255, 200, 130, 0.14), transparent 55%),
     linear-gradient(180deg, var(--lapis), var(--lapis-dark));
   background-blend-mode: overlay, normal, normal;
   color: var(--gold-light);
@@ -144,6 +149,35 @@
   background: radial-gradient(circle, rgba(230, 210, 160, 0.95), rgba(180, 150, 100, 0));
 }
 
+/* who chooses */
+.chooser {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: center;
+  width: min(560px, 100%);
+  padding: 12px 18px;
+  border-radius: 6px;
+}
+.chooser > div {
+  display: grid;
+  gap: 2px;
+  line-height: 1.2;
+}
+.chooserLabel {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  color: var(--marble-vein);
+}
+.chooser strong {
+  font-size: 1.25rem;
+}
+.chooser small {
+  color: var(--marble-vein);
+  font-style: italic;
+}
+
 /* die choice */
 .choice {
   display: grid;
@@ -170,6 +204,13 @@
 }
 .choiceBtn small {
   color: var(--ink-soft);
+}
+.choiceBtn:hover:not(:disabled) {
+  box-shadow: var(--marble-slab-shadow-lit);
+}
+.choiceLocked {
+  cursor: default;
+  filter: brightness(0.82);
 }
 
 /* result */
@@ -198,31 +239,102 @@
   text-align: center;
   line-height: 1.45;
 }
-.questions {
+/* the one description of the event */
+.describe {
   display: grid;
   gap: 6px;
-  padding: 12px 16px;
-  border-radius: var(--radius-slab);
-  background: rgba(0, 0, 0, 0.08);
-  box-shadow: var(--recess-shadow);
+  text-align: left;
+}
+.describeHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.describeLabel {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+}
+.involve {
+  width: auto;
+  max-width: 280px;
+  font-size: 0.9rem;
+  padding: 0.3em 0.6em;
+}
+
+/* questions, each handed to one god */
+.questions {
+  display: grid;
+  gap: 10px;
+  padding: 0;
   list-style: none;
   margin: 0;
 }
-.questions li {
+.question {
   display: grid;
-  grid-template-columns: 1.6em 1fr;
   gap: 6px;
-  line-height: 1.4;
+  padding: 10px 14px;
+  border-radius: var(--radius-slab);
+  background: rgba(0, 0, 0, 0.07);
+  box-shadow: var(--recess-shadow);
   text-align: left;
+  line-height: 1.4;
 }
-.questions li::before {
-  content: counter(q, lower-alpha) '.';
-  counter-increment: q;
+.questionWho {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
   color: var(--ink-soft);
 }
-.questions {
-  counter-reset: q;
+.questionWho img {
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--gold);
+  background: var(--plaster);
+}
+.questionWho b {
+  color: var(--ink);
+}
+.questionText {
+  font-size: 1.1rem;
+  font-style: italic;
+}
+.answer {
+  padding: 6px 10px;
+  border-left: 3px solid var(--gold-inlay);
+  background: rgba(255, 250, 235, 0.55);
+}
+.answerPending {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.answerForm {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+.answerInput {
+  width: 100%;
+  min-height: 64px;
+  padding: 0.5em 0.7em;
+  border: 0;
+  border-radius: var(--radius-slab);
+  background: linear-gradient(180deg, rgba(255, 250, 235, 0.85), rgba(240, 228, 200, 0.85));
+  box-shadow: var(--recess-shadow);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+.answerInput:focus {
+  outline: 2px solid var(--gold-inlay);
+  outline-offset: 1px;
 }
 .related {
   font-size: 0.95rem;
@@ -233,6 +345,7 @@
   display: flex;
   gap: 10px;
   justify-content: center;
+  align-items: center;
   flex-wrap: wrap;
 }
 .skip {
