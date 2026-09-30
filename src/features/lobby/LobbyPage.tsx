@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { rpc, supabase } from '@/lib/supabase'
 import type { Game } from '@/lib/types'
 import { useUser } from '@/features/auth/AuthGate'
+import { ClaimAccountDialog } from '@/features/auth/ClaimAccountDialog'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { MarblePanel, EngravedTitle, TextField, Notice, ConfirmDialog } from '@/components/ui/Primitives'
 import styles from './lobby.module.css'
@@ -24,6 +25,9 @@ export function LobbyPage() {
   const [error, setError] = useState<string | null>(null)
   const [games, setGames] = useState<Game[]>([])
   const [toDelete, setToDelete] = useState<Game | null>(null)
+  const [claiming, setClaiming] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  const guest = user.is_anonymous === true
 
   function loadGames() {
     supabase
@@ -86,7 +90,13 @@ export function LobbyPage() {
         <p>Stwórzcie świat we dwoje albo w sześcioro. Paleta, Logos, Ery i Chaos.</p>
         <div className={styles.who}>
           <span>{profile?.display_name}</span>
-          <button className={styles.linkBtn} onClick={() => supabase.auth.signOut()}>
+          {guest && <span className={styles.guestMark}>gość</span>}
+          {guest && (
+            <button className={styles.linkBtn} onClick={() => setClaiming(true)}>
+              Załóż konto
+            </button>
+          )}
+          <button className={styles.linkBtn} onClick={() => (guest ? setLeaving(true) : supabase.auth.signOut())}>
             Wyjdź
           </button>
         </div>
@@ -157,6 +167,30 @@ export function LobbyPage() {
             </div>
           ))}
         </MarblePanel>
+      )}
+
+      {claiming && (
+        <ClaimAccountDialog
+          displayName={profile?.display_name ?? ''}
+          onClose={() => setClaiming(false)}
+          onDone={() => setClaiming(false)}
+        />
+      )}
+
+      {leaving && (
+        <ConfirmDialog
+          title="Wyjść bez konta?"
+          confirmLabel="Wyjdź mimo to"
+          cancelLabel="Zostań"
+          danger
+          onConfirm={() => supabase.auth.signOut()}
+          onClose={() => setLeaving(false)}
+        >
+          <p>
+            Gość istnieje tylko w tej przeglądarce. Po wyjściu nie wrócisz do swoich światów. Jeśli chcesz je zachować,
+            najpierw kliknij <b>Załóż konto</b>.
+          </p>
+        </ConfirmDialog>
       )}
 
       {toDelete && (

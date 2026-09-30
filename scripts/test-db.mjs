@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -341,6 +341,17 @@ await as(A)
 await db.query(`select delete_game($1)`, [game.id])
 ok((await q('select count(*)::int as n from games'))[0].n === 0, 'host deleted the world')
 ok((await q('select count(*)::int as n from entities'))[0].n === 0 && (await q('select count(*)::int as n from actions_log'))[0].n === 0, 'everything cascaded')
+
+console.log('\n# logins and guests')
+const G = '44444444-4444-4444-4444-444444444444'
+const L = '55555555-5555-5555-5555-555555555555'
+ok((await rpcErr(`insert into auth.users (id, email) values ('${G}', null)`)) === null, 'a guest (no e-mail) can be created')
+ok((await q('select display_name from profiles where id = $1', [G]))[0]?.display_name === '', 'guest profile starts with an empty name')
+await as(G)
+await db.query(`select set_display_name('Wędrowiec')`)
+ok((await q('select display_name from profiles where id = $1', [G]))[0].display_name === 'Wędrowiec', 'guest picked a name')
+await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values ('${L}', 'michal_7@panteon.invalid', '{"display_name":"Michał_7"}')`)
+ok((await q('select display_name from profiles where id = $1', [L]))[0].display_name === 'Michał_7', 'registered login becomes the player name')
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`)
 process.exit(failures === 0 ? 0 : 1)

@@ -46,6 +46,76 @@
   gap: 14px;
 }
 
+/* Two tabs carved into one stone lintel: the chosen one is lit, the other sits in shadow. */
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: var(--radius-slab);
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: var(--recess-shadow);
+  padding: 4px;
+  gap: 4px;
+}
+.tab {
+  border: 0;
+  border-radius: calc(var(--radius-slab) - 2px);
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition:
+    color var(--t-glow),
+    background-color var(--t-glow),
+    box-shadow var(--t-glow);
+}
+.tab:hover {
+  color: var(--ink);
+}
+.tab.tabOn {
+  color: var(--gold-dark);
+  background:
+    var(--noise),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.2));
+  background-blend-mode: soft-light, normal;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 2px 6px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.tab:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+}
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.25), transparent);
+}
+
+.guest {
+  display: grid;
+  gap: 10px;
+}
+.guest .lead {
+  font-size: 0.95rem;
+}
+
 .columns {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));

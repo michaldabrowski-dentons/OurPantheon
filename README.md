@@ -1,4 +1,4 @@
-# Nasz Panteon — wirtualny stół
+# Nasz Panteon: wirtualny stół
 
 Wieloosobowy, przeglądarkowy stół do gry *Our Pantheon* (hack *Dawn of Worlds*, D. W. O'Boyle, CC BY-SA 4.0).
 Śledzi Logos, dynamiczną inicjatywę, Paletę, byty świata (istoty, cywilizacje, frakcje, ortodoksje, awatary),
@@ -7,31 +7,44 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
 ## Stos
 
 - React 18 + TypeScript + Vite, CSS Modules, Framer Motion (flip Karty Chaosu), Zustand
-- Supabase: Auth (magic link), Postgres (stan gry), Realtime (synchronizacja bez odświeżania)
+- Supabase: Auth (login + hasło albo gość, bez e-maila), Postgres (stan gry), Realtime (synchronizacja bez odświeżania)
 - Cała logika gry (koszty, tura, rzuty) żyje w funkcjach Postgres (`supabase/migrations/0003_functions.sql`);
   klient nigdy nie zapisuje stanu bezpośrednio, poza Paletą.
 
 ## Uruchomienie
 
-1. Załóż projekt na [supabase.com](https://supabase.com). W **Authentication → Providers → Email** zostaw
-   włączone „Enable email provider” (magic link działa domyślnie). W **Authentication → URL Configuration**
-   dodaj `http://localhost:5173` do *Redirect URLs* (oraz adres produkcyjny, gdy będzie).
+1. Załóż projekt na [supabase.com](https://supabase.com). W **Authentication → Sign In / Providers**:
+   - **Email**: zostaw włączone, ale **wyłącz „Confirm email”**. Konta to login + hasło; login zamienia się
+     w syntetyczny adres `login@panteon.invalid` (`src/lib/login.ts`), na który nigdy nic nie jest wysyłane.
+   - **Anonymous**: włącz „Allow anonymous sign-ins”, żeby działało „Wejdź jako gość”.
+   - Nie trzeba żadnego SMTP ani *Redirect URLs*: aplikacja nie wysyła maili.
 2. W **SQL Editor** uruchom po kolei pliki z `supabase/migrations/`:
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
-   `0006_chronicle_book.sql`, `0007_god_gender.sql`. (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
+   `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`.
+   (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy.
 3. Skopiuj `.env.example` do `.env.local` i wpisz `VITE_SUPABASE_URL` oraz `VITE_SUPABASE_ANON_KEY`
    (Project Settings → API).
 4. `npm install`, potem `npm run dev`. Otwórz `http://localhost:5173`.
 
-Do testu wieloosobowego wystarczą dwie przeglądarki (lub okno prywatne) i dwa adresy e-mail.
+Do testu wieloosobowego wystarczą dwie przeglądarki (lub okno prywatne): dwa loginy albo login i gość.
+
+### Konta i goście
+
+- **Zarejestruj**: login (litery, cyfry, kropka, myślnik, podkreślenie; polskie znaki dozwolone) i hasło
+  (min. 6 znaków). Login staje się imieniem gracza. Nie ma odzyskiwania hasła, bo nie ma e-maila; w razie
+  czego hasło można ustawić w SQL Editorze:
+  `update auth.users set encrypted_password = crypt('NoweHaslo', gen_salt('bf')) where email = 'login@panteon.invalid';`
+- **Gość**: anonimowa sesja Supabase zapisana w tej przeglądarce; światy i Kronika są normalnie w bazie.
+  W lobby gość ma „Załóż konto”, co nadaje mu login i hasło bez utraty światów (`auth.updateUser`).
+  Wylogowanie gościa bez konta zamyka mu drogę powrotu, więc aplikacja pyta o potwierdzenie.
 
 ### Wdrożenie na Render
 
 W repozytorium jest `render.yaml` (Blueprint): statyczna strona z `npm ci && npm run build`, katalog `dist`
 i przekierowaniem `/*` na `index.html`. W Render: **New → Blueprint** (albo **New → Static Site** z tymi samymi
-ustawieniami), podaj `VITE_SUPABASE_URL` i `VITE_SUPABASE_ANON_KEY`, a po deployu dodaj adres `*.onrender.com`
-do *Redirect URLs* w Supabase.
+ustawieniami) i podaj `VITE_SUPABASE_URL` i `VITE_SUPABASE_ANON_KEY`. Vite wkleja je w trakcie builda,
+więc po zmianie zmiennych trzeba zrobić redeploy.
 
 ### Wdrożenie na Railway
 
@@ -39,15 +52,15 @@ do *Redirect URLs* w Supabase.
    `npm run build` i `npm start` (`serve -s dist`, z przekierowaniem tras SPA na `index.html`).
 2. W **Variables** usługi dodaj `VITE_SUPABASE_URL` i `VITE_SUPABASE_ANON_KEY`. Vite wkleja je w trakcie
    builda, więc po zmianie zmiennych trzeba zrobić redeploy.
-3. W Supabase, **Authentication → URL Configuration**, dodaj adres z Railway do *Redirect URLs* (magic link).
 
-- `npm run test:db` — uruchamia migracje i rozgrywa dwuosobową partię w PGlite (Postgres w WASM), bez Supabase.
-- `npm run dev` i `http://localhost:5173/preview?screen=game` — podgląd ekranów na sztucznych danych
-  (`screen=login|lobby|room|palette|creation|game|rolling|chaos`, `&turn=me`, `&draw=1|chosen`). Tylko w trybie dev.
+- `npm run test:db`: uruchamia migracje i rozgrywa dwuosobową partię w PGlite (Postgres w WASM), bez Supabase.
+- `npm run dev` i `http://localhost:5173/preview?screen=game`: podgląd ekranów na sztucznych danych
+  (`screen=login|lobby|room|palette|creation|game|rolling|chaos`, `&turn=me`, `&guest=1`, `&draw=1|chosen`).
+  Tylko w trybie dev.
 
 ## Przebieg
 
-`/` – zaloguj się łączem z e-maila, podaj imię gracza, stwórz świat albo wpisz kod →
+`/` – zaloguj się loginem i hasłem albo wejdź jako gość (gość podaje imię gracza), stwórz świat albo wpisz kod →
 `/room/KOD` – przedsionek (imię i opis bóstwa, fresk, kod do zaproszenia) → Paleta (Tak / Zasłony / Nie) →
 Stwarzanie Świata (głosowanie nad pytaniami o kształt świata; wynik trafia do Kroniki jako Prolog) →
 gra: Rzut Logos → Faza Bóstw (turę ma bóstwo z największym Logos) → Faza Chaosu (Karta, wybór kości,

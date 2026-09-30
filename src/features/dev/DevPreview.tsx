@@ -216,7 +216,7 @@ export function DevPreview() {
 
   if (!ready) return null
   if (screen === 'login') return <TempleLogin />
-  const ctx = { user: { id: U1 } as User, profile: profiles.u1, refreshProfile: async () => {} }
+  const ctx = { user: { id: U1, is_anonymous: params.get('guest') === '1' } as User, profile: profiles.u1, refreshProfile: async () => {} }
   return (
     <AuthContext.Provider value={ctx}>
       {screen === 'lobby' && <LobbyPage />}
