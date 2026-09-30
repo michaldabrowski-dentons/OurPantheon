@@ -26,6 +26,13 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
 
 Do testu wieloosobowego wystarczą dwie przeglądarki (lub okno prywatne) i dwa adresy e-mail.
 
+### Wdrożenie na Render
+
+W repozytorium jest `render.yaml` (Blueprint): statyczna strona z `npm ci && npm run build`, katalog `dist`
+i przekierowaniem `/*` na `index.html`. W Render: **New → Blueprint** (albo **New → Static Site** z tymi samymi
+ustawieniami), podaj `VITE_SUPABASE_URL` i `VITE_SUPABASE_ANON_KEY`, a po deployu dodaj adres `*.onrender.com`
+do *Redirect URLs* w Supabase.
+
 ### Wdrożenie na Railway
 
 1. Nowy projekt z tego repozytorium na GitHubie. Railway (Nixpacks) sam wykryje Node, uruchomi `npm ci`,

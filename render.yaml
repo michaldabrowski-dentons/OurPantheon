@@ -1,0 +1,17 @@
+# Render Blueprint: the app is a static Vite build served with SPA rewrites.
+# Supabase keys are read by Vite at build time, so they must be set before the first deploy.
+services:
+  - type: web
+    name: our-pantheon
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
