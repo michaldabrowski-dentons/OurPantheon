@@ -30,14 +30,14 @@
 /* The relic */
 .scene {
   perspective: 1400px;
-  width: min(420px, 90vw);
+  width: min(280px, 80vw);
   aspect-ratio: 3 / 4;
   position: relative;
   transition: width 0.6s var(--ease-emerge);
 }
 /* once the dice are out, the relic steps back to make room for the choice */
 .sceneDrawn {
-  width: min(300px, 70vw);
+  width: min(210px, 60vw);
 }
 .card {
   position: absolute;
@@ -119,15 +119,15 @@
   gap: 16px;
 }
 .back h3 {
-  font-size: 1.3rem;
+  font-size: 1.05rem;
   letter-spacing: 0.2em;
 }
 .backDice {
-  transform: scale(1.35);
-  margin: 18px 0;
+  transform: scale(1.1);
+  margin: 10px 0;
 }
 .backHint {
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: var(--marble);
   font-style: italic;
 }
@@ -178,11 +178,21 @@
   font-style: italic;
 }
 
-/* die choice */
+/* die choice: one of two fates, and nothing in between */
+.choiceLead {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold-light);
+  text-shadow: var(--carved-glow);
+  text-align: center;
+}
 .choice {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr auto 1fr;
   gap: 14px;
+  align-items: stretch;
   width: 100%;
 }
 @media (max-width: 560px) {
@@ -190,10 +200,21 @@
     grid-template-columns: 1fr;
   }
 }
+.choiceOr {
+  align-self: center;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 1.1rem;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  color: var(--gold-light);
+  text-shadow: var(--carved-glow);
+}
 .choiceBtn {
   display: grid;
   gap: 6px;
   justify-items: center;
+  align-content: start;
   text-align: center;
   padding: 14px;
   border-radius: 6px;
@@ -201,8 +222,26 @@
 .choiceBtn strong {
   font-family: var(--font-display);
   letter-spacing: 0.08em;
+  font-size: 1.15rem;
 }
 .choiceBtn small {
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+}
+.choiceTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  padding-top: 4px;
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+  width: 100%;
+}
+.choiceText {
+  font-style: italic;
+  font-size: 0.95rem;
+  line-height: 1.35;
   color: var(--ink-soft);
 }
 .choiceBtn:hover:not(:disabled) {

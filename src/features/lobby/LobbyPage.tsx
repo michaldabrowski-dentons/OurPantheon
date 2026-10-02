@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { rpc, supabase } from '@/lib/supabase'
 import type { Game } from '@/lib/types'
 import { useUser } from '@/features/auth/AuthGate'
-import { ClaimAccountDialog } from '@/features/auth/ClaimAccountDialog'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { MarblePanel, EngravedTitle, TextField, Notice, ConfirmDialog } from '@/components/ui/Primitives'
 import styles from './lobby.module.css'
@@ -25,9 +24,6 @@ export function LobbyPage() {
   const [error, setError] = useState<string | null>(null)
   const [games, setGames] = useState<Game[]>([])
   const [toDelete, setToDelete] = useState<Game | null>(null)
-  const [claiming, setClaiming] = useState(false)
-  const [leaving, setLeaving] = useState(false)
-  const guest = user.is_anonymous === true
 
   function loadGames() {
     supabase
@@ -86,18 +82,14 @@ export function LobbyPage() {
   return (
     <main className={styles.page}>
       <header className={styles.hero}>
-        <h1 className="engraved-dark gold-text">Nasz Panteon</h1>
-        <p>Stwórzcie świat we dwoje albo w sześcioro. Paleta, Logos, Ery i Chaos.</p>
+        <h1 className="engraved-dark marble-text">O BOGOWIE!</h1>
+        <p>Gra o bogach, którzy stwarzają świat. Paleta, Logos, Ery i Chaos, we dwoje albo w sześcioro.</p>
         <div className={styles.who}>
-          <span>{profile?.display_name}</span>
-          {guest && <span className={styles.guestMark}>gość</span>}
-          {guest && (
-            <button className={styles.linkBtn} onClick={() => setClaiming(true)}>
-              Załóż konto
-            </button>
-          )}
-          <button className={styles.linkBtn} onClick={() => (guest ? setLeaving(true) : supabase.auth.signOut())}>
-            Wyjdź
+          <span className={styles.whoName}>
+            <PlayerIcon /> {profile?.display_name}
+          </span>
+          <button className={[styles.linkBtn, styles.whoExit].join(' ')} onClick={() => supabase.auth.signOut()} title="Wyloguj się">
+            <DoorIcon /> Wyjdź
           </button>
         </div>
       </header>
@@ -169,30 +161,6 @@ export function LobbyPage() {
         </MarblePanel>
       )}
 
-      {claiming && (
-        <ClaimAccountDialog
-          displayName={profile?.display_name ?? ''}
-          onClose={() => setClaiming(false)}
-          onDone={() => setClaiming(false)}
-        />
-      )}
-
-      {leaving && (
-        <ConfirmDialog
-          title="Wyjść bez konta?"
-          confirmLabel="Wyjdź mimo to"
-          cancelLabel="Zostań"
-          danger
-          onConfirm={() => supabase.auth.signOut()}
-          onClose={() => setLeaving(false)}
-        >
-          <p>
-            Gość istnieje tylko w tej przeglądarce. Po wyjściu nie wrócisz do swoich światów. Jeśli chcesz je zachować,
-            najpierw kliknij <b>Załóż konto</b>.
-          </p>
-        </ConfirmDialog>
-      )}
-
       {toDelete && (
         <ConfirmDialog
           title="Usunąć świat?"
@@ -203,10 +171,28 @@ export function LobbyPage() {
           onClose={() => setToDelete(null)}
         >
           <p>
-            <b>{toDelete.name}</b> zniknie razem z bóstwami, Kroniką i wszystkim, co powstało. Tej decyzji nie da się cofnąć.
+            <b>{toDelete.name}</b> zniknie razem z bóstwami, Świętą Księgą i wszystkim, co powstało. Tej decyzji nie da się cofnąć.
           </p>
         </ConfirmDialog>
       )}
     </main>
+  )
+}
+
+function PlayerIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4.5 3.5-7.5 8-7.5s8 3 8 7.5" />
+    </svg>
+  )
+}
+
+function DoorIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5" />
+      <path d="M10 8l-4 4 4 4M6 12h10" />
+    </svg>
   )
 }

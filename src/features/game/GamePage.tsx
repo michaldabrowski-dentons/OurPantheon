@@ -1,17 +1,28 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGameStore } from '@/store/useGameStore'
+import type { Era } from '@/data/actions'
 import { Notice } from '@/components/ui/Primitives'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { GodsStatusBar } from './gods-bar/GodsStatusBar'
 import { EraAnchor } from './EraAnchor'
 import { BottomBar } from './BottomBar'
 import { LatestVerse } from './LatestVerse'
+import { EraOverture, useEraOverture } from './EraOverture'
 import { ActionsPanel } from './actions/ActionsPanel'
 import { AltarGrid } from './altar/AltarGrid'
 import { ChaosOverlay } from './chaos/ChaosOverlay'
 import { ChronicleDrawer } from './chronicle/ChronicleDrawer'
 import styles from './game.module.css'
+
+/** dev preview only: /preview?screen=game&overture=2 replays the curtain of that Era; overture=0 skips it */
+function forcedOverture(): Era | 0 | null {
+  if (!import.meta.env.DEV) return null
+  const raw = new URLSearchParams(window.location.search).get('overture')
+  if (raw === null) return null
+  const v = Number(raw)
+  return v === 1 || v === 2 || v === 3 ? v : 0
+}
 
 /**
  * The temple, as a strict grid:
@@ -26,6 +37,7 @@ export function GamePage() {
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
   const [chronicle, setChronicle] = useState(false)
+  const [overture, enterEra] = useEraOverture(game.id, game.era as Era, forcedOverture())
 
   return (
     <div className={styles.layout}>
@@ -44,8 +56,9 @@ export function GamePage() {
       </main>
       <BottomBar onError={setError} />
 
-      {game.phase === 'chaos' && <ChaosOverlay onError={setError} />}
+      {game.phase === 'chaos' && !overture && <ChaosOverlay onError={setError} />}
       {chronicle && <ChronicleDrawer onClose={() => setChronicle(false)} />}
+      {overture && game.status === 'playing' && <EraOverture era={overture} onEnter={enterEra} />}
 
       {!connected && (
         <div className={styles.offline}>

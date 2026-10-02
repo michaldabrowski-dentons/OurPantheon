@@ -149,12 +149,15 @@
   text-shadow: var(--carved-glow);
   letter-spacing: 0.06em;
 }
-.gold-text {
-  background: linear-gradient(180deg, var(--gold-light) 0%, var(--gold) 45%, var(--gold-inlay) 60%, var(--gold-light) 100%);
+/* Letters cut from marble and set into the dark: bright, with a warm edge of torchlight. */
+.marble-text {
+  background: linear-gradient(180deg, #ffffff 0%, #fbf8f0 45%, var(--marble-light) 70%, #ddd3c0 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.8)) drop-shadow(0 0 10px rgba(255, 200, 120, 0.25));
+  /* a text-shadow would paint over the clipped gradient and grey the letters, so the depth comes from filters */
+  text-shadow: none;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.95)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 14px rgba(255, 220, 160, 0.3));
 }
 
 /* Recessed slot (for inputs, lists) */

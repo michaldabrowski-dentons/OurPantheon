@@ -371,6 +371,8 @@ export const ACTION_BY_KEY: Record<ActionKey, ActionDef> = Object.fromEntries(
 
 export const ERA_NAMES: Record<Era, string> = { 1: 'Pierwsza Era', 2: 'Druga Era', 3: 'Trzecia Era' }
 export const ERA_NUMERALS: Record<Era, string> = { 1: 'I', 2: 'II', 3: 'III' }
+/** What each Era is about, for the overture that opens it. */
+export const ERA_TITLES: Record<Era, string> = { 1: 'Era Terraformacji', 2: 'Era Życia', 3: 'Era Cywilizacji' }
 export const ERA_THEMES: Record<Era, string> = {
   1: 'Geografia. Tanie kształtowanie lądu, drogie ludy.',
   2: 'Zaludnianie. Tanie gatunki i cywilizacje.',

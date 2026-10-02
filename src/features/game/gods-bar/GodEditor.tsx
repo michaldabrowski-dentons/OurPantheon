@@ -10,7 +10,7 @@ import { GenderPicker } from '@/features/lobby/GenderPicker'
 export function GodEditor({ me, onClose }: { me: Player; onClose: () => void }) {
   const [name, setName] = useState(me.god_name)
   const [desc, setDesc] = useState(me.god_description ?? '')
-  const [gender, setGender] = useState<GodGender>(me.god_gender ?? 'n')
+  const [gender, setGender] = useState<GodGender>(me.god_gender ?? 'm')
   const [avatar, setAvatar] = useState(me.avatar_key)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,7 +42,7 @@ export function GodEditor({ me, onClose }: { me: Player; onClose: () => void }) 
         <GenderPicker value={gender} onChange={setGender} name={name} />
         <div>
           <span className="engraved" style={{ fontSize: '0.8rem', color: 'var(--ink-soft)' }}>Fresk</span>
-          <FrescoPicker value={avatar} onChange={setAvatar} size={56} />
+          <FrescoPicker value={avatar} onChange={setAvatar} size={96} />
         </div>
         {error && <Notice tone="error">{error}</Notice>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

@@ -186,7 +186,18 @@ export function DevPreview() {
         break
       }
       case 'creation':
-        useGameStore.setState({ ...base, game: game({ status: 'creation' }), entities: [], log: [], creationOptions, creationVotes })
+        useGameStore.setState({
+          ...base,
+          game: game({
+            status: 'creation',
+            host_id: params.get('host') === '0' ? 'u2' : U1,
+            settings: { creation_step: Number(params.get('step') ?? 0) },
+          }),
+          entities: [],
+          log: [],
+          creationOptions,
+          creationVotes,
+        })
         break
       case 'rolling':
         useGameStore.setState({
@@ -216,7 +227,7 @@ export function DevPreview() {
 
   if (!ready) return null
   if (screen === 'login') return <TempleLogin />
-  const ctx = { user: { id: U1, is_anonymous: params.get('guest') === '1' } as User, profile: profiles.u1, refreshProfile: async () => {} }
+  const ctx = { user: { id: U1 } as User, profile: profiles.u1, refreshProfile: async () => {} }
   return (
     <AuthContext.Provider value={ctx}>
       {screen === 'lobby' && <LobbyPage />}

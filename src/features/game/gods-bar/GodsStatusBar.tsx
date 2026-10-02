@@ -5,6 +5,7 @@ import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer } from '@/store/useGameStore'
 import { FrescoFrame } from '@/components/ui/Primitives'
 import { GodEditor } from './GodEditor'
+import { GenderSign } from '@/features/lobby/GenderPicker'
 import styles from '../game.module.css'
 
 /** The top of the temple, above the altar: only the gods, seated in a centred row. */
@@ -46,7 +47,10 @@ export function GodsStatusBar() {
               )}
               <FrescoFrame src={frescoSrc(p.avatar_key)} alt="" size={56} round aura={isTurn} />
               <div className={styles.plaqueText}>
-                <strong title={p.god_name}>{p.god_name || 'Bóstwo bez imienia'}</strong>
+                <strong title={p.god_name}>
+                  <GenderSign kind={p.god_gender ?? 'm'} size={13} className={styles.plaqueSign} />
+                  {p.god_name || 'Bóstwo bez imienia'}
+                </strong>
                 <small title={profiles[p.user_id]?.display_name ? `gracz: ${profiles[p.user_id]?.display_name}` : undefined}>
                   {p.god_description || ' '}
                 </small>

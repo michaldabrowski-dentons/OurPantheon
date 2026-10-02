@@ -12,7 +12,7 @@ export function TempleLogin() {
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [again, setAgain] = useState('')
-  const [busy, setBusy] = useState<'form' | 'guest' | null>(null)
+  const [busy, setBusy] = useState<'form' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   function switchMode(next: Mode) {
@@ -51,27 +51,14 @@ export function TempleLogin() {
     }
   }
 
-  async function guest() {
-    setError(null)
-    setBusy('guest')
-    try {
-      const { error } = await supabase.auth.signInAnonymously({ options: { data: { display_name: '' } } })
-      if (error) throw error
-    } catch (err) {
-      setError(authErrorMessage(err))
-    } finally {
-      setBusy(null)
-    }
-  }
-
   const signup = mode === 'signup'
 
   return (
     <div className={styles.center}>
       <MarblePanel className={styles.card}>
         <header className={styles.templeHead}>
-          <h1 className="engraved">Nasz Panteon</h1>
-          <p>Wspólny stół dla bóstw, które budują świat.</p>
+          <h1 className="engraved">O BOGOWIE!</h1>
+          <p>Gra o bogach, którzy stwarzają świat. Wspólny stół dla dwóch do sześciu bóstw.</p>
         </header>
 
         <div className={styles.tabs} role="tablist" aria-label="Wejście">
@@ -139,20 +126,6 @@ export function TempleLogin() {
               : 'Bez e-maila. Wpisz login i hasło, które podałeś przy rejestracji.'}
           </p>
         </form>
-
-        <div className={styles.divider} aria-hidden>
-          <span>albo</span>
-        </div>
-
-        <div className={styles.guest}>
-          <StoneButton block disabled={busy !== null} onClick={guest}>
-            {busy === 'guest' ? 'Chwila…' : 'Wejdź jako gość'}
-          </StoneButton>
-          <p className={styles.lead}>
-            Gość gra bez konta, w tej przeglądarce. Świat i Kronika zostają zapisane, a w przedsionku możesz
-            w każdej chwili nadać gościowi login i hasło, żeby wracać także z innych urządzeń.
-          </p>
-        </div>
       </MarblePanel>
     </div>
   )

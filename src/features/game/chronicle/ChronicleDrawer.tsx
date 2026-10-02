@@ -28,9 +28,9 @@ export function ChronicleDrawer({ onClose }: { onClose: () => void }) {
   const chapters = buildChapters(log, ctx)
 
   return (
-    <aside className={['marble', 'emerge-from-dark', styles.drawer].join(' ')} aria-label="Kronika">
+    <aside className={['marble', 'emerge-from-dark', styles.drawer].join(' ')} aria-label="Święta Księga">
       <div className={styles.drawerHead}>
-        <h3 className="engraved">Kronika</h3>
+        <h3 className="engraved">Święta Księga</h3>
         <StoneButton size="sm" onClick={onClose}>Zamknij</StoneButton>
       </div>
       <div className={styles.book}>

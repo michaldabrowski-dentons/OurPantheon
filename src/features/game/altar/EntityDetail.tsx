@@ -302,7 +302,7 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
           onClose={() => setConfirmDelete(false)}
         >
           <p>
-            <b>{entity.name}</b> zniknie ze świata razem ze swoimi powiązaniami. Kronika zapamięta tylko, że tak się stało. Tej decyzji nie da się cofnąć.
+            <b>{entity.name}</b> zniknie ze świata razem ze swoimi powiązaniami. Święta Księga zapamięta tylko, że tak się stało. Tej decyzji nie da się cofnąć.
           </p>
         </ConfirmDialog>
       )}

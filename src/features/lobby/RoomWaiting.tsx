@@ -7,7 +7,7 @@ import { frescoSrc } from '@/data/frescoes'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { MarblePanel, EngravedTitle, TextField, FrescoFrame, Notice } from '@/components/ui/Primitives'
 import { FrescoPicker } from './FrescoPicker'
-import { GenderPicker } from './GenderPicker'
+import { GenderPicker, GenderSign } from './GenderPicker'
 import type { GodGender } from '@/lib/types'
 import styles from './lobby.module.css'
 
@@ -22,7 +22,7 @@ export function RoomWaiting() {
 
   const [godName, setGodName] = useState('')
   const [godDesc, setGodDesc] = useState('')
-  const [gender, setGender] = useState<GodGender>('n')
+  const [gender, setGender] = useState<GodGender>('m')
   const [avatar, setAvatar] = useState('fresco-01')
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +32,7 @@ export function RoomWaiting() {
     if (me && !dirty) {
       setGodName(me.god_name)
       setGodDesc(me.god_description ?? '')
-      setGender(me.god_gender ?? 'n')
+      setGender(me.god_gender ?? 'm')
       setAvatar(me.avatar_key)
     }
   }, [me, dirty])
@@ -64,7 +64,7 @@ export function RoomWaiting() {
   return (
     <div className={styles.room}>
       <div className={styles.topbar}>
-        <h1 className="engraved-dark gold-text">{game.name}</h1>
+        <h1 className="engraved-dark marble-text">{game.name}</h1>
         <button className={styles.linkBtn} onClick={() => navigate('/')}>← Wszystkie światy</button>
       </div>
 
@@ -85,7 +85,10 @@ export function RoomWaiting() {
               <div key={p.id} className={styles.seat}>
                 <FrescoFrame src={frescoSrc(p.avatar_key)} alt="" size={48} round />
                 <div className={styles.seatNames}>
-                  <strong>{p.god_name || 'Bóstwo bez imienia'}</strong>
+                  <strong>
+                    <GenderSign kind={p.god_gender ?? 'm'} size={13} className={styles.seatSign} />
+                    {p.god_name || 'Bóstwo bez imienia'}
+                  </strong>
                   <small>
                     {profiles[p.user_id]?.display_name ?? '…'}
                     {p.god_description ? ` · ${p.god_description}` : ''}
@@ -113,7 +116,7 @@ export function RoomWaiting() {
           <TextField
             id="god_name"
             label="Imię bóstwa"
-            placeholder="np. Ta, Która Śpi Pod Rzeką"
+            placeholder="np. Jahwe, Loki, Atena"
             maxLength={60}
             value={godName}
             onChange={(e) => {
@@ -124,7 +127,7 @@ export function RoomWaiting() {
           <TextField
             id="god_desc"
             label="Czym jest twoje bóstwo (krótko)"
-            placeholder="np. bogini rzek, cierpliwości i powodzi"
+            placeholder="np. bóg piorunów i przysiąg"
             maxLength={120}
             value={godDesc}
             onChange={(e) => {
@@ -154,10 +157,6 @@ export function RoomWaiting() {
           <StoneButton variant="lapis" onClick={saveGod} disabled={busy || !dirty}>
             {busy ? 'Zapisywanie…' : dirty ? 'Zapisz bóstwo' : 'Zapisano'}
           </StoneButton>
-          <p style={{ color: 'var(--ink-soft)' }}>
-            Imię, opis i wygląd możesz zmienić także później. Nikt nie zaczyna ze Słowami: pierwsza runda otwiera się
-            rzutem wszystkich. Opis to tylko punkt wyjścia: kultury same nadadzą ci znaczenie.
-          </p>
         </MarblePanel>
       </div>
     </div>

@@ -33,7 +33,7 @@ export function EraAnchor({ onError }: { onError: (m: string | null) => void }) 
   return (
     <div className={['basalt', styles.eraAnchor].join(' ')} title={ERA_THEMES[game.era]}>
       <div className={['obsidian-inlay', styles.eraSquare].join(' ')}>
-        <span className={['engraved-dark', 'gold-text', styles.eraNumeral].join(' ')}>{ERA_NUMERALS[game.era]}</span>
+        <span className={['engraved-dark', 'marble-text', styles.eraNumeral].join(' ')}>{ERA_NUMERALS[game.era]}</span>
       </div>
       <div className={styles.eraText}>
         <span className={styles.eraName}>{ERA_NAMES[game.era]}</span>

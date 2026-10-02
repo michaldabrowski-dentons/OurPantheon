@@ -299,9 +299,9 @@ export function chronicleVerse(l: ActionLog, ctx: VerseContext): string {
     }
     case 'rest':
       return pick(l.id, [
-        `${cap(p(ZAMILKL))} ${G} i ${p('odpoczywa')} do końca rundy.`,
+        `${cap(p(ZAMILKL))} ${G} i ${p('odpoczywa')} aż do nowego świtu.`,
         `${cap(p(ODPOCZAL))} ${G} od swoich dzieł.`,
-        `Nie ${p('rzek')} ${G} już nic tej rundy, lecz ${p('odpoczywa')}.`,
+        `Nie ${p('rzek')} ${G} już nic w tych czasach, lecz ${p('zapad')} w sen.`,
       ])
     case 'transfer': {
       // the summary is the receiving god's name (older rows hold a whole sentence)
@@ -343,7 +343,7 @@ export function chronicleVerse(l: ActionLog, ctx: VerseContext): string {
       ])
     }
     case 'round_end':
-      return pick(l.id, [`Minęła runda ${l.round_number}.`, `Tak dobiegła końca runda ${l.round_number}, i zapadły bóstwa w sen.`, `I minęła runda ${l.round_number}.`])
+      return pick(l.id, ['Tak minęły te czasy, i zapadły bóstwa w sen.', 'I nastała noc nad światem, a bóstwa spały.', 'Zamknął się ten czas, i ucichły niebiosa.'])
     case 'era_advance': {
       const prev = ERA_NAMES[(l.era - 1) as Era]
       const cur = ERA_NAMES[l.era as Era]
@@ -351,7 +351,11 @@ export function chronicleVerse(l: ActionLog, ctx: VerseContext): string {
       return prev && cur ? `Dobiegła końca ${prev}. Nadeszła ${cur}: ${story}.` : sentence(l.summary)
     }
     case 'game_start':
-      return pick(l.id, [`Zaczęła się Pierwsza Era: ${ERA_STORY[1]}.`, `Nastała Pierwsza Era, ${ERA_STORY[1]}, a bóstwa sięgnęły po kości.`])
+      return pick(l.id, [
+        `Zaczęła się Pierwsza Era: ${ERA_STORY[1]}.`,
+        `Nastała Pierwsza Era, ${ERA_STORY[1]}, i spojrzały bóstwa w pustkę, która czekała na pierwsze Słowo.`,
+        `I otworzyła się Pierwsza Era, ${ERA_STORY[1]}, a nad bezkształtem unosił się oddech bóstw.`,
+      ])
     case 'game_end':
       return 'Wygłosiły bóstwa epilogi, a świat trwał dalej.'
     case 'chaos_notes':

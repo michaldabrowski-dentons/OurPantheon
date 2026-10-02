@@ -77,7 +77,7 @@ export function BottomBar({ onError }: { onError: (m: string | null) => void }) 
       {/* what I hold, beside the dice */}
       <div className={styles.bbMe} aria-label="Twoje Słowa i premie">
         <div className={styles.bbLogos}>
-          <b className="engraved-dark gold-text">{me?.logos ?? 0}</b>
+          <b className="engraved-dark marble-text">{me?.logos ?? 0}</b>
           <small>Logos</small>
         </div>
         <div className={styles.bbChips}>
@@ -122,7 +122,7 @@ export function BottomBar({ onError }: { onError: (m: string | null) => void }) 
           round
           disabled={busy}
           onClick={() => call('log_dice_roll', { p_game_id: game.id, p_context: 'Rzut 2k6' })}
-          title="Rzuć 2k6 na oczach wszystkich. Taki rzut nie trafia do Kroniki."
+          title="Rzuć 2k6 na oczach wszystkich. Taki rzut nie trafia do Świętej Księgi."
           aria-label="Rzuć 2k6"
         >
           <DieIcon />

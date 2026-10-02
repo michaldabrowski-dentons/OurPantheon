@@ -8,7 +8,8 @@ import {
 } from '@/data/traits'
 import { useGameStore, playerLabel } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
-import { Modal, TextField, TextArea, Notice, Dice2d6, inputClass, labelClass, fieldClass } from '@/components/ui/Primitives'
+import { Modal, TextField, TextArea, Notice, Dice2d6, FrescoFrame, inputClass, labelClass, fieldClass } from '@/components/ui/Primitives'
+import { actionArt } from '@/data/actionArt'
 import { TraitPicker } from '@/components/ui/TraitPicker'
 import { ActionIcon } from '@/components/ui/ActionIcons'
 import styles from './actions.module.css'
@@ -276,6 +277,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
         <RulesAside action={action} era={era} open={rules} onHide={() => setRules(false)} />
         <div className={styles.main}>
           <div className={styles.mainHead}>
+            <FrescoFrame src={actionArt(action.key)} alt={action.name} size={128} className={styles.plate} />
             <div className={styles.mainLead}>
               <button type="button" className={styles.rulesToggle} aria-expanded={rules} onClick={() => setRules((v) => !v)}>
                 {rules ? '✕ Ukryj zasady' : '☰ Pokaż pełne zasady tej akcji'}
@@ -568,7 +570,7 @@ function placeholderFor(a: ActionDef): string {
     case 'great_miracle': return 'Krótko: co staje się prawdą o całym świecie.'
     case 'command_avatar': return 'Krótko: który awatar i co czyni.'
     case 'command_followers': return 'Krótko: czego żądasz od wyznawców.'
-    default: return 'Jedno, dwa zdania do Kroniki.'
+    default: return 'Jedno, dwa zdania do Świętej Księgi.'
   }
 }
 
@@ -610,7 +612,7 @@ function EntityFields({
 
       <TextArea
         id="ent_desc"
-        label="Opis (trafi też do Kroniki)"
+        label="Opis (trafi też do Świętej Księgi)"
         value={f.description}
         onChange={(e) => set('description', e.target.value)}
         placeholder={kind === 'creature' ? 'Krótko: gdzie żyją, jak wyglądają, co im zagraża.' : 'Krótko: jacy są i gdzie żyją.'}

@@ -108,6 +108,11 @@
 .quoteBtn {
   flex: 0 0 auto;
 }
+.quoteBtns {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
 
 /* ---------- Bottom bar: under the altar only ---------- */
 .bottomBar {
@@ -734,6 +739,7 @@
   width: 100%;
   text-align: left;
   padding: 8px 12px 8px 8px;
+  min-height: 92px;
   border-radius: 3px;
   color: var(--ink);
   transition:
@@ -755,18 +761,31 @@
 .stoneOff {
   filter: grayscale(0.7) brightness(0.55);
 }
+/* the painted plate of the word, set into the marble with a thin gold bevel */
 .stoneIcon {
-  width: 44px;
-  height: 44px;
+  width: 72px;
+  height: 72px;
   display: grid;
   place-items: center;
   border-radius: 3px;
-  color: var(--gold-dark);
-  background: linear-gradient(180deg, rgba(255, 250, 235, 0.55), rgba(215, 200, 170, 0.5));
+  overflow: hidden;
+  padding: 3px;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold) 30%, var(--gold-dark) 70%, var(--gold-light));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
-    0 1px 2px rgba(0, 0, 0, 0.3);
+    inset 0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.stoneIcon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 2px;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.6);
+  filter: sepia(0.1) contrast(1.02);
+}
+.stoneOff .stoneIcon img {
+  filter: grayscale(0.6) brightness(0.8);
 }
 .stoneBody {
   display: grid;
@@ -846,6 +865,11 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 @media (max-width: 1280px) {
+  .altar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
   .altar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1166,4 +1190,160 @@
   bottom: 16px;
   transform: translateX(-50%);
   z-index: 30;
+}
+
+.plaqueSign {
+  vertical-align: -2px;
+  margin-right: 4px;
+  color: var(--gold-dark);
+}
+
+/* ---------- The overture of an Era ----------
+   The void first. Then a light rises from above, the drawing of the age is carved in gold line by
+   line, the numeral is set, the name spreads out, and at last one button appears. */
+.overture {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+  background: var(--void);
+  animation: overtureIn 900ms ease-out both;
+  overflow: hidden;
+}
+.overtureLight {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 0%, rgba(255, 200, 120, 0.22), transparent 70%),
+    radial-gradient(ellipse 40% 30% at 50% 100%, rgba(255, 120, 40, 0.1), transparent 70%),
+    var(--dust);
+  animation: overtureLight 2400ms var(--ease-emerge) both;
+}
+.overtureStage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(720px, 100%);
+  text-align: center;
+}
+.overtureArt {
+  width: min(680px, 100%);
+  height: auto;
+  color: var(--gold);
+  filter: drop-shadow(0 0 10px rgba(255, 200, 120, 0.35));
+}
+.overtureArt path,
+.overtureArt circle {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: carve 2200ms var(--ease-emerge) forwards;
+  animation-delay: 500ms;
+}
+.overtureArt path:nth-child(2n) {
+  animation-delay: 900ms;
+}
+.overtureArt path:nth-child(3n) {
+  animation-delay: 1300ms;
+}
+.overtureArt path:nth-child(5n) {
+  animation-delay: 1700ms;
+}
+.overtureNumeral {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(3.4rem, 10vw, 6rem);
+  line-height: 1;
+  color: var(--gold-light);
+  text-shadow:
+    0 0 24px rgba(255, 210, 140, 0.55),
+    0 0 60px rgba(255, 190, 110, 0.25),
+    0 2px 0 rgba(0, 0, 0, 0.9);
+  animation: overtureSet 1200ms var(--ease-emerge) both;
+  animation-delay: 1500ms;
+}
+.overtureTitle {
+  font-size: clamp(1.6rem, 5vw, 3rem);
+  font-weight: 900;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  animation: overtureSpread 1600ms var(--ease-emerge) both;
+  animation-delay: 2100ms;
+}
+.overtureName {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--gold-light);
+  text-shadow: var(--carved-glow);
+  animation: overtureFade 1000ms ease-out both;
+  animation-delay: 2600ms;
+}
+.overtureStory {
+  font-size: clamp(1.1rem, 2.4vw, 1.4rem);
+  font-style: italic;
+  color: var(--marble);
+  max-width: 44ch;
+  line-height: 1.5;
+  animation: overtureFade 1200ms ease-out both;
+  animation-delay: 3000ms;
+}
+.overtureAction {
+  margin-top: 16px;
+  animation: overtureFade 1000ms var(--ease-emerge) both;
+  animation-delay: 3600ms;
+}
+@keyframes overtureIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes overtureLight {
+  from {
+    opacity: 0;
+    transform: translateY(-40px);
+  }
+}
+@keyframes carve {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes overtureSet {
+  from {
+    opacity: 0;
+    transform: scale(1.8);
+    filter: blur(6px);
+  }
+}
+@keyframes overtureSpread {
+  from {
+    opacity: 0;
+    letter-spacing: 0.9em;
+  }
+}
+@keyframes overtureFade {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overture,
+  .overtureLight,
+  .overtureNumeral,
+  .overtureTitle,
+  .overtureName,
+  .overtureStory,
+  .overtureAction {
+    animation: none;
+  }
+  .overtureArt path,
+  .overtureArt circle {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
 }

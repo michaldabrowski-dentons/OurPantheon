@@ -26,6 +26,16 @@
   gap: 18px;
   min-height: 84px;
 }
+/* the painted plate of this word, hung at the head of the dialog */
+.plate {
+  flex: 0 0 auto;
+  margin-top: -2px;
+}
+@media (max-width: 640px) {
+  .plate {
+    display: none;
+  }
+}
 .mainLead {
   flex: 1 1 auto;
   min-width: 0;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { rpc } from '@/lib/supabase'
 import { CHAOS_BY_KEY, chaosCategoryByDie, type ChaosCategoryKey } from '@/data/chaosTables'
@@ -78,11 +78,11 @@ export function ChaosOverlay({ onError }: { onError: (m: string | null) => void 
   return (
     <div className={['veil-in', styles.overlay].join(' ')} role="dialog" aria-modal="true" aria-label="Faza Chaosu">
       <div className={['emerge-from-dark', styles.stage].join(' ')}>
-        <h2 className={['engraved-dark', 'gold-text', styles.stageTitle].join(' ')}>Faza Chaosu</h2>
+        <h2 className={['engraved-dark', 'marble-text', styles.stageTitle].join(' ')}>Faza Chaosu</h2>
         <p className={styles.stageSub}>
           {!draw && 'Bóstwa zasnęły. Świat toczy się sam: pogoda, wolna wola, nieokiełznana magia. Odwróć relikwię.'}
           {draw && !chosen && 'Jedna kość wskazuje kategorię, druga wpis. Które będzie którym, rozstrzyga jedno bóstwo.'}
-          {chosen && 'Każde pytanie ma swojego boga. Krótkie odpowiedzi trafiają prosto do Kroniki.'}
+          {chosen && 'Każde pytanie ma swojego boga. Krótkie odpowiedzi trafiają prosto do Świętej Księgi.'}
         </p>
 
         {!chosen && (
@@ -130,24 +130,32 @@ export function ChaosOverlay({ onError }: { onError: (m: string | null) => void 
                 <small>{iRevealed ? 'To ty. Wskaż, która kość jest kategorią.' : 'Czekamy na decyzję.'}</small>
               </div>
             </div>
+            <p className={styles.choiceLead}>Jedno z dwóch zdarzeń. Które się wydarzy?</p>
             <div className={styles.choice}>
               {([1, 2] as const).map((which) => {
                 const cat = chaosCategoryByDie(which === 1 ? draw.die1 : draw.die2)
                 const idx = which === 1 ? draw.die2 : draw.die1
                 const e = cat.entries[idx - 1]
                 return (
-                  <button
-                    key={which}
-                    className={['marble', styles.choiceBtn, !iRevealed ? styles.choiceLocked : ''].join(' ')}
-                    disabled={busy || !iRevealed}
-                    onClick={() => call('choose_chaos_die', { p_game_id: game.id, p_category_die: which, p_title: e.title, p_text: e.text })}
-                  >
-                    <small>kość {which} ({which === 1 ? draw.die1 : draw.die2}) = kategoria</small>
-                    <strong>{cat.name}</strong>
-                    <span>
-                      {idx}. {e.title}
-                    </span>
-                  </button>
+                  <Fragment key={which}>
+                    {which === 2 && (
+                      <span className={styles.choiceOr} aria-hidden>
+                        ALBO
+                      </span>
+                    )}
+                    <button
+                      className={['marble', styles.choiceBtn, !iRevealed ? styles.choiceLocked : ''].join(' ')}
+                      disabled={busy || !iRevealed}
+                      onClick={() => call('choose_chaos_die', { p_game_id: game.id, p_category_die: which, p_title: e.title, p_text: e.text })}
+                    >
+                      <small>kość {which} ({which === 1 ? draw.die1 : draw.die2}) jako kategoria</small>
+                      <strong>{cat.name}</strong>
+                      <span className={styles.choiceTitle}>
+                        {idx}. {e.title}
+                      </span>
+                      <em className={styles.choiceText}>{e.text}</em>
+                    </button>
+                  </Fragment>
                 )
               })}
             </div>
@@ -332,7 +340,7 @@ function ChaosResult({
                     disabled={busy || !(drafts[i] ?? '').trim()}
                     onClick={() => onAnswer(q, (drafts[i] ?? '').trim())}
                   >
-                    Zapisz w Kronice
+                    Zapisz w Świętej Księdze
                   </StoneButton>
                 </div>
               ) : (
@@ -381,11 +389,11 @@ function Sigil() {
   return (
     <svg className={styles.sigil} viewBox="0 0 200 200" aria-hidden>
       <g fill="none" stroke="#4b3407" strokeWidth="5" strokeLinecap="round">
-        <circle cx="100" cy="100" r="78" />
-        <circle cx="100" cy="100" r="58" strokeDasharray="6 10" />
-        <path d="M100 30v140M30 100h140M50 50l100 100M150 50L50 150" strokeWidth="3" />
-        <path d="M100 62c22 0 38 16 38 38s-16 38-38 38-38-16-38-38" strokeWidth="7" />
-        <circle cx="100" cy="100" r="12" fill="#4b3407" />
+        <circle cx="100" cy="100" r="80" />
+        <circle cx="100" cy="100" r="64" strokeDasharray="6 10" strokeWidth="3" />
+        {/* the fire of Chaos */}
+        <path d="M100 42c-6 22-30 34-30 62 0 20 14 36 30 36s30-16 30-36c0-14-8-22-12-32-4 10-10 14-10 14s2-24-8-44z" strokeWidth="7" strokeLinejoin="round" />
+        <path d="M100 140c-8 0-14-7-14-16 0-10 10-16 10-26 6 8 18 14 18 26 0 9-6 16-14 16z" fill="#4b3407" stroke="none" />
       </g>
     </svg>
   )

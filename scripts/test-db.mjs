@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -79,7 +79,14 @@ console.log('\n# world creation')
 ok((await rpcErr(`select vote_creation($1, 'shape', 'a')`, [game.id])) !== null, 'no voting before creation opens')
 await db.query(`select open_creation($1)`, [game.id])
 let g = (await q('select * from games where id = $1', [game.id]))[0]
-ok(g.status === 'creation', 'status -> creation')
+ok(g.status === 'creation' && g.settings.creation_step === 0, 'status -> creation, page 0')
+await as(B)
+ok((await rpcErr(`select set_creation_step($1, 3)`, [game.id])) !== null, 'only the host turns the creation pages')
+await as(A)
+await db.query(`select set_creation_step($1, 3)`, [game.id])
+ok((await q('select settings from games where id = $1', [game.id]))[0].settings.creation_step === 3, 'host turned to page 3')
+ok((await rpcErr(`select set_creation_step($1, -1)`, [game.id])) !== null, 'no page -1')
+ok((await q(`select column_default as d from information_schema.columns where table_name = 'players' and column_name = 'god_gender'`))[0].d.startsWith("'m'"), 'a god is masculine by default')
 await db.query(`select vote_creation($1, 'shape', 'a')`, [game.id])
 await db.query(`select vote_creation($1, 'shape', 'b')`, [game.id])
 let votes = await q('select * from creation_votes where game_id = $1', [game.id])

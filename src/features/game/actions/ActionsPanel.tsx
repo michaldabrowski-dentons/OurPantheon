@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { actionsByCategory, type ActionDef, type Era } from '@/data/actions'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer } from '@/store/useGameStore'
-import { ActionIcon } from '@/components/ui/ActionIcons'
+import { actionArt } from '@/data/actionArt'
 import { ActionDialog } from './ActionDialog'
 import styles from '../game.module.css'
 
@@ -57,7 +57,7 @@ export function ActionsPanel() {
                 }
               >
                 <span className={styles.stoneIcon}>
-                  <ActionIcon k={a.key} />
+                  <img src={actionArt(a.key, 'thumb')} alt="" loading="lazy" width={66} height={66} />
                 </span>
                 <span className={styles.stoneBody}>
                   <span className={styles.stoneName}>{a.name}</span>
