@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { rpc, supabase } from '@/lib/supabase'
+import type { Game } from '@/lib/types'
 import { useGameStore } from '@/store/useGameStore'
 import type { Era } from '@/data/actions'
 import { Notice } from '@/components/ui/Primitives'
@@ -25,6 +27,33 @@ function forcedOverture(): Era | 0 | null {
 }
 
 /**
+ * Tables saw rounds where everyone had rolled, the phase was 'gods' and nobody held the turn.
+ * When that state lasts more than a moment, re-read the game row (a lost Realtime event) and,
+ * if it is really stuck, ask the server to settle the turn (ensure_turn, any member may).
+ */
+function useTurnGuard(game: Game) {
+  const stuck = game.status === 'playing' && game.phase === 'gods' && !game.current_turn_player_id
+  useEffect(() => {
+    const preview = import.meta.env.DEV && !!(window as unknown as { __previewRpc?: unknown }).__previewRpc
+    if (!stuck || preview) return
+    const t = window.setTimeout(async () => {
+      const { data } = await supabase.from('games').select('*').eq('id', game.id).single()
+      if (data && (data as Game).current_turn_player_id) {
+        useGameStore.setState({ game: data as Game })
+        return
+      }
+      try {
+        const fixed = await rpc<Game>('ensure_turn', { p_game_id: game.id })
+        if (fixed) useGameStore.setState({ game: fixed })
+      } catch {
+        /* an older database without ensure_turn: nothing more to do here */
+      }
+    }, 1500)
+    return () => window.clearTimeout(t)
+  }, [stuck, game.id])
+}
+
+/**
  * The temple, as a strict grid:
  *   era    | gods
  *   actions| altar
@@ -38,6 +67,7 @@ export function GamePage() {
   const [error, setError] = useState<string | null>(null)
   const [chronicle, setChronicle] = useState(false)
   const [overture, enterEra] = useEraOverture(game.id, game.era as Era, forcedOverture())
+  useTurnGuard(game)
 
   return (
     <div className={styles.layout}>

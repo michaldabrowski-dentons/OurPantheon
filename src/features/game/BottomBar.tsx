@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { rpc } from '@/lib/supabase'
 import { logosWords } from '@/data/chronicle'
+import { describeEvent } from '@/data/tableEvents'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer, playerLabel } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
@@ -50,6 +51,18 @@ export function BottomBar({ onError }: { onError: (m: string | null) => void }) 
   // the dice slot shows my latest roll of this round: the Logos roll, or a 2k6
   const shown = [...log].reverse().find((l) => l.player_id === me?.id && l.round_number === game.round_number && (l.action_key === 'logos_roll' || l.action_key === 'dice'))
 
+  // the last thing anyone did at the table: who clicked what, what the dice said
+  const lastRow = [...log].reverse().find((l) => l.action_key !== 'prologue')
+  const lastEvent = lastRow
+    ? describeEvent(lastRow, {
+        god: (id) => {
+          const p = players.find((x) => x.id === id)
+          return { name: playerLabel(p, profiles), gender: p?.god_gender ?? 'n' }
+        },
+        entity: (id) => (id ? entities.find((e) => e.id === id) : undefined),
+      })
+    : null
+
   const status = rolling
     ? me?.has_rolled
       ? 'Czekamy na pozostałe bóstwa…'
@@ -72,6 +85,11 @@ export function BottomBar({ onError }: { onError: (m: string | null) => void }) 
       {/* the turn */}
       <div className={styles.bbCenter}>
         <span className={styles.bbStatus}>{status}</span>
+        {lastEvent && (
+          <span key={lastRow!.id} className={['emerge-from-dark', styles.bbEvent].join(' ')} aria-live="polite" title={lastEvent}>
+            {lastEvent}
+          </span>
+        )}
       </div>
 
       {/* what I hold, beside the dice */}

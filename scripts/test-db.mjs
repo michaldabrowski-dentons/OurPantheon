@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -122,6 +122,19 @@ const [rollB] = await q(`select * from roll_logos($1)`, [game.id])
 g = (await q('select * from games where id = $1', [game.id]))[0]
 players = await q('select * from players where game_id = $1 order by seat_order', [game.id])
 ok(g.phase === 'gods', 'phase -> gods after all rolls')
+ok(g.current_turn_player_id !== null, 'somebody holds the turn right after the rolls')
+{
+  // the safety net: a Gods phase without a holder, and a rolling phase that never flipped
+  const holder = g.current_turn_player_id
+  await db.query('update games set current_turn_player_id = null where id = $1', [game.id])
+  const [fixed] = await q('select * from ensure_turn($1)', [game.id])
+  ok(fixed.phase === 'gods' && fixed.current_turn_player_id === holder, 'ensure_turn restores a lost turn holder')
+  await db.query(`update games set phase = 'rolling', current_turn_player_id = null where id = $1`, [game.id])
+  const [flipped] = await q('select * from ensure_turn($1)', [game.id])
+  ok(flipped.phase === 'gods' && flipped.current_turn_player_id === holder, 'ensure_turn flips a finished rolling phase')
+  const [same] = await q('select * from ensure_turn($1)', [game.id])
+  ok(same.current_turn_player_id === holder, 'ensure_turn is a no-op when the turn is fine')
+}
 const top = players.reduce((m, p) => (p.logos > m.logos ? p : m))
 const tiedTop = players.filter((p) => p.logos === top.logos)
 ok(

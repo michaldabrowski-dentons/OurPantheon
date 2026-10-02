@@ -195,7 +195,20 @@
 .bbCenter {
   display: grid;
   place-items: center;
+  gap: 4px;
   min-width: 0;
+}
+/* what just happened at the table, under the status */
+.bbEvent {
+  max-width: 100%;
+  font-size: 0.92rem;
+  font-style: italic;
+  color: #cfc3ad;
+  text-align: center;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* the turn's status: carved letters catching the torch, soft glow in the dark */
 .bbStatus {

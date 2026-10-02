@@ -19,7 +19,8 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
    ani *Redirect URLs*.
 2. W **SQL Editor** uruchom po kolei pliki z `supabase/migrations/`:
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
-   `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`.
+   `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
+   `0010_ensure_turn.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy.
 3. Skopiuj `.env.example` do `.env.local` i wpisz `VITE_SUPABASE_URL` oraz `VITE_SUPABASE_ANON_KEY`
@@ -87,6 +88,10 @@ Faza Chaosu (Karta z ogniem, wybór jednego z dwóch zdarzeń, pytania przydziel
   dolny pasek trzyma Odpoczynek, Przekaż Logos, Rzuć 2k6, Rzuć 2k6 na Logos, animację kości i wyjście.
 - Tura zawsze u bóstwa z największym Logos wśród nieśpiących; remis: aktualny gracz zachowuje turę, potem
   najniższe miejsce przy stole. Spadek poniżej innego gracza przekazuje turę natychmiast (Realtime).
+  Bezpiecznik: gdy klient widzi Fazę Bóstw bez posiadacza tury dłużej niż chwilę, odświeża wiersz gry
+  i woła `ensure_turn` (migracja 0010), który wyznacza turę od nowa albo domyka zakończone rzuty.
+- Dolny pasek pod statusem pokazuje ostatnie zdarzenie przy stole (`src/data/tableEvents.ts`): kto co kliknął
+  i ile wyrzucił. Okno akcji zamyka się samo, gdy tura się kończy albo zaczyna Faza Chaosu.
 - Runda kończy się, gdy wszyscy odpoczywają lub mają 0 Logos → Faza Chaosu.
 - Kości rzuca serwer (`log_dice_roll`, `roll_logos`, `reveal_chaos`), więc wszyscy widzą to samo.
 - Era: głosowanie w dowolnej rundzie; decyduje większość bóstw. Każdą nową Erę (i pierwszą) otwiera kurtyna

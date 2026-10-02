@@ -31,6 +31,12 @@
   flex: 0 0 auto;
   margin-top: -2px;
 }
+@media (max-width: 900px) {
+  .plate {
+    width: 120px !important;
+    height: 120px !important;
+  }
+}
 @media (max-width: 640px) {
   .plate {
     display: none;

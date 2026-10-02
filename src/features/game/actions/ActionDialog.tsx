@@ -277,7 +277,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
         <RulesAside action={action} era={era} open={rules} onHide={() => setRules(false)} />
         <div className={styles.main}>
           <div className={styles.mainHead}>
-            <FrescoFrame src={actionArt(action.key)} alt={action.name} size={128} className={styles.plate} />
+            <FrescoFrame src={actionArt(action.key)} alt={action.name} size={210} className={styles.plate} />
             <div className={styles.mainLead}>
               <button type="button" className={styles.rulesToggle} aria-expanded={rules} onClick={() => setRules((v) => !v)}>
                 {rules ? '✕ Ukryj zasady' : '☰ Pokaż pełne zasady tej akcji'}

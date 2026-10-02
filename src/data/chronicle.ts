@@ -46,7 +46,7 @@ export const ERA_STORY: Record<Era, string> = {
 type Forms = string | { m: string; f: string; n: string }
 
 /** past tense of a verb for the god: a stem gets ł / ła / ło, irregulars are spelled out */
-function pastFor(g: GodGender) {
+export function pastFor(g: GodGender) {
   return (f: Forms): string => {
     if (typeof f === 'string') return f + (g === 'm' ? 'ł' : g === 'f' ? 'ła' : 'ło')
     return f[g]

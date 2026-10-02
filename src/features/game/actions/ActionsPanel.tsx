@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { actionsByCategory, type ActionDef, type Era } from '@/data/actions'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer } from '@/store/useGameStore'
@@ -21,6 +21,12 @@ export function ActionsPanel() {
   const avatarFree =
     !!me && !me.avatar_action_used && entityGods.some((g) => g.player_id === me.id && entities.some((e) => e.id === g.entity_id && e.kind === 'avatar' && e.status === 'active'))
   const groups = useMemo(() => actionsByCategory(era), [era])
+
+  // the window of a word closes by itself when the Gods phase ends or the turn moves on:
+  // nothing in it could be paid for any more, and the Chaos curtain must not hang behind it
+  useEffect(() => {
+    if (open && !myTurn) setOpen(null)
+  }, [open, myTurn])
 
   let tile = 0
 
