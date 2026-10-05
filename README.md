@@ -108,6 +108,11 @@ Faza Chaosu (Karta z ogniem, wybór jednego z dwóch zdarzeń, pytania przydziel
 - Akcje w panelu: Terraformacja, Tworzenie Życia, Śmiertelnicy, Działania Awatara; w kategorii od najtańszej.
   Stworzenie Istoty Rozumnej (15 / 4 / 18) nadaje cechę „Rozumne”. Akcje z warunkiem (np. „musi istnieć
   cywilizacja”) są nieaktywne, póki świat go nie spełnia.
+- Okno akcji nie otwiera się z pustym opisem: układa go w słowach Świętej Księgi z wybranych cech
+  (`src/data/draft.ts`, to samo zdanie, które księga dodałaby o cechach), a przy akcjach bez bytu z krótkiej
+  linii o czynie. Gracz może go nadpisać; wyczyszczone pole wraca do podpowiedzi. Księga nie powtarza zdania
+  o cechach, jeśli opis już je wszystkie wymienia.
+- Przykładowi bogowie każdej domeny są odnośnikami do polskiej Wikipedii (`wikiUrl` w `src/data/pantheon.ts`).
 - Bez Logos, przez `edit_entity`: istota ↔ istota rozumna, frakcja ↔ religia, śmierć awatara; `delete_entity`
   usuwa byt po potwierdzeniu. Każda taka zmiana ma wpis w Świętej Księdze.
 

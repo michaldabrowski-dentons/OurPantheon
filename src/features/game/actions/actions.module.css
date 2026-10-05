@@ -376,3 +376,11 @@
   flex-wrap: wrap;
   justify-content: center;
 }
+
+/* under the description: whose words these are */
+.draftHint {
+  margin-top: -8px;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--ink-soft);
+}

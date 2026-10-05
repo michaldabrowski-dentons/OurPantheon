@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { rpc } from '@/lib/supabase'
 import type { Entity, EntityKind, GodGender } from '@/lib/types'
-import { ATTRIBUTE_BY_KEY, DOMAIN_BY_KEY, attributeArt, domainTitle } from '@/data/pantheon'
+import { DOMAIN_BY_KEY, domainTitle } from '@/data/pantheon'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, godLabel, selectEntitiesOf } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
@@ -45,15 +45,6 @@ export function GodSheet({ playerId, onClose }: { playerId: string; onClose: () 
           <div className={styles.sheetLeft}>
             <GodPortrait domain={player.domain_key} size={240} round={false} aura alt={domainTitle(player.domain_key, player.god_gender)} />
             <h3 className={['engraved', styles.blurbTitle].join(' ')}>{domainTitle(player.domain_key, player.god_gender)}</h3>
-            {domain && (
-              <div className={styles.mains}>
-                {domain.mains.map((m) => (
-                  <span key={m} className={styles.mainTag}>
-                    <img src={attributeArt(m, 'thumb')} alt="" /> {ATTRIBUTE_BY_KEY[m].name}
-                  </span>
-                ))}
-              </div>
-            )}
             {domain ? <p className={styles.blurbExamples}>{domain.description}</p> : <p className={styles.blurbEmpty}>To bóstwo nie wybrało jeszcze domeny.</p>}
           </div>
 

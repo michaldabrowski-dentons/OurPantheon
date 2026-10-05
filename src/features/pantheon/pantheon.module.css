@@ -1,45 +1,27 @@
 /* ---------- The clock of domains ----------
-   Twelve medallions on a ring, the chosen god's painting in the middle. Opposites face each other. */
-.clock {
-  --size: min(440px, 92vw);
-  --slot: 82px;
-  position: relative;
-  width: var(--size);
-  height: var(--size);
+   Twelve medallions on a ring, the chosen god's painting large in the middle. */
+/* the wrap is a size container, so the medallions can measure the clock itself (cqw), not the viewport */
+.clockWrap {
+  container-type: inline-size;
+  width: min(600px, 100%);
   margin: 0 auto;
 }
-.ring {
-  position: absolute;
-  inset: 0;
+.clock {
+  --size: 100cqw;
+  --slot: 92px;
+  --portrait: calc(var(--size) - var(--slot) * 2 - 40px);
+  position: relative;
   width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-.ring circle {
-  fill: none;
-  stroke: rgba(111, 79, 12, 0.45);
-  stroke-width: 1.5;
-}
-.ring line {
-  stroke: rgba(111, 79, 12, 0.55);
-  stroke-width: 2;
+  aspect-ratio: 1;
 }
 .center {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  display: grid;
-  justify-items: center;
-  gap: 6px;
 }
-.centerName {
-  font-family: var(--font-display);
-  font-size: 0.72rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  text-align: center;
+.centerPortrait {
+  border-radius: 50%;
 }
 .slot {
   position: absolute;
@@ -54,7 +36,7 @@
 .medal {
   width: 100%;
   height: 100%;
-  padding: 4px;
+  padding: 6px;
   border: 0;
   border-radius: 50%;
   display: grid;
@@ -62,7 +44,7 @@
   text-align: center;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 0.66rem;
+  font-size: 0.74rem;
   letter-spacing: 0.04em;
   line-height: 1.1;
   color: var(--ink);
@@ -98,25 +80,13 @@
   outline-offset: 2px;
 }
 .medalOn {
-  color: #2d2003;
-  background-image:
-    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 40%),
-    var(--noise),
-    linear-gradient(160deg, var(--gold-light), var(--gold) 55%, var(--gold-inlay));
-  background-blend-mode: normal, multiply, normal;
-  background-size: 100% 100%, 220px 220px, 100% 100%;
+  color: #3a2a05;
+  background-image: linear-gradient(180deg, var(--gold-light), var(--gold));
+  background-size: 100% 100%;
   box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.7),
-    inset 0 -4px 8px rgba(80, 50, 5, 0.45),
-    0 0 0 2px var(--gold-dark),
-    0 0 22px var(--divine-aura-soft),
-    0 5px 10px rgba(0, 0, 0, 0.6);
-}
-.medalOpposite {
-  box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.85),
-    inset 0 -4px 8px rgba(0, 0, 0, 0.35),
-    0 0 0 2px var(--ember),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 0 0 1px var(--gold-dark),
+    0 0 16px -2px var(--divine-aura-soft),
     0 5px 10px rgba(0, 0, 0, 0.6);
 }
 .medal small {
@@ -133,6 +103,7 @@
 @media (max-width: 520px) {
   .clock {
     --slot: 66px;
+    --portrait: calc(var(--size) - var(--slot) * 2 - 24px);
   }
   .medal {
     font-size: 0.56rem;
@@ -188,6 +159,37 @@
   font-size: 0.92rem;
   font-style: italic;
   color: var(--ink-soft);
+}
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.exampleLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  text-decoration: none;
+  background: linear-gradient(180deg, rgba(255, 250, 235, 0.8), rgba(240, 228, 200, 0.6));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px rgba(111, 79, 12, 0.45), 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: box-shadow var(--t-glow), transform var(--t-press), background var(--t-glow);
+}
+.exampleLink svg {
+  color: var(--gold-dark);
+}
+.exampleLink:hover {
+  background: linear-gradient(180deg, var(--gold-light), var(--gold));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 0 1px var(--gold-dark), 0 0 12px -2px var(--divine-aura-soft);
+}
+.exampleLink:active {
+  transform: translateY(1px);
 }
 .blurbEmpty {
   font-style: italic;
@@ -305,64 +307,58 @@
 .scores {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 14px;
 }
 .score {
+  position: relative;
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px 6px 6px;
+  justify-items: center;
+  gap: 6px;
+  padding: 10px 8px 10px;
   border-radius: 4px;
   background: linear-gradient(180deg, rgba(255, 250, 235, 0.55), rgba(240, 228, 200, 0.35));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.25);
 }
 .score img {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
+  width: 100%;
+  max-width: 150px;
+  aspect-ratio: 1;
   object-fit: cover;
-  box-shadow: 0 0 0 2px var(--gold-dark);
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--gold-dark), 0 4px 10px rgba(0, 0, 0, 0.5);
 }
 .scoreName {
-  display: grid;
-  line-height: 1.15;
-  min-width: 0;
-}
-.scoreName b {
   font-family: var(--font-display);
-  font-size: 0.82rem;
-  letter-spacing: 0.08em;
-}
-.scoreName small {
-  font-size: 0.7rem;
-  color: var(--ink-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 .scoreNum {
-  min-width: 44px;
-  height: 44px;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 52px;
+  height: 52px;
+  padding: 0 8px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   font-family: var(--font-display);
   font-weight: 900;
-  font-size: 1.15rem;
+  font-size: 1.5rem;
   color: var(--marble-vein);
   background: linear-gradient(180deg, #1b1613, #0a0807);
-  box-shadow: 0 0 0 1px rgba(255, 205, 140, 0.18);
+  box-shadow: 0 0 0 1px rgba(255, 205, 140, 0.18), 0 3px 8px rgba(0, 0, 0, 0.6);
 }
 .scorePlus {
   color: #2d2003;
   background: linear-gradient(180deg, var(--gold-light), var(--gold) 60%, var(--gold-inlay));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 0 1px var(--gold-dark), 0 0 12px -2px var(--divine-aura-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 0 1px var(--gold-dark), 0 0 14px -2px var(--divine-aura-soft), 0 3px 8px rgba(0, 0, 0, 0.6);
 }
 .scoreMinus {
   color: #e9c9b8;
   background: linear-gradient(180deg, #3a1d14, #1c0d09);
-  box-shadow: 0 0 0 1px rgba(200, 100, 42, 0.5);
+  box-shadow: 0 0 0 1px rgba(200, 100, 42, 0.5), 0 3px 8px rgba(0, 0, 0, 0.6);
 }
 .scoreMain {
   outline: 1px solid var(--gold-inlay);
@@ -374,6 +370,29 @@
 }
 
 /* ---------- Character creation panel ---------- */
+.creationGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .creationGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.creationMain {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.creationSide {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  position: sticky;
+  top: 16px;
+}
 .creation {
   display: grid;
   gap: 18px;
@@ -412,7 +431,7 @@
 }
 .sheetTop {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: 22px;
   align-items: start;
 }

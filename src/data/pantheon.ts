@@ -21,7 +21,7 @@ export interface Domain {
   name: string
   mains: [AttrKey, AttrKey]
   description: string
-  examples: string
+  examples: string[]
 }
 
 export const ATTRIBUTES: Attribute[] = [
@@ -109,7 +109,7 @@ export const DOMAINS: Domain[] = [
     mains: ['wrath', 'majesty'],
     description:
       'Potęga pchająca ku zwycięstwu, ostatecznej chwale i podbojowi. To furia napędzająca tych, którzy wchodzą w ogień z podniesionym sztandarem, łaknąc wiecznej pamięci i absolutnego triumfu.',
-    examples: 'Ares, Khorne, Tyr, Świętowit, Huitzilopochtli, Montu, Guan Yu, Bishamonten, Tulkas',
+    examples: ['Ares', 'Khorne', 'Tyr', 'Świętowit', 'Huitzilopochtli', 'Montu', 'Guan Yu', 'Bishamonten', 'Tulkas'],
   },
   {
     key: 'vengeance',
@@ -117,7 +117,7 @@ export const DOMAINS: Domain[] = [
     mains: ['wrath', 'whisper'],
     description:
       'Cień, który sączy kłamstwa, tka intrygi i cierpliwie czeka na właściwy moment, by zadać cios w plecy. To przenikliwa siła chaosu i oszustwa, bezlitosna obecność dążąca do tego, by przeciwnik stracił absolutnie wszystko.',
-    examples: 'Loki, Set, Eris, Czarnobóg, Sauron, Diabeł, Aryman, Tzeentch, Tezcatlipoca',
+    examples: ['Loki', 'Set', 'Eris', 'Czarnobóg', 'Sauron', 'Diabeł', 'Aryman', 'Tzeentch', 'Tezcatlipoca'],
   },
   {
     key: 'rule',
@@ -125,7 +125,7 @@ export const DOMAINS: Domain[] = [
     mains: ['grace', 'majesty'],
     description:
       'Władza, która panuje poprzez boski majestat, niewzruszoną hierarchię i niezaprzeczalny autorytet. To fundament tronów i imperiów i przytłaczająca obecność, która staje się dla śmiertelników najwyższym rozkazem.',
-    examples: 'Jahwe, Allah, Ozyrys, Dagda, Frigg, Amaterasu, Anu, Manwë, El',
+    examples: ['Jahwe', 'Allah', 'Ozyrys', 'Dagda', 'Frigg', 'Amaterasu', 'Anu', 'Manwë', 'El'],
   },
   {
     key: 'love',
@@ -133,7 +133,7 @@ export const DOMAINS: Domain[] = [
     mains: ['grace', 'whisper'],
     description:
       'Energia, która przyciąga, uwodzi, rozpala serca i każe rozumowi ustąpić miejsca czystej ekstazie. To pulsująca siła namiętności i pożądania, zdolna w jednej chwili uczynić z wroga kochanka, a z rozsądnego mędrca niewolnika pragnienia.',
-    examples: 'Afrodyta, Eros, Freyja, Kama, Dziewanna, Inanna, Hathor, Slaanesh',
+    examples: ['Afrodyta', 'Eros', 'Freyja', 'Kama', 'Dziewanna', 'Inanna', 'Hathor', 'Slaanesh'],
   },
   {
     key: 'order',
@@ -141,7 +141,7 @@ export const DOMAINS: Domain[] = [
     mains: ['majesty', 'wisdom'],
     description:
       'Nieugięta sprawiedliwość, która powstrzymuje cywilizowany świat przed zapadnięciem się w bezkresnym chaosie. Wyznacza twarde granice, ustanawia zasady i bezlitośnie przywraca porządek.',
-    examples: 'Tyr, Atena, Maat, Mitra, Forseti, Szamasz',
+    examples: ['Tyr', 'Atena', 'Maat', 'Mitra', 'Forseti', 'Szamasz'],
   },
   {
     key: 'light',
@@ -149,7 +149,7 @@ export const DOMAINS: Domain[] = [
     mains: ['majesty', 'element'],
     description:
       'Światło samego nieba, które z absolutną pewnością siebie rozprasza wszelką ciemność. To źródło blasku, gwiazd i onieśmielającego piękna. Czysta energia ogarniająca świat z wysokości i nadająca mu sens poprzez emanację energii.',
-    examples: 'Helios, Ra, Dażbóg, Inti, Surya, Lugh, Varda',
+    examples: ['Helios', 'Ra', 'Dażbóg', 'Inti', 'Surya', 'Lugh', 'Varda'],
   },
   {
     key: 'secrets',
@@ -157,7 +157,7 @@ export const DOMAINS: Domain[] = [
     mains: ['whisper', 'wisdom'],
     description:
       'Nieuchwytny spryt, proroctwo, sekret i mroczna odpowiedź, zarezerwowana wyłącznie dla wybranych. To tajemnicza esencja okultyzmu, przenikająca umysły tych, którzy z ciekawością patrzą w ciemność, pragnąc zgłębić drugą stronę rzeczywistości.',
-    examples: 'Odyn, Hekate, Weles, Thot, Morrigan, Hermes',
+    examples: ['Odyn', 'Hekate', 'Weles', 'Thot', 'Morrigan', 'Hermes'],
   },
   {
     key: 'nature',
@@ -165,7 +165,7 @@ export const DOMAINS: Domain[] = [
     mains: ['whisper', 'element'],
     description:
       'Siła całkowicie wolna, nieokiełznana i o wiele starsza niż jakiekolwiek ustanowione przez ludzkość prawa. Dzikość, brutalnie przypominająca, że pod cienką warstwą cywilizacji wciąż bije tętniące serce bestii. To pradawny zew drapieżników, natury i bezdroży.',
-    examples: 'Artemida, Leszy, Cernunnos, Ullr, Tapio, Oromë',
+    examples: ['Artemida', 'Leszy', 'Cernunnos', 'Ullr', 'Tapio', 'Oromë'],
   },
   {
     key: 'forge',
@@ -173,7 +173,7 @@ export const DOMAINS: Domain[] = [
     mains: ['wisdom', 'wrath'],
     description:
       'Mądrość zahartowana w ogniu. Przenika surowy kamień, metal oraz iskrę pomysłu, zmuszając je do przeobrażenia się w coś wielkiego. To napęd wynalazców, kowali i budowniczych; stwórcza energia niosąca pewność, że przyszłość musi zostać z trudem wykuta w żarze wulkanów.',
-    examples: 'Hefajstos, Swarożyc, Brokkr i Sindri, Goibniu, Ilmarinen, Aulë',
+    examples: ['Hefajstos', 'Swarożyc', 'Brokkr i Sindri', 'Goibniu', 'Ilmarinen', 'Aulë'],
   },
   {
     key: 'knowledge',
@@ -181,7 +181,7 @@ export const DOMAINS: Domain[] = [
     mains: ['wisdom', 'grace'],
     description:
       'Mądrość, która przenika strukturę świata i aktywnie odsłania jego najcenniejsze sekrety. To oświecająca energia przenikająca umysły uczonych, odkrywców i skrybów, zapalająca lampę postępu tam, gdzie wciąż zalega mrok ignorancji.',
-    examples: 'Prometeusz, Enki, Saraswati, Ogma, Seszat, Mimir, Atena',
+    examples: ['Prometeusz', 'Enki', 'Saraswati', 'Ogma', 'Seszat', 'Mimir', 'Atena'],
   },
   {
     key: 'storm',
@@ -189,7 +189,7 @@ export const DOMAINS: Domain[] = [
     mains: ['element', 'wrath'],
     description:
       'Potęga kataklizmu, bezduszne przypomnienie o istnieniu czystej, destrukcyjnej siły, która potrafi w mgnieniu oka obrócić imperia w pył. Oślepiający piorun spadający z nieba, fale pochłaniające wybrzeża i ogień rozrywający ziemię.',
-    examples: "Thor, Zeus, Posejdon, Perun, Susanoo, Tlaloc, Ba'al, Ulmo, Melkor",
+    examples: ['Thor', 'Zeus', 'Posejdon', 'Perun', 'Susanoo', 'Tlaloc', "Ba'al", 'Ulmo', 'Melkor'],
   },
   {
     key: 'harvest',
@@ -197,7 +197,7 @@ export const DOMAINS: Domain[] = [
     mains: ['element', 'grace'],
     description:
       'Bijące serce natury, płodności i obfitości. Deszcz budzący ziarno, wilgotna ziemia rodząca plony i witalność jednocząca życie. Radosna siła, która z bezwarunkową hojnością stale odnawia i wprawia w ruch biologiczny cykl świata.',
-    examples: 'Demeter, Mokosz, Frey, Dionizos, Ceres, Izyda, Yavanna',
+    examples: ['Demeter', 'Mokosz', 'Frey', 'Dionizos', 'Ceres', 'Izyda', 'Yavanna'],
   },
 ]
 
@@ -260,4 +260,32 @@ export function domainArt(key: DomainKey | null | undefined, size: 'full' | 'thu
 
 export function attributeArt(key: AttrKey, size: 'full' | 'thumb' = 'full'): string {
   return `/attributes/${key}${size === 'thumb' ? '-thumb' : ''}.jpg`
+}
+
+/** Polish Wikipedia article for an example god; a few titles differ from the plain name. */
+const WIKI_TITLES: Record<string, string> = {
+  "Ba'al": 'Baal',
+  'Brokkr i Sindri': 'Brokk',
+  Tyr: 'Tyr_(mitologia)',
+  Set: 'Set_(bóg)',
+  Eris: 'Eris_(mitologia)',
+  El: 'El_(bóg)',
+  Kama: 'Kama_(bóg)',
+  Frey: 'Frejr',
+  Freyja: 'Freja',
+  Ceres: 'Ceres_(mitologia)',
+  Mitra: 'Mitra_(bóg)',
+  Ra: 'Ra_(bóg)',
+  Ares: 'Ares',
+  Inti: 'Inti_(bóg)',
+  Anu: 'Anu_(bóg)',
+  Dagda: 'Dagda_(mitologia)',
+  Lugh: 'Lug_(mitologia)',
+  Mimir: 'Mimir_(mitologia)',
+  Ogma: 'Ogma_(mitologia)',
+  Montu: 'Montu_(bóg)',
+}
+export function wikiUrl(name: string): string {
+  const title = WIKI_TITLES[name] ?? name.replace(/ /g, '_')
+  return 'https://pl.wikipedia.org/wiki/' + encodeURI(title)
 }

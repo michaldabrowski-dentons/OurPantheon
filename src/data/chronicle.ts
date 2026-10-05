@@ -168,6 +168,23 @@ function seen(id: string, G: string, p: P, ent: Entity | undefined, changed: boo
   return parts.join(' ')
 }
 
+/** true when the written line already names every trait, specialty, flaw, desire and condition of the thing */
+function mentionsAll(summary: string, ent: Entity | undefined): boolean {
+  if (!ent || !summary) return false
+  const words = [...ent.traits, ...ent.specialties, ...ent.flaws, ...ent.desires, ...ent.conditions.map((c) => CONDITION_PAST[c] ?? stripPeriod(c))].map((w) => w.toLowerCase())
+  if (words.length === 0) return false
+  const s = summary.toLowerCase()
+  return words.every((w) => s.includes(w))
+}
+
+/**
+ * The sentence(s) the book would add about a thing's traits, for the action dialog to draft the
+ * description with. `id` picks the variant, so the draft reads the same for everyone at the table.
+ */
+export function describeSeen(id: string, god: GodRef, ent: Entity, changed: boolean): string {
+  return seen(id, god.name, pastFor(god.gender), ent, changed)
+}
+
 // ---------- the deeds ----------
 type Opener = (G: string, p: P, n: string, kindAcc: string) => string
 
@@ -283,7 +300,9 @@ export function chronicleVerse(l: ActionLog, ctx: VerseContext): string {
     const parts = [pick(l.id, OPENERS[action.key])(G, p, n, kindAcc)]
     if (l.summary) parts.push(sentence(l.summary))
     const detail = seen(l.id, G, p, ent, action.entityOp === 'update')
-    if (detail) parts.push(detail)
+    // the dialog drafts the description from the very sentence the book would add about the traits;
+    // when the player kept it (or wrote the traits in themselves), the book does not say it twice
+    if (detail && !mentionsAll(l.summary, ent)) parts.push(detail)
     if (l.is_avatar_free_action) parts.push(pick(l.id + 'a', [`${cap(p('uczyni'))} to rękami swojego awatara.`, 'Rękami awatara stało się to na świecie.']))
     return parts.join(' ')
   }

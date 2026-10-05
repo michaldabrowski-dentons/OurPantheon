@@ -7,12 +7,12 @@ import { EngravedTitle, TextField, TextArea, Notice } from '@/components/ui/Prim
 import { GenderPicker } from '@/features/lobby/GenderPicker'
 import { PlaybookClock, DomainBlurb } from './PlaybookClock'
 import { AttributeChoice } from './AttributeChoice'
-import { AttributeScores } from './AttributeScores'
 import styles from './pantheon.module.css'
 
 /**
- * Making a god in the lobby: a name, the clock of domains, which of the two mains comes first,
- * where the extra +1 goes, how the book speaks of the god, and whatever else the player wants to say.
+ * Making a god in the lobby. Left, the wide part: the domain told, the clock, and right under it the
+ * two attribute choices. Right: the name, how the book speaks of the god, the short line for the plaque,
+ * whatever else the player wants to say, and the save.
  */
 export function GodCreation({ me, gameId }: { me: Player | null; gameId: string }) {
   const [godName, setGodName] = useState('')
@@ -76,76 +76,75 @@ export function GodCreation({ me, gameId }: { me: Player | null; gameId: string 
   return (
     <div className={styles.creation}>
       <EngravedTitle as="h3" align="left">Twoje bóstwo</EngravedTitle>
-      <div className={styles.nameRow}>
-        <TextField
-          id="god_name"
-          label="Imię bóstwa"
-          placeholder="np. Jahwe, Loki, Atena"
-          maxLength={60}
-          value={godName}
-          onChange={(e) => {
-            setGodName(e.target.value)
-            touch()
-          }}
-        />
-        <GenderPicker
-          value={gender}
-          name={godName}
-          onChange={(g) => {
-            setGender(g)
-            touch()
-          }}
-        />
-      </div>
+      <div className={styles.creationGrid}>
+        <div className={styles.creationMain}>
+          <DomainBlurb domain={domain} gender={gender} />
+          <PlaybookClock value={domain} gender={gender} onChange={pickDomain} />
+          {domain ? (
+            <AttributeChoice
+              domain={domain}
+              primary={primary}
+              bonus={bonus}
+              onChange={(p, b) => {
+                setPrimary(p)
+                setBonus(b)
+                touch()
+              }}
+            />
+          ) : (
+            <p className={styles.missing}>Atrybuty pojawią się, gdy wybierzesz domenę.</p>
+          )}
+        </div>
 
-      <p className={styles.sectionTitle}>Domena</p>
-      <PlaybookClock value={domain} gender={gender} onChange={pickDomain} />
-      <DomainBlurb domain={domain} gender={gender} />
-
-      {domain && (
-        <>
-          <p className={styles.sectionTitle}>Atrybuty</p>
-          <AttributeChoice
-            domain={domain}
-            primary={primary}
-            bonus={bonus}
-            onChange={(p, b) => {
-              setPrimary(p)
-              setBonus(b)
+        <div className={styles.creationSide}>
+          <TextField
+            id="god_name"
+            label="Imię bóstwa"
+            placeholder="np. Jahwe, Loki, Atena"
+            maxLength={60}
+            value={godName}
+            onChange={(e) => {
+              setGodName(e.target.value)
               touch()
             }}
           />
-          <AttributeScores domain={domain} primary={primary} bonus={bonus} />
-        </>
-      )}
-
-      <TextField
-        id="god_desc"
-        label="Czym jest twoje bóstwo (krótko, na tabliczkę)"
-        placeholder="np. bóg piorunów i przysiąg"
-        maxLength={120}
-        value={godDesc}
-        onChange={(e) => {
-          setGodDesc(e.target.value)
-          touch()
-        }}
-      />
-      <TextArea
-        id="god_notes"
-        label="Dodatkowe informacje"
-        placeholder="Skąd przyszło, czego pragnie, czego się boi, jak wygląda jego kult."
-        rows={4}
-        value={notes}
-        onChange={(e) => {
-          setNotes(e.target.value)
-          touch()
-        }}
-      />
-      {error && <Notice tone="error">{error}</Notice>}
-      <StoneButton variant="lapis" onClick={save} disabled={busy || !dirty || !complete}>
-        {busy ? 'Zapisywanie…' : dirty ? 'Zapisz bóstwo' : 'Zapisano'}
-      </StoneButton>
-      {missing && dirty && <p className={styles.missing}>{missing}</p>}
+          <GenderPicker
+            value={gender}
+            name={godName}
+            onChange={(g) => {
+              setGender(g)
+              touch()
+            }}
+          />
+          <TextField
+            id="god_desc"
+            label="Czym jest twoje bóstwo (krótko, na tabliczkę)"
+            placeholder="np. bóg piorunów i przysiąg"
+            maxLength={120}
+            value={godDesc}
+            onChange={(e) => {
+              setGodDesc(e.target.value)
+              touch()
+            }}
+          />
+          <TextArea
+            id="god_notes"
+            label="Dodatkowe informacje"
+            placeholder="Skąd przyszło, czego pragnie, czego się boi, jak wygląda jego kult."
+            rows={7}
+            value={notes}
+            onChange={(e) => {
+              setNotes(e.target.value)
+              touch()
+            }}
+          />
+          {error && <Notice tone="error">{error}</Notice>}
+          <StoneButton variant="lapis" size="lg" block onClick={save} disabled={busy || !dirty || !complete}>
+            {busy ? 'Zapisywanie…' : dirty ? 'Zapisz bóstwo' : 'Zapisano'}
+          </StoneButton>
+          {missing && <p className={styles.missing}>{missing}</p>}
+        </div>
+      </div>
     </div>
   )
 }

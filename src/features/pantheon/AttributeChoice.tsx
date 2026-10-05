@@ -66,7 +66,7 @@ export function AttributeChoice({
               <img src={attributeArt(k, 'thumb')} alt="" />
               <span className={styles.attrName}>{attr.name}</span>
               <span className={styles.attrScore}>{scoreText(on ? base[k] + 1 : base[k])}</span>
-              {!on && <span className={styles.attrScoreNext}>po wyborze {scoreText(base[k] + 1)}</span>}
+              <span className={styles.attrScoreNext}>{on ? 'Wybrano' : `po wyborze ${scoreText(base[k] + 1)}`}</span>
             </button>
           )
         })}

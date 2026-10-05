@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode, useEffect } from 'react'
 import { rpc } from '@/lib/supabase'
 import type { ActionLog, ActionPayload, Entity, EntityKind, EntityPayload, Player } from '@/lib/types'
 import { costFor, picksText, type ActionDef, type Era, type Tier, type TierPicks } from '@/data/actions'
@@ -11,6 +11,7 @@ import { StoneButton } from '@/components/ui/StoneButton'
 import { Modal, TextField, TextArea, Notice, Dice2d6, FrescoFrame, inputClass, labelClass, fieldClass } from '@/components/ui/Primitives'
 import { actionArt } from '@/data/actionArt'
 import { TraitPicker } from '@/components/ui/TraitPicker'
+import { draftDeedSummary, draftEntityDescription } from '@/data/draft'
 import { ActionIcon } from '@/components/ui/ActionIcons'
 import styles from './actions.module.css'
 
@@ -104,11 +105,27 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
   const [roll, setRoll] = useState<ActionLog | null>(null)
   const [settled, setSettled] = useState(false)
   const [rules, setRules] = useState(false)
+  // the description is drafted from the picks until the player writes it by hand
+  const [descEdited, setDescEdited] = useState(false)
 
   const paid = f.useAvatar ? 0 : cost
   const canPay = f.useAvatar || affordable
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((s) => ({ ...s, [k]: v }))
+
+  const god = { name: me.god_name?.trim() || 'bóstwo', gender: me.god_gender ?? 'm' }
+  const draftedEntity = action.entityKind ? draftEntityDescription(action, f, god) : ''
+  const draftedDeed = !action.entityKind ? draftDeedSummary(action, god, entities.find((e) => e.id === f.targetId)?.name ?? null) : ''
+  useEffect(() => {
+    if (descEdited) return
+    if (action.entityKind) setF((s) => (s.description === draftedEntity ? s : { ...s, description: draftedEntity }))
+    else setF((s) => (s.summary === draftedDeed ? s : { ...s, summary: draftedDeed }))
+  }, [descEdited, draftedEntity, draftedDeed, action.entityKind])
+  /** the player's own words win; an emptied field hands the draft back */
+  const writeDescription = (k: 'description' | 'summary', v: string) => {
+    set(k, v)
+    setDescEdited(v.trim() !== '')
+  }
 
   // candidate targets for "change" actions
   const targetKinds: EntityKind[] = useMemo(() => {
@@ -141,6 +158,8 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
       requirements: t.requirements,
       conditions: t.conditions,
     }))
+    // the thing's own description is the player's text, not a draft
+    setDescEdited(true)
   }
 
   const civs = entities.filter((e) => e.kind === 'civilization')
@@ -453,11 +472,16 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
           civs={civs}
           sapient={sapient}
           others={others.map((p) => ({ id: p.id, label: playerLabel(p, profiles) }))}
+          descEdited={descEdited}
+          writeDescription={writeDescription}
         />
       )}
 
       {!action.entityKind && (
-        <TextArea id="summary" label="Opis" placeholder={placeholderFor(action)} value={f.summary} onChange={(e) => set('summary', e.target.value)} />
+        <>
+          <TextArea id="summary" label="Opis (tymi słowami trafi do Świętej Księgi)" placeholder={placeholderFor(action)} value={f.summary} onChange={(e) => writeDescription('summary', e.target.value)} />
+          <p className={styles.draftHint}>{descEdited ? 'Twoje słowa. Wyczyść pole, by wrócić do podpowiedzi.' : 'Podpowiedź księgi. Zmień ją, jeśli chcesz opowiedzieć to inaczej.'}</p>
+        </>
       )}
 
       {error && <Notice tone="error">{error}</Notice>}
@@ -583,10 +607,14 @@ function EntityFields({
   civs,
   sapient,
   others,
+  descEdited,
+  writeDescription,
 }: {
   action: ActionDef
   f: FormState
   set: <K extends keyof FormState>(k: K, v: FormState[K]) => void
+  descEdited: boolean
+  writeDescription: (k: 'description' | 'summary', v: string) => void
   picks: TierPicks | null
   civs: Entity[]
   sapient: Entity[]
@@ -608,11 +636,14 @@ function EntityFields({
 
       <TextArea
         id="ent_desc"
-        label="Opis (trafi też do Świętej Księgi)"
+        label="Opis (tymi słowami trafi do Świętej Księgi)"
         value={f.description}
-        onChange={(e) => set('description', e.target.value)}
+        onChange={(e) => writeDescription('description', e.target.value)}
         placeholder={kind === 'creature' ? 'Krótko: gdzie żyją, jak wyglądają, co im zagraża.' : 'Krótko: jacy są i gdzie żyją.'}
       />
+      <p className={styles.draftHint}>
+        {descEdited ? 'Twoje słowa. Wyczyść pole, by znów układało się z cech.' : 'Układa się samo z wybranych cech. Zmień, jeśli chcesz opowiedzieć to inaczej.'}
+      </p>
 
       {kind === 'creature' && (
         <TraitPicker
