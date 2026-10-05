@@ -379,6 +379,11 @@
 
 .plaque {
   position: relative;
+  border: 0;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: auto 1fr;
@@ -402,30 +407,13 @@
 }
 .plaque.me {
   border-left: 5px solid var(--gold-inlay);
-  padding-right: 34px;
 }
-/* the little chisel on my own plaque */
-.plaqueEdit {
-  position: absolute;
-  right: 6px;
-  top: 6px;
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 0.8rem;
-  color: var(--gold-light);
-  background: linear-gradient(180deg, #1b1613, #0a0807);
-  box-shadow: 0 0 0 1px var(--gold-dark), 0 2px 4px rgba(0, 0, 0, 0.6);
-  transition: box-shadow var(--t-glow), transform var(--t-press);
+.plaque:hover {
+  box-shadow: var(--marble-slab-shadow-lit);
 }
-.plaqueEdit:hover {
-  box-shadow: 0 0 0 1px var(--gold), 0 0 10px var(--divine-aura-soft);
-}
-.plaqueEdit:active {
-  transform: translateY(1px);
+.plaque:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
 }
 .plaqueText {
   display: grid;

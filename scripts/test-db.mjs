@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -68,10 +68,16 @@ let players = await q('select * from players where game_id = $1 order by seat_or
 ok(players.length === 2 && players[1].seat_order === 2, 'second god seated')
 ok((await rpcErr(`select open_palette($1)`, [game.id])) !== null, 'non-host cannot open palette')
 await as(A)
-await db.query(`select set_god($1, 'Ta Pod Rzeką', 'fresco-06', 'bogini rzek i cierpliwości', 'f')`, [game.id])
-const godRow = (await q('select god_description, god_gender from players where user_id = $1', [A]))[0]
+await db.query(`select set_god($1, 'Ta Pod Rzeką', 'bogini rzek i cierpliwości', 'f', 'harvest', 'grace', 'wisdom', 'Śpi pod rzeką od początku świata.')`, [game.id])
+const godRow = (await q('select god_description, god_gender, domain_key, attr_primary, attr_bonus, god_notes from players where user_id = $1', [A]))[0]
 ok(godRow.god_description === 'bogini rzek i cierpliwości' && godRow.god_gender === 'f', 'god description and gender saved')
-ok((await rpcErr(`select set_god($1, 'X', 'fresco-06', '', 'x')`, [game.id])) !== null, 'unknown gender refused')
+ok(godRow.domain_key === 'harvest' && godRow.attr_primary === 'grace' && godRow.attr_bonus === 'wisdom' && godRow.god_notes.startsWith('Śpi'), 'playbook keys and notes saved')
+ok((await rpcErr(`select set_god($1, 'X', '', 'x')`, [game.id])) !== null, 'unknown gender refused')
+ok((await rpcErr(`select set_god($1, 'X', '', 'f', 'harvest', 'wrath', 'wisdom')`, [game.id])) !== null, 'primary outside the domain mains refused')
+ok((await rpcErr(`select set_god($1, 'X', '', 'f', 'harvest', 'grace', 'element')`, [game.id])) !== null, 'bonus on a main refused')
+ok((await rpcErr(`select set_god($1, 'X', '', 'f', 'chaos', 'grace', 'wisdom')`, [game.id])) !== null, 'unknown domain refused')
+ok((await rpcErr(`select set_god($1, 'X', '', 'f', null, 'grace', null)`, [game.id])) !== null, 'attributes without a domain refused')
+await db.query(`select set_god($1, 'Ta Pod Rzeką', 'bogini rzek i cierpliwości', 'f', 'harvest', 'grace', 'wisdom')`, [game.id])
 await db.query(`select open_palette($1)`, [game.id])
 await db.query(`insert into palette_entries (game_id, player_id, "column", text) values ($1, $2, 'yes', 'sterowce')`, [game.id, players[0].id])
 

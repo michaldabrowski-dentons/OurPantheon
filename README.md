@@ -20,7 +20,7 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
 2. W **SQL Editor** uruchom po kolei pliki z `supabase/migrations/`:
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
-   `0010_ensure_turn.sql`.
+   `0010_ensure_turn.sql`, `0011_playbooks.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy.
 3. Skopiuj `.env.example` do `.env.local` i wpisz `VITE_SUPABASE_URL` oraz `VITE_SUPABASE_ANON_KEY`
@@ -55,14 +55,15 @@ więc po zmianie zmiennych trzeba zrobić redeploy.
 - `npm run test:db`: uruchamia migracje i rozgrywa dwuosobową partię w PGlite (Postgres w WASM), bez Supabase.
 - `npm run dev` i `http://localhost:5173/preview?screen=game`: podgląd ekranów na sztucznych danych
   (`screen=login|lobby|room|palette|creation|game|rolling|chaos`, `&turn=me`, `&draw=1|chosen`,
-  `&step=N&host=0` dla Stwarzania Świata, `&overture=1|2|3` odtwarza otwarcie Ery, `&overture=0` je pomija).
+  `&step=N&host=0` dla Stwarzania Świata, `&overture=1|2|3` odtwarza otwarcie Ery, `&overture=0` je pomija,
+  `&domain=0` w przedsionku to bóstwo bez domeny, `&sheet=p2` w grze otwiera kartę tego bóstwa).
   Tylko w trybie dev.
 
 ## Przebieg
 
 `/` – zaloguj się loginem i hasłem, stwórz świat albo wpisz kod →
-`/room/KOD` – przedsionek (imię i opis bóstwa, rodzaj gramatyczny, fresk przełączany strzałkami, kod do
-zaproszenia) → Paleta (Tak / Zasłony / Nie; swoje wpisy przeciąga się między kolumnami, a w grze Paleta wraca
+`/room/KOD` – przedsionek: tworzenie postaci (imię, rodzaj gramatyczny, domena na zegarze dwunastu bóstw,
+atrybuty, opis, dodatkowe informacje; kod do zaproszenia) → Paleta (Tak / Zasłony / Nie; swoje wpisy przeciąga się między kolumnami, a w grze Paleta wraca
 pod przyciskiem nad ołtarzem) → Stwarzanie Świata (gospodarz przewraca pytania, wszyscy widzą to samo i głosują;
 przy remisie rozstrzyga głos gospodarza; wynik trafia do Świętej Księgi jako Prolog) → otwarcie Ery (kurtyna z
 rysunkiem epoki, `EraOverture`) → gra: Rzut Logos → Faza Bóstw (turę ma bóstwo z największym Logos) →
@@ -83,6 +84,14 @@ Faza Chaosu (Karta z ogniem, wybór jednego z dwóch zdarzeń, pytania przydziel
   Los i Chaos relacjonowane bezosobowo. Każdy typ wersetu ma kilka wariantów wybieranych z id wpisu.
   Rodzaj gramatyczny bóstwa (♂ bóg / ♀ bogini / bóstwo, `players.god_gender`, domyślnie bóg) ustawia się
   w przedsionku i w ✎; znak stoi przy imieniu na tabliczce.
+- Playbooki (bez skutków mechanicznych na razie): każde bóstwo wybiera jedną z 12 domen (Wojny, Zemsty, Władzy,
+  Miłości, Porządku, Światła, Tajemnic, Natury, Kuźni, Wiedzy, Burzy, Urodzaju) na zegarze, gdzie przeciwieństwa
+  leżą naprzeciw siebie. Domena daje dwóm głównym atrybutom +1, ich przeciwieństwom −1; gracz podnosi jeden główny
+  do +2 i dodaje +1 jednemu z pozostałych czterech. Sześć atrybutów: Gniew ↔ Łaska, Majestat ↔ Podszept,
+  Mądrość ↔ Żywioł. W bazie są tylko trzy klucze (`domain_key`, `attr_primary`, `attr_bonus`, walidowane
+  w `set_god`), wartości liczy `scoresFor` w `src/data/pantheon.ts`. Portret bóstwa to obraz domeny
+  (bezkształtne bóstwo przed wyborem). Kliknięcie tabliczki w grze otwiera kartę postaci (atrybuty, opis,
+  dodatkowe informacje, dzieła bóstwa); właściciel edytuje tam imię, rodzaj, opis i notatki.
 - Stwarzanie Świata: bieżące pytanie trzyma `games.settings.creation_step` (`set_creation_step`, tylko gospodarz).
 - Ekran gry: u góry tylko bóstwa; cały lewy panel to akcje z obrazami (`public/actions`, źródła w `src/img`);
   dolny pasek trzyma Odpoczynek, Przekaż Logos, Rzuć 2k6, Rzuć 2k6 na Logos, animację kości i wyjście.
@@ -106,11 +115,14 @@ Faza Chaosu (Karta z ogniem, wybór jednego z dwóch zdarzeń, pytania przydziel
 
 ```
 supabase/migrations/   schemat, RLS, funkcje RPC, publikacja Realtime
-src/data/              koszty akcji, listy cech, tabele Chaosu, freski, rysunki Er (eraArt.tsx)
+src/data/              koszty akcji, listy cech, tabele Chaosu, panteon (atrybuty i domeny), rysunki Er (eraArt.tsx)
 src/store/             stan gry synchronizowany z Realtime
-src/features/          auth, lobby, palette, creation, game (gods-bar, actions, altar, chaos, chronicle)
+src/features/          auth, lobby, palette, creation, pantheon (zegar domen, atrybuty, karta postaci),
+                       game (gods-bar, actions, altar, chaos, chronicle)
 src/components/ui/     StoneButton, MarblePanel, FrescoFrame, kości, TraitPicker
 src/styles/            tokeny materiałów i tekstury CSS
-src/img/               źródłowe obrazy akcji (PNG 512px); public/actions to ich kopie JPG 512px i miniatury 160px
-public/frescoes/       12 zastępczych fresków SVG (podmień na własne, klucze w src/data/frescoes.ts)
+src/img/               źródłowe obrazy: akcje (PNG 512px), domeny/ i atrybuty/ (PNG 1024px)
+public/actions/        kopie JPG 512px i miniatury 160px
+public/domains/        12 domen i base.jpg (bez domeny), JPG 768px i miniatury 192px
+public/attributes/     6 atrybutów, JPG 384px i miniatury 96px
 ```

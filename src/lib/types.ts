@@ -9,6 +9,9 @@ export type GodRole = 'creator' | 'co_creator'
 export type LinkRelation = 'member_species' | 'variant_of' | 'linked'
 /** grammatical gender of a god's name: m bóg (stworzył), f bogini (stworzyła), n bóstwo (stworzyło) */
 export type GodGender = 'm' | 'f' | 'n'
+/** playbook keys (data in src/data/pantheon.ts; mirrored here so the row types import no data) */
+export type DomainKey = 'war' | 'vengeance' | 'rule' | 'love' | 'order' | 'light' | 'secrets' | 'nature' | 'forge' | 'knowledge' | 'storm' | 'harvest'
+export type AttrKey = 'wrath' | 'majesty' | 'grace' | 'whisper' | 'element' | 'wisdom'
 
 export interface Profile {
   id: string
@@ -39,7 +42,12 @@ export interface Player {
   god_name: string
   god_description: string
   god_gender: GodGender
+  /** unused since the playbooks: the portrait is the domain's painting */
   avatar_key: string
+  domain_key: DomainKey | null
+  attr_primary: AttrKey | null
+  attr_bonus: AttrKey | null
+  god_notes: string
   seat_order: number
   logos: number
   has_rolled: boolean

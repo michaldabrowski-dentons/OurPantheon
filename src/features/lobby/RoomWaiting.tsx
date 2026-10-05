@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { rpc } from '@/lib/supabase'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer } from '@/store/useGameStore'
-import { frescoSrc } from '@/data/frescoes'
+import { domainTitle } from '@/data/pantheon'
 import { StoneButton } from '@/components/ui/StoneButton'
-import { MarblePanel, EngravedTitle, TextField, FrescoFrame, Notice } from '@/components/ui/Primitives'
-import { FrescoPicker } from './FrescoPicker'
-import { GenderPicker, GenderSign } from './GenderPicker'
-import type { GodGender } from '@/lib/types'
+import { MarblePanel, EngravedTitle, Notice } from '@/components/ui/Primitives'
+import { GenderSign } from './GenderPicker'
+import { GodPortrait } from '@/features/pantheon/GodPortrait'
+import { GodCreation } from '@/features/pantheon/GodCreation'
+import { GodSheet } from '@/features/pantheon/GodSheet'
 import styles from './lobby.module.css'
 
 export function RoomWaiting() {
@@ -19,36 +20,8 @@ export function RoomWaiting() {
   const profiles = useGameStore((s) => s.profiles)
   const me = useGameStore(selectMyPlayer(user.id))
   const isHost = game.host_id === user.id
-
-  const [godName, setGodName] = useState('')
-  const [godDesc, setGodDesc] = useState('')
-  const [gender, setGender] = useState<GodGender>('m')
-  const [avatar, setAvatar] = useState('fresco-01')
-  const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    if (me && !dirty) {
-      setGodName(me.god_name)
-      setGodDesc(me.god_description ?? '')
-      setGender(me.god_gender ?? 'm')
-      setAvatar(me.avatar_key)
-    }
-  }, [me, dirty])
-
-  async function saveGod() {
-    setBusy(true)
-    setError(null)
-    try {
-      await rpc('set_god', { p_game_id: game.id, p_god_name: godName, p_avatar_key: avatar, p_god_description: godDesc, p_god_gender: gender })
-      setDirty(false)
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
+  const [sheet, setSheet] = useState<string | null>(null)
 
   async function openPalette() {
     setError(null)
@@ -60,6 +33,7 @@ export function RoomWaiting() {
   }
 
   const shareUrl = `${window.location.origin}/room/${game.code}`
+  const unready = players.filter((p) => !p.domain_key || !p.attr_primary || !p.attr_bonus)
 
   return (
     <div className={styles.room}>
@@ -82,8 +56,8 @@ export function RoomWaiting() {
           <EngravedTitle as="h3" align="left">Zasiadają</EngravedTitle>
           <div className={styles.roster}>
             {players.map((p) => (
-              <div key={p.id} className={styles.seat}>
-                <FrescoFrame src={frescoSrc(p.avatar_key)} alt="" size={48} round />
+              <button key={p.id} type="button" className={styles.seat} onClick={() => setSheet(p.id)} title="Otwórz kartę bóstwa">
+                <GodPortrait domain={p.domain_key} size={48} alt="" />
                 <div className={styles.seatNames}>
                   <strong>
                     <GenderSign kind={p.god_gender ?? 'm'} size={13} className={styles.seatSign} />
@@ -91,74 +65,42 @@ export function RoomWaiting() {
                   </strong>
                   <small>
                     {profiles[p.user_id]?.display_name ?? '…'}
-                    {p.god_description ? ` · ${p.god_description}` : ''}
+                    {' · '}
+                    {p.god_description || domainTitle(p.domain_key, p.god_gender ?? 'm')}
                   </small>
                 </div>
                 {p.user_id === game.host_id && <span className={styles.hostMark}>GOSPODARZ</span>}
-              </div>
+              </button>
             ))}
             {Array.from({ length: Math.max(0, 2 - players.length) }).map((_, i) => (
               <div key={`empty-${i}`} className={[styles.seat, styles.empty].join(' ')}>wolne miejsce</div>
             ))}
           </div>
 
+          {error && <Notice tone="error">{error}</Notice>}
           {isHost ? (
-            <StoneButton variant="gold" size="lg" block onClick={openPalette}>
-              Otwórz Paletę
-            </StoneButton>
+            <>
+              <StoneButton variant="gold" size="lg" block onClick={openPalette}>
+                Otwórz Paletę
+              </StoneButton>
+              {unready.length > 0 && (
+                <Notice>
+                  {unready.length === 1 ? 'Jedno bóstwo nie ma jeszcze domeny i atrybutów' : `${unready.length} bóstw nie ma jeszcze domeny i atrybutów`}. Można zacząć, ale
+                  kartę postaci warto domknąć teraz.
+                </Notice>
+              )}
+            </>
           ) : (
             <Notice>Gospodarz otworzy Paletę, gdy wszyscy zasiądą.</Notice>
           )}
         </MarblePanel>
 
         <MarblePanel style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
-          <EngravedTitle as="h3" align="left">Twoje bóstwo</EngravedTitle>
-          <TextField
-            id="god_name"
-            label="Imię bóstwa"
-            placeholder="np. Jahwe, Loki, Atena"
-            maxLength={60}
-            value={godName}
-            onChange={(e) => {
-              setGodName(e.target.value)
-              setDirty(true)
-            }}
-          />
-          <TextField
-            id="god_desc"
-            label="Czym jest twoje bóstwo (krótko)"
-            placeholder="np. bóg piorunów i przysiąg"
-            maxLength={120}
-            value={godDesc}
-            onChange={(e) => {
-              setGodDesc(e.target.value)
-              setDirty(true)
-            }}
-          />
-          <GenderPicker
-            value={gender}
-            name={godName}
-            onChange={(g) => {
-              setGender(g)
-              setDirty(true)
-            }}
-          />
-          <div>
-            <span className="engraved" style={{ fontSize: '0.8rem', color: 'var(--ink-soft)' }}>Fresk</span>
-            <FrescoPicker
-              value={avatar}
-              onChange={(k) => {
-                setAvatar(k)
-                setDirty(true)
-              }}
-            />
-          </div>
-          {error && <Notice tone="error">{error}</Notice>}
-          <StoneButton variant="lapis" onClick={saveGod} disabled={busy || !dirty}>
-            {busy ? 'Zapisywanie…' : dirty ? 'Zapisz bóstwo' : 'Zapisano'}
-          </StoneButton>
+          <GodCreation me={me} gameId={game.id} />
         </MarblePanel>
       </div>
+
+      {sheet && <GodSheet playerId={sheet} onClose={() => setSheet(null)} />}
     </div>
   )
 }

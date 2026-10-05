@@ -271,22 +271,6 @@
     grid-template-columns: 1fr;
   }
 }
-.frescoRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  max-width: 300px;
-}
-.frescoBtn {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  opacity: 0.6;
-}
-.frescoBtn:hover,
-.frescoOn {
-  opacity: 1;
-}
 .twoCol {
   display: grid;
   grid-template-columns: 1fr 1fr;

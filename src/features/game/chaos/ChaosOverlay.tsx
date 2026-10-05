@@ -3,12 +3,12 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { rpc } from '@/lib/supabase'
 import { CHAOS_BY_KEY, chaosCategoryByDie, type ChaosCategoryKey } from '@/data/chaosTables'
 import { KIND_ACC } from '@/data/chronicle'
-import { frescoSrc } from '@/data/frescoes'
+import { godPortraitSrc, GodPortrait } from '@/features/pantheon/GodPortrait'
 import type { Entity, EntityKind, Player } from '@/lib/types'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer, selectCurrentChaosDraw, godLabel } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
-import { Dice2d6, MarblePanel, FrescoFrame, inputClass } from '@/components/ui/Primitives'
+import { Dice2d6, MarblePanel, inputClass } from '@/components/ui/Primitives'
 import { kindLabel } from '../actions/ActionDialog'
 import styles from './chaos.module.css'
 
@@ -123,7 +123,7 @@ export function ChaosOverlay({ onError }: { onError: (m: string | null) => void 
         {draw && !chosen && (
           <>
             <div className={['obsidian-inlay', styles.chooser].join(' ')}>
-              <FrescoFrame src={frescoSrc(revealer?.avatar_key)} alt="" size={48} round aura />
+              <GodPortrait domain={revealer?.domain_key} size={48} aura alt="" />
               <div>
                 <span className={styles.chooserLabel}>Wybór należy do</span>
                 <strong className="carved-glow">{godLabel(revealer)}</strong>
@@ -277,7 +277,7 @@ function ChaosResult({
       {candidates.length > 0 && (
         <div className={styles.question}>
           <div className={styles.questionWho}>
-            <img src={frescoSrc(subjectChooser?.avatar_key)} alt="" width={30} height={30} />
+            <img src={godPortraitSrc(subjectChooser?.domain_key)} alt="" width={30} height={30} />
             <span>
               <b>{godLabel(subjectChooser)}</b> wskazuje, kogo to dotyczy:
             </span>
@@ -318,7 +318,7 @@ function ChaosResult({
           return (
             <li key={q} className={styles.question}>
               <div className={styles.questionWho}>
-                <img src={frescoSrc(god?.avatar_key)} alt="" width={30} height={30} />
+                <img src={godPortraitSrc(god?.domain_key)} alt="" width={30} height={30} />
                 <span>
                   <b>{godLabel(god)}</b> odpowiada:
                 </span>

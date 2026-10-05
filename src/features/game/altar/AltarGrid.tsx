@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import type { Entity } from '@/lib/types'
 import { isSapient } from '@/data/actions'
-import { frescoSrc } from '@/data/frescoes'
+import { godPortraitSrc } from '@/features/pantheon/GodPortrait'
 import { useGameStore, godLabel } from '@/store/useGameStore'
 import { Tag } from '@/components/ui/Primitives'
 import { EntityDetail } from './EntityDetail'
@@ -102,13 +102,12 @@ function EntityCard({ entity, delay, onOpen }: { entity: Entity; delay: number; 
       {showGods && gods.length > 0 && (
         <span className={styles.pins} aria-label="Bóstwa">
           {gods.map((g) => (
-            <img key={g!.id} className={styles.pin} src={frescoSrc(g!.avatar_key)} alt={godLabel(g)} title={godLabel(g)} />
+            <img key={g!.id} className={styles.pin} src={godPortraitSrc(g!.domain_key)} alt={godLabel(g)} title={godLabel(g)} />
           ))}
         </span>
       )}
       {entity.is_chaos && <span className={styles.chaosMark}>CHAOS</span>}
       <span className={styles.cardHead}>
-        {entity.image_key && <img src={frescoSrc(entity.image_key)} alt="" width={36} height={36} style={{ borderRadius: '50%', boxShadow: '0 0 0 2px var(--gold-dark)' }} />}
         <span className={styles.cardName}>{entity.name}</span>
       </span>
       {entity.kind === 'civilization' && (

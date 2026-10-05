@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { rpc } from '@/lib/supabase'
 import { WORLD_QUESTIONS, OPTION_LETTERS, PROLOGUE_OPENING, prologueLine, type WorldQuestion } from '@/data/worldQuestions'
-import { frescoSrc } from '@/data/frescoes'
+import { godPortraitSrc } from '@/features/pantheon/GodPortrait'
 import type { CreationOption, CreationVote, Player } from '@/lib/types'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer, godLabel } from '@/store/useGameStore'
@@ -267,7 +267,7 @@ function QuestionPanel({
                 {tied && <span className={[styles.winMark, styles.tieMark].join(' ')}>remis</span>}
                 <span className={styles.voters} aria-label={`${voters.length} głosów`}>
                   {voters.map((p) => (
-                    <img key={p.id} src={frescoSrc(p.avatar_key)} alt="" title={godLabel(p) + (p.id === hostId ? ' (gospodarz)' : '')} className={p.id === hostId ? styles.hostVoter : ''} />
+                    <img key={p.id} src={godPortraitSrc(p.domain_key)} alt="" title={godLabel(p) + (p.id === hostId ? ' (gospodarz)' : '')} className={p.id === hostId ? styles.hostVoter : ''} />
                   ))}
                   {voters.length > 0 && <b>{voters.length}</b>}
                 </span>

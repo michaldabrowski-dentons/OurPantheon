@@ -5,10 +5,10 @@ import {
   AVATAR_CONDITIONS, CIV_FLAWS, CIV_SPECIALTIES, CIV_TRAITS, CREATURE_TRAITS, FACTION_DESIRES, FACTION_TRAITS, FACTION_TYPES,
   ORTHODOXY_REQUIREMENTS, SAPIENT_TRAITS,
 } from '@/data/traits'
-import { ENTITY_FRESCOES, frescoSrc } from '@/data/frescoes'
+import { godPortraitSrc } from '@/features/pantheon/GodPortrait'
 import { useGameStore, godLabel } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
-import { Modal, Tag, TextField, TextArea, FrescoFrame, Notice, Toggle, ConfirmDialog, inputClass, labelClass, fieldClass } from '@/components/ui/Primitives'
+import { Modal, Tag, TextField, TextArea, Notice, Toggle, ConfirmDialog, inputClass, labelClass, fieldClass } from '@/components/ui/Primitives'
 import { TraitPicker } from '@/components/ui/TraitPicker'
 import { kindLabel } from '../actions/ActionDialog'
 import styles from '../game.module.css'
@@ -17,7 +17,6 @@ import formStyles from '../actions/actions.module.css'
 interface EditForm {
   name: string
   description: string
-  image_key: string
   faction_type: string
   parent_civilization_id: string
   traits: string[]
@@ -31,7 +30,6 @@ interface EditForm {
 const fromEntity = (e: Entity): EditForm => ({
   name: e.name,
   description: e.description,
-  image_key: e.image_key ?? '',
   faction_type: e.faction_type ?? FACTION_TYPES[0],
   parent_civilization_id: e.parent_civilization_id ?? '',
   traits: e.traits,
@@ -92,7 +90,6 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
     const p: Record<string, unknown> = {
       name: form.name,
       description: form.description,
-      image_key: form.image_key || undefined,
       traits: form.traits,
       specialties: form.specialties,
       flaws: form.flaws,
@@ -142,7 +139,6 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
     <Modal title={entity.name} onClose={onClose} wide={editing}>
       <div className={styles.detail}>
         <div className={styles.detailHead}>
-          {entity.image_key && !editing && <FrescoFrame src={frescoSrc(entity.image_key)} alt="" size={84} />}
           <div>
             <p>
               {kindLabel(entity.kind)}
@@ -217,7 +213,7 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
                 <div className={styles.detailActions}>
                   {gods.map(({ g, p }) => (
                     <span key={g.player_id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <img src={frescoSrc(p?.avatar_key)} alt="" width={28} height={28} style={{ borderRadius: '50%', boxShadow: '0 0 0 2px var(--gold)' }} />
+                      <img src={godPortraitSrc(p?.domain_key)} alt="" width={28} height={28} style={{ borderRadius: '50%', boxShadow: '0 0 0 2px var(--gold)' }} />
                       {godLabel(p)}
                       {g.role === 'co_creator' ? ' (współtwórca)' : ''}
                     </span>
@@ -326,22 +322,6 @@ function EntityEditor({
     <div className={formStyles.fields}>
       <div className={formStyles.nameRow}>
         <TextField id="e_name" label="Nazwa" value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={80} />
-        <label className={fieldClass}>
-          <span className={labelClass}>Fresk</span>
-          <div className={formStyles.frescoRow}>
-            {ENTITY_FRESCOES.map((fr) => (
-              <button
-                key={fr.key}
-                type="button"
-                className={[formStyles.frescoBtn, form.image_key === fr.key ? formStyles.frescoOn : ''].join(' ')}
-                onClick={() => set('image_key', fr.key)}
-                title={fr.name}
-              >
-                <FrescoFrame src={frescoSrc(fr.key)} alt={fr.name} size={36} round aura={form.image_key === fr.key} />
-              </button>
-            ))}
-          </div>
-        </label>
       </div>
 
       <TextArea id="e_desc" label="Opis" value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="Krótko, dwa lub trzy zdania." />

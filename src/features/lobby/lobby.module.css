@@ -141,6 +141,12 @@
   gap: 10px;
 }
 .seat {
+  width: 100%;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -149,7 +155,14 @@
   background: rgba(0, 0, 0, 0.1);
   box-shadow: var(--recess-shadow);
 }
+button.seat:hover {
+  box-shadow: var(--recess-shadow), 0 0 0 1px var(--gold-dark);
+}
+button.seat:focus-visible {
+  outline: 2px solid var(--gold);
+}
 .seat.empty {
+  cursor: default;
   opacity: 0.5;
   font-style: italic;
   justify-content: center;
@@ -180,81 +193,6 @@
   box-shadow: 0 0 0 1px var(--gold-dark);
   padding: 2px 8px;
   border-radius: 3px;
-}
-
-/* Fresco carousel: one painting between two stone arrows */
-.frescoCarousel {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 6px;
-  border-radius: var(--radius-slab);
-  outline: none;
-}
-.frescoCarousel:focus-visible {
-  box-shadow: 0 0 0 2px var(--gold);
-}
-.frescoArrow {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 205, 140, 0.18);
-  border-radius: 50%;
-  color: var(--gold-light);
-  background: linear-gradient(180deg, #2a2320, #0d0a09);
-  box-shadow: var(--slab-shadow);
-  cursor: pointer;
-  transition: transform var(--t-press), box-shadow var(--t-glow), border-color var(--t-glow), filter var(--t-glow);
-}
-.frescoArrow:hover {
-  border-color: rgba(255, 205, 140, 0.4);
-  filter: brightness(1.12);
-}
-.frescoArrow:active {
-  transform: translateY(2px);
-  box-shadow: var(--slab-shadow-pressed);
-}
-.frescoStage {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  overflow: hidden;
-}
-.frescoSlide {
-  display: grid;
-}
-.slideFromRight {
-  animation: slideFromRight 240ms var(--ease-emerge);
-}
-.slideFromLeft {
-  animation: slideFromLeft 240ms var(--ease-emerge);
-}
-@keyframes slideFromRight {
-  from {
-    opacity: 0;
-    transform: translateX(28px);
-  }
-}
-@keyframes slideFromLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-28px);
-  }
-}
-.frescoName {
-  display: grid;
-  justify-items: center;
-  font-family: var(--font-display);
-  font-size: 0.85rem;
-  letter-spacing: 0.12em;
-  color: var(--ink);
-}
-.frescoName small {
-  font-size: 0.65rem;
-  letter-spacing: 0.15em;
-  color: var(--ink-soft);
 }
 
 /* Gender: three signs carved side by side */

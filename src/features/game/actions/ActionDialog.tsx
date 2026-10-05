@@ -31,7 +31,6 @@ interface FormState {
   asVariant: boolean
   name: string
   description: string
-  image_key: string
   faction_type: string
   parent_civilization_id: string
   kind: EntityKind
@@ -52,7 +51,6 @@ const initial = (kind: EntityKind | undefined, useAvatar: boolean): FormState =>
   asVariant: false,
   name: '',
   description: '',
-  image_key: '',
   faction_type: FACTION_TYPES[0],
   parent_civilization_id: '',
   kind: kind ?? 'creature',
@@ -133,7 +131,6 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
       targetId: id,
       name: t.name,
       description: t.description,
-      image_key: t.image_key ?? '',
       faction_type: t.faction_type ?? FACTION_TYPES[0],
       parent_civilization_id: t.parent_civilization_id ?? '',
       kind: t.kind,
@@ -167,7 +164,6 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
     const base = {
       name: f.name,
       description: f.description,
-      image_key: f.image_key || undefined,
       traits,
       specialties: f.specialties,
       flaws: f.flaws,

@@ -1,5 +1,6 @@
 // Dev-only preview of the game screens with fake data (no Supabase needed).
 //   /preview?screen=game|chaos|rolling|lobby|room|palette|creation|login
+//   &domain=0 (room: no domain yet), &sheet=p2 (game: that god's sheet open)
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
@@ -42,7 +43,11 @@ const player = (n: number, over: Partial<Player>): Player => ({
   god_name: '',
   god_description: '',
   god_gender: 'n',
-  avatar_key: `fresco-0${n}`,
+  avatar_key: '',
+  domain_key: null,
+  attr_primary: null,
+  attr_bonus: null,
+  god_notes: '',
   seat_order: n,
   logos: 5,
   has_rolled: true,
@@ -81,10 +86,10 @@ const entity = (n: number, over: Partial<Entity>): Entity => ({
 })
 
 const players = [
-  player(1, { god_name: 'Ta, Która Śpi Pod Rzeką', god_description: 'bogini rzek i cierpliwości', god_gender: 'f', logos: 11, low_logos_streak: 1 }),
-  player(2, { god_name: 'Ten, Który Liczy', god_description: 'bóg rachunku i długu', god_gender: 'm', logos: 17 }),
-  player(3, { god_name: 'Bezimienny Wiatr', god_description: 'bóg wędrówki', god_gender: 'm', logos: 4, is_resting: true }),
-  player(4, { god_name: 'Matka Soli', god_description: 'bogini morza i konserwacji', god_gender: 'f', logos: 9 }),
+  player(1, { god_name: 'Ta, Która Śpi Pod Rzeką', god_description: 'bogini rzek i cierpliwości', god_gender: 'f', logos: 11, low_logos_streak: 1, domain_key: 'harvest', attr_primary: 'grace', attr_bonus: 'wisdom', god_notes: 'Śpi pod rzeką od początku świata i liczy pory roku po barwie wody. Budzi się, gdy ktoś łamie obietnicę złożoną nad wodą.' }),
+  player(2, { god_name: 'Ten, Który Liczy', god_description: 'bóg rachunku i długu', god_gender: 'm', logos: 17, domain_key: 'order', attr_primary: 'wisdom', attr_bonus: 'whisper' }),
+  player(3, { god_name: 'Bezimienny Wiatr', god_description: 'bóg wędrówki', god_gender: 'm', logos: 4, is_resting: true, domain_key: 'storm', attr_primary: 'element', attr_bonus: 'whisper' }),
+  player(4, { god_name: 'Matka Soli', god_description: 'bogini morza i konserwacji', god_gender: 'f', logos: 9, domain_key: 'love', attr_primary: 'grace', attr_bonus: 'wisdom' }),
 ]
 
 const creationOptions = [
@@ -100,14 +105,14 @@ const creationVotes = [
 ]
 
 const entities = [
-  entity(1, { name: 'Manule stoickie', traits: ['Rozumne', 'Łagodne', 'Długowieczne'], image_key: 'fresco-11' }),
-  entity(2, { name: 'Rzeczne węże', traits: ['Jadowite', 'Wędrowne'], image_key: 'fresco-03' }),
-  entity(3, { name: 'Kałamarnice, co chodzą', traits: ['Umysł roju', 'Płynne', 'Nocne'], image_key: 'fresco-06' }),
-  entity(4, { kind: 'civilization', name: 'Stoicy Znad Rzeki', traits: ['Zachowawcza', 'Współpracująca'], specialties: ['Rolnictwo', 'Wiara/Religia'], flaws: ['Magia'], image_key: 'fresco-05', description: 'Spokojny lud manuli, który liczy pory roku po barwie wody.' }),
+  entity(1, { name: 'Manule stoickie', traits: ['Rozumne', 'Łagodne', 'Długowieczne'] }),
+  entity(2, { name: 'Rzeczne węże', traits: ['Jadowite', 'Wędrowne'] }),
+  entity(3, { name: 'Kałamarnice, co chodzą', traits: ['Umysł roju', 'Płynne', 'Nocne'] }),
+  entity(4, { kind: 'civilization', name: 'Stoicy Znad Rzeki', traits: ['Zachowawcza', 'Współpracująca'], specialties: ['Rolnictwo', 'Wiara/Religia'], flaws: ['Magia'], description: 'Spokojny lud manuli, który liczy pory roku po barwie wody.' }),
   entity(5, { kind: 'faction', name: 'Rada Brodów', faction_type: 'Organ rządzący', parent_civilization_id: E(4), traits: ['Biurokratyczna', 'Pokojowa'], desires: ['Kontrola'] }),
   entity(6, { kind: 'orthodoxy', name: 'Cisi Strażnicy Nurtu', faction_type: 'Sekta/Kult', parent_civilization_id: E(4), traits: ['Obowiązkowa', 'Skryta'], desires: ['Ochrona'], requirements: ['Bronić', 'Wstrzymywać się'] }),
-  entity(7, { kind: 'avatar', name: 'Posąg z Białego Kamienia', conditions: ['Są nieożywionym przedmiotem, jak posąg, klejnot, góra.'], image_key: 'fresco-07', created_by_player_id: P(2) }),
-  entity(8, { kind: 'avatar', name: 'Sowa o Stu Imionach', conditions: ['Nie wiedzą, że są Awatarem.'], image_key: 'fresco-11', status: 'dead', created_by_player_id: P(1) }),
+  entity(7, { kind: 'avatar', name: 'Posąg z Białego Kamienia', conditions: ['Są nieożywionym przedmiotem, jak posąg, klejnot, góra.'], created_by_player_id: P(2) }),
+  entity(8, { kind: 'avatar', name: 'Sowa o Stu Imionach', conditions: ['Nie wiedzą, że są Awatarem.'], status: 'dead', created_by_player_id: P(1) }),
 ]
 
 const entityGods = [
@@ -162,6 +167,25 @@ export function DevPreview() {
         useGameStore.setState((s) => ({ log: [...s.log, row] }))
         return row
       }
+      if (fn === 'set_god') {
+        // the lobby form and the sheet patch the signed-in god so "Zapisz" visibly works
+        useGameStore.setState((s) => ({
+          players: s.players.map((p) =>
+            p.user_id === U1
+              ? {
+                  ...p,
+                  god_name: String(args.p_god_name ?? ''),
+                  god_description: String(args.p_god_description ?? ''),
+                  god_gender: (args.p_god_gender as Player['god_gender']) ?? 'm',
+                  domain_key: (args.p_domain_key as Player['domain_key']) ?? null,
+                  attr_primary: (args.p_attr_primary as Player['attr_primary']) ?? null,
+                  attr_bonus: (args.p_attr_bonus as Player['attr_bonus']) ?? null,
+                  god_notes: String(args.p_god_notes ?? ''),
+                }
+              : p,
+          ),
+        }))
+      }
       return null
     }
     const base = { gameId: G, players, profiles, entities, entityGods, entityLinks: [{ from_entity_id: E(4), to_entity_id: E(1), game_id: G, relation: 'member_species' as const }], log, chaosDraws: [], eraVotes: [{ game_id: G, player_id: P(2), target_era: 2, created_at: '' }], palette: [
@@ -210,7 +234,14 @@ export function DevPreview() {
         })
         break
       case 'room':
-        useGameStore.setState({ ...base, game: game({ status: 'lobby' }), entities: [], log: [] })
+        useGameStore.setState({
+          ...base,
+          game: game({ status: 'lobby' }),
+          entities: [],
+          log: [],
+          // &domain=0: the signed-in god has not chosen a domain yet
+          players: params.get('domain') === '0' ? players.map((p, i) => (i === 0 ? { ...p, domain_key: null, attr_primary: null, attr_bonus: null, god_notes: '' } : p)) : players,
+        })
         break
       case 'palette':
         useGameStore.setState({ ...base, game: game({ status: 'palette' }), entities: [], log: [] })

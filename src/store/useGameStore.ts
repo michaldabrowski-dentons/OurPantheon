@@ -213,6 +213,26 @@ export const selectCurrentChaosDraw = (s: GameState) => {
   return inRound.reduce((m, d) => ((d.seq ?? 1) > (m.seq ?? 1) ? d : m))
 }
 
+/** Everything a god made or co-made: entity_gods links plus plain authorship, each entity once. */
+export const selectEntitiesOf = (playerId: string) => (s: GameState): { entity: Entity; role: 'creator' | 'co_creator' }[] => {
+  const seen = new Set<string>()
+  const out: { entity: Entity; role: 'creator' | 'co_creator' }[] = []
+  for (const g of s.entityGods) {
+    if (g.player_id !== playerId || seen.has(g.entity_id)) continue
+    const entity = s.entities.find((e) => e.id === g.entity_id)
+    if (!entity) continue
+    seen.add(entity.id)
+    out.push({ entity, role: g.role })
+  }
+  for (const entity of s.entities) {
+    if (entity.created_by_player_id === playerId && !seen.has(entity.id)) {
+      seen.add(entity.id)
+      out.push({ entity, role: 'creator' })
+    }
+  }
+  return out
+}
+
 /** The god's name only, never the human behind it (for the Chronicle and scenes). */
 export function godLabel(p: Player | null | undefined): string {
   if (!p) return 'Bezimienne bóstwo'
