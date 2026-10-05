@@ -52,17 +52,27 @@ export function DomainBlurb({ domain, gender }: { domain: DomainKey | null; gend
   return (
     <div className={styles.blurb}>
       <h3 className={['engraved', styles.blurbTitle].join(' ')}>{domainTitle(domain, gender)}</h3>
-      <div className={styles.examples} style={{ '--cols': Math.ceil(d.examples.length / 2) } as CSSProperties} aria-label="Bogowie tej domeny">
-        {d.examples.map((name) => (
-          <a key={name} className={styles.exampleLink} href={wikiUrl(name)} target="_blank" rel="noopener noreferrer" title={`${name} w Wikipedii`}>
-            {name}
-            <WikiMark />
-          </a>
+      <div className={styles.examples} aria-label="Bogowie tej domeny">
+        {splitRows(d.examples).map((row, i) => (
+          <div key={i} className={styles.exampleRow}>
+            {row.map((name) => (
+              <a key={name} className={styles.exampleLink} href={wikiUrl(name)} target="_blank" rel="noopener noreferrer" title={`${name} w Wikipedii`}>
+                {name}
+                <WikiMark />
+              </a>
+            ))}
+          </div>
         ))}
       </div>
       <p className={styles.blurbText}>{d.description}</p>
     </div>
   )
+}
+
+/** two rows of the same height, the first one taking the odd name */
+function splitRows<T>(list: T[]): [T[], T[]] {
+  const half = Math.ceil(list.length / 2)
+  return [list.slice(0, half), list.slice(half)]
 }
 
 function WikiMark() {
