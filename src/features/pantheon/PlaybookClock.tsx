@@ -52,8 +52,7 @@ export function DomainBlurb({ domain, gender }: { domain: DomainKey | null; gend
   return (
     <div className={styles.blurb}>
       <h3 className={['engraved', styles.blurbTitle].join(' ')}>{domainTitle(domain, gender)}</h3>
-      <p className={styles.blurbText}>{d.description}</p>
-      <div className={styles.examples} aria-label="Bogowie tej domeny">
+      <div className={styles.examples} style={{ '--cols': Math.ceil(d.examples.length / 2) } as CSSProperties} aria-label="Bogowie tej domeny">
         {d.examples.map((name) => (
           <a key={name} className={styles.exampleLink} href={wikiUrl(name)} target="_blank" rel="noopener noreferrer" title={`${name} w Wikipedii`}>
             {name}
@@ -61,6 +60,7 @@ export function DomainBlurb({ domain, gender }: { domain: DomainKey | null; gend
           </a>
         ))}
       </div>
+      <p className={styles.blurbText}>{d.description}</p>
     </div>
   )
 }
