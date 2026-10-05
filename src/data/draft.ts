@@ -2,7 +2,7 @@
 // from what the player has picked so far, and keeps redrafting until the player edits it by hand.
 import type { Entity, EntityKind, GodGender } from '@/lib/types'
 import type { ActionDef } from './actions'
-import { describeSeen, pastFor } from './chronicle'
+import { describeDeed, describeSeen, pastFor } from './chronicle'
 
 export interface DraftGod {
   name: string
@@ -22,7 +22,7 @@ export interface DraftForm {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
-/** A thing's description: the sentence about its traits, or, before any are chosen, a line about its arrival. */
+/** A thing's description: the whole verse the book will carry, the deed first, then what the god saw in it. */
 export function draftEntityDescription(action: ActionDef, form: DraftForm, god: DraftGod): string {
   const ent = {
     kind: form.kind,
@@ -34,8 +34,13 @@ export function draftEntityDescription(action: ActionDef, form: DraftForm, god: 
     requirements: form.requirements,
     conditions: form.conditions,
   } as Entity
+  const opener = describeDeed('draft', god, action.key, form.name, form.kind)
   const detail = describeSeen('draft', god, ent, action.entityOp === 'update')
-  if (detail) return detail
+  return detail ? `${opener} ${detail}` : `${opener} ${arrival(form, god)}`
+}
+
+/** before any trait is picked: a line about the thing's arrival */
+function arrival(form: DraftForm, god: DraftGod): string {
   const n = form.name.trim() || 'to, co nie ma jeszcze imienia'
   const p = pastFor(god.gender)
   switch (form.kind) {

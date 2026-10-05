@@ -634,16 +634,6 @@ function EntityFields({
     <div className={styles.fields}>
       <TextField id="ent_name" label="Nazwa" value={f.name} onChange={(e) => set('name', e.target.value)} maxLength={80} />
 
-      <TextArea
-        id="ent_desc"
-        label="Opis (tymi słowami trafi do Świętej Księgi)"
-        value={f.description}
-        onChange={(e) => writeDescription('description', e.target.value)}
-        placeholder={kind === 'creature' ? 'Krótko: gdzie żyją, jak wyglądają, co im zagraża.' : 'Krótko: jacy są i gdzie żyją.'}
-      />
-      <p className={styles.draftHint}>
-        {descEdited ? 'Twoje słowa. Wyczyść pole, by znów układało się z cech.' : 'Układa się samo z wybranych cech. Zmień, jeśli chcesz opowiedzieć to inaczej.'}
-      </p>
 
       {kind === 'creature' && (
         <TraitPicker
@@ -725,6 +715,17 @@ function EntityFields({
           <MultiSelect options={others} value={f.co_god_ids} onChange={(v) => set('co_god_ids', v)} />
         </label>
       )}
+
+      <TextArea
+        id="ent_desc"
+        label="Opis: cały werset, który trafi do Świętej Księgi"
+        value={f.description}
+        onChange={(e) => writeDescription('description', e.target.value)}
+        placeholder={kind === 'creature' ? 'Krótko: gdzie żyją, jak wyglądają, co im zagraża.' : 'Krótko: jacy są i gdzie żyją.'}
+      />
+      <p className={styles.draftHint}>
+        {descEdited ? 'Twoje słowa. Wyczyść pole, by znów układało się z cech.' : 'Układa się samo z wybranych cech. Zmień, jeśli chcesz opowiedzieć to inaczej.'}
+      </p>
     </div>
   )
 }

@@ -185,6 +185,19 @@ export function describeSeen(id: string, god: GodRef, ent: Entity, changed: bool
   return seen(id, god.name, pastFor(god.gender), ent, changed)
 }
 
+/** The opening sentence of a deed ("I stworzył X istoty, i nazwał je N."), for the dialog's draft. */
+export function describeDeed(id: string, god: GodRef, key: ActionKey, name: string, kind: EntityKind | null): string {
+  const n = name.trim() || 'bez imienia'
+  return pick(id, OPENERS[key])(god.name, pastFor(god.gender), n, kind ? KIND_ACC[kind] : 'frakcję')
+}
+
+/** A description drafted by the dialog is the whole verse: it names the god and the thing. */
+function isWholeVerse(summary: string, G: string, ent: Entity | undefined): boolean {
+  if (!ent || !summary) return false
+  const n = ent.name?.trim()
+  return summary.includes(G) && (!n || summary.includes(n))
+}
+
 // ---------- the deeds ----------
 type Opener = (G: string, p: P, n: string, kindAcc: string) => string
 
@@ -297,9 +310,10 @@ export function chronicleVerse(l: ActionLog, ctx: VerseContext): string {
     const ent = ctx.entity(l.entity_id)
     const n = ent?.name ?? 'bez imienia'
     const kindAcc = ent ? KIND_ACC[ent.kind] : 'frakcję'
-    const parts = [pick(l.id, OPENERS[action.key])(G, p, n, kindAcc)]
-    if (l.summary) parts.push(sentence(l.summary))
-    const detail = seen(l.id, G, p, ent, action.entityOp === 'update')
+    const whole = isWholeVerse(l.summary, G, ent)
+    const parts = whole ? [sentence(l.summary)] : [pick(l.id, OPENERS[action.key])(G, p, n, kindAcc)]
+    if (l.summary && !whole) parts.push(sentence(l.summary))
+    const detail = whole ? '' : seen(l.id, G, p, ent, action.entityOp === 'update')
     // the dialog drafts the description from the very sentence the book would add about the traits;
     // when the player kept it (or wrote the traits in themselves), the book does not say it twice
     if (detail && !mentionsAll(l.summary, ent)) parts.push(detail)

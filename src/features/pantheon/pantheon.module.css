@@ -111,10 +111,13 @@
 }
 
 /* ---------- The domain described ---------- */
+/* fixed rows, so a longer description never pushes the clock down */
 .blurb {
   display: grid;
+  grid-template-rows: 2.2rem 7.2em 2.4rem;
   gap: 8px;
   text-align: center;
+  align-items: start;
 }
 .blurbTitle {
   font-family: var(--font-display);
@@ -154,6 +157,10 @@
   line-height: 1.5;
   max-width: 62ch;
   margin: 0 auto;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .blurbExamples {
   font-size: 0.92rem;
@@ -165,6 +172,8 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
+  min-height: 2.4rem;
+  align-content: start;
 }
 .exampleLink {
   display: inline-flex;
@@ -278,6 +287,7 @@
   font-style: italic;
   color: var(--ink-soft);
   line-height: 1.3;
+  min-height: 2.6em;
 }
 .attrTileOn .attrTagline {
   color: #4a3608;
@@ -333,32 +343,37 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+/* one and the same marble medallion for every value */
 .scoreNum {
   position: absolute;
   top: 2px;
   right: 2px;
-  min-width: 52px;
-  height: 52px;
-  padding: 0 8px;
+  width: 56px;
+  height: 56px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   font-family: var(--font-display);
   font-weight: 900;
-  font-size: 1.5rem;
-  color: var(--marble-vein);
-  background: linear-gradient(180deg, #1b1613, #0a0807);
-  box-shadow: 0 0 0 1px rgba(255, 205, 140, 0.18), 0 3px 8px rgba(0, 0, 0, 0.6);
+  font-size: 1.45rem;
+  color: var(--ink);
+  text-shadow: var(--engraved-shadow);
+  background-image:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 42%),
+    var(--veins),
+    var(--noise),
+    radial-gradient(circle at 50% 60%, var(--marble-light) 0%, var(--marble) 60%, #c9bda8 100%);
+  background-blend-mode: normal, multiply, overlay, normal;
+  background-size: 100% 100%, 180px 180px, 220px 220px, 100% 100%;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.35),
+    0 0 0 1px var(--gold-dark),
+    0 3px 8px rgba(0, 0, 0, 0.6);
 }
-.scorePlus {
-  color: #2d2003;
-  background: linear-gradient(180deg, var(--gold-light), var(--gold) 60%, var(--gold-inlay));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 0 1px var(--gold-dark), 0 0 14px -2px var(--divine-aura-soft), 0 3px 8px rgba(0, 0, 0, 0.6);
-}
+.scorePlus,
 .scoreMinus {
-  color: #e9c9b8;
-  background: linear-gradient(180deg, #3a1d14, #1c0d09);
-  box-shadow: 0 0 0 1px rgba(200, 100, 42, 0.5), 0 3px 8px rgba(0, 0, 0, 0.6);
+  /* no difference between values: the medallion is the same for all */
 }
 .scoreMain {
   outline: 1px solid var(--gold-inlay);

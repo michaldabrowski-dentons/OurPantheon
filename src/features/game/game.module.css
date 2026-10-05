@@ -1229,6 +1229,24 @@
   gap: 10px;
   width: min(720px, 100%);
   text-align: center;
+  /* every row has its size from the first frame: nothing moves while the curtain plays */
+  grid-template-rows: auto auto auto auto auto auto;
+}
+.overtureArt {
+  aspect-ratio: 2 / 1;
+}
+.overtureNumeral {
+  line-height: 1;
+  height: 1em;
+}
+.overtureName {
+  height: 1.4em;
+}
+.overtureStory {
+  min-height: 3em;
+}
+.overtureAction {
+  min-height: 56px;
 }
 .overtureArt {
   width: min(680px, 100%);
@@ -1270,6 +1288,8 @@
   font-weight: 900;
   letter-spacing: 0.32em;
   text-transform: uppercase;
+  white-space: nowrap;
+  line-height: 1.2;
   animation: overtureSpread 1600ms var(--ease-emerge) both;
   animation-delay: 2100ms;
 }
@@ -1323,13 +1343,12 @@
 @keyframes overtureSpread {
   from {
     opacity: 0;
-    letter-spacing: 0.9em;
+    transform: scaleX(1.35);
   }
 }
 @keyframes overtureFade {
   from {
     opacity: 0;
-    transform: translateY(14px);
   }
 }
 @media (prefers-reduced-motion: reduce) {

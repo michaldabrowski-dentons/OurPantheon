@@ -68,8 +68,8 @@ export function RoomWaiting() {
                     {' · '}
                     {p.god_description || domainTitle(p.domain_key, p.god_gender ?? 'm')}
                   </small>
+                  {p.user_id === game.host_id && <span className={styles.hostMark}>GOSPODARZ</span>}
                 </div>
-                {p.user_id === game.host_id && <span className={styles.hostMark}>GOSPODARZ</span>}
               </button>
             ))}
             {Array.from({ length: Math.max(0, 2 - players.length) }).map((_, i) => (

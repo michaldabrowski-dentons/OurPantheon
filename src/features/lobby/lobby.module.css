@@ -129,12 +129,14 @@
   text-align: center;
 }
 .codeValue {
+  max-width: 100%;
   font-family: var(--font-display);
-  font-size: clamp(1.8rem, 5vw, 2.8rem);
+  font-size: clamp(1.3rem, 2.2vw, 2rem);
   font-weight: 900;
-  letter-spacing: 0.35em;
-  padding: 8px 16px 8px 24px;
+  letter-spacing: 0.22em;
+  padding: 8px 10px 8px 16px;
   border-radius: 6px;
+  white-space: nowrap;
 }
 .codeHint {
   color: var(--ink-soft);
@@ -146,7 +148,9 @@
   gap: 10px;
 }
 .seat {
+  position: relative;
   width: 100%;
+  min-width: 0;
   border: 0;
   font: inherit;
   color: inherit;
@@ -175,6 +179,15 @@ button.seat:focus-visible {
 .seatNames {
   display: grid;
   line-height: 1.2;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.seat > :first-child {
+  flex: 0 0 auto;
+}
+.seatNames strong,
+.seatNames small {
+  overflow-wrap: anywhere;
 }
 .seatNames strong {
   font-family: var(--font-display);
@@ -189,7 +202,8 @@ button.seat:focus-visible {
   color: var(--gold-dark);
 }
 .hostMark {
-  margin-left: auto;
+  justify-self: start;
+  margin-top: 5px;
   font-size: 0.7rem;
   font-family: var(--font-display);
   letter-spacing: 0.1em;
