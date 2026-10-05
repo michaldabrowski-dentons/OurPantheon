@@ -191,11 +191,11 @@ export function describeDeed(id: string, god: GodRef, key: ActionKey, name: stri
   return pick(id, OPENERS[key])(god.name, pastFor(god.gender), n, kind ? KIND_ACC[kind] : 'frakcję')
 }
 
-/** A description drafted by the dialog is the whole verse: it names the god and the thing. */
+/** A description drafted by the dialog is the whole verse: it names the god (and the thing, if there is one). */
 function isWholeVerse(summary: string, G: string, ent: Entity | undefined): boolean {
-  if (!ent || !summary) return false
-  const n = ent.name?.trim()
-  return summary.includes(G) && (!n || summary.includes(n))
+  if (!summary || !summary.includes(G)) return false
+  const n = ent?.name?.trim()
+  return !n || summary.includes(n)
 }
 
 // ---------- the deeds ----------

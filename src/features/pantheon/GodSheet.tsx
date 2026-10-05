@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { rpc } from '@/lib/supabase'
 import type { Entity, EntityKind, GodGender } from '@/lib/types'
 import { DOMAIN_BY_KEY, domainTitle } from '@/data/pantheon'
@@ -30,7 +31,8 @@ export function GodSheet({ playerId, onClose }: { playerId: string; onClose: () 
   const mine = player.user_id === user.id
   const domain = player.domain_key ? DOMAIN_BY_KEY[player.domain_key] : null
 
-  return (
+  // the plaques live in a bar with its own stacking context, so the sheet is hung on the body
+  return createPortal(
     <Modal
       title={
         <>
@@ -91,7 +93,8 @@ export function GodSheet({ playerId, onClose }: { playerId: string; onClose: () 
           })}
         </div>
       </div>
-    </Modal>
+    </Modal>,
+    document.body,
   )
 }
 

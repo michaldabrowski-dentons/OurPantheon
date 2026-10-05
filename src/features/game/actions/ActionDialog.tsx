@@ -115,7 +115,8 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
 
   const god = { name: me.god_name?.trim() || 'bóstwo', gender: me.god_gender ?? 'm' }
   const draftedEntity = action.entityKind ? draftEntityDescription(action, f, god) : ''
-  const draftedDeed = !action.entityKind ? draftDeedSummary(action, god, entities.find((e) => e.id === f.targetId)?.name ?? null) : ''
+  const draftTarget = entities.find((e) => e.id === f.targetId)
+  const draftedDeed = !action.entityKind ? draftDeedSummary(action, god, draftTarget ? { name: draftTarget.name, kind: draftTarget.kind } : null) : ''
   useEffect(() => {
     if (descEdited) return
     if (action.entityKind) setF((s) => (s.description === draftedEntity ? s : { ...s, description: draftedEntity }))
@@ -479,7 +480,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
 
       {!action.entityKind && (
         <>
-          <TextArea id="summary" label="Opis (tymi słowami trafi do Świętej Księgi)" placeholder={placeholderFor(action)} value={f.summary} onChange={(e) => writeDescription('summary', e.target.value)} />
+          <TextArea id="summary" label="Opis: cały werset, który trafi do Świętej Księgi" placeholder={placeholderFor(action)} value={f.summary} onChange={(e) => writeDescription('summary', e.target.value)} />
           <p className={styles.draftHint}>{descEdited ? 'Twoje słowa. Wyczyść pole, by wrócić do podpowiedzi.' : 'Podpowiedź księgi. Zmień ją, jeśli chcesz opowiedzieć to inaczej.'}</p>
         </>
       )}

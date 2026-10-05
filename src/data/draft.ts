@@ -57,8 +57,14 @@ function arrival(form: DraftForm, god: DraftGod): string {
   }
 }
 
-/** A deed without a thing of its own (land, climate, catastrophe, miracle, orders): a plain line to finish. */
-export function draftDeedSummary(action: ActionDef, god: DraftGod, targetName: string | null): string {
+/** A deed without a thing of its own (land, climate, catastrophe, miracle, orders): the whole verse, opening first. */
+export function draftDeedSummary(action: ActionDef, god: DraftGod, target: { name: string; kind: EntityKind } | null): string {
+  const opener = describeDeed('draft', god, action.key, target?.name ?? '', target?.kind ?? null)
+  const line = deedLine(action, god, target?.name ?? null)
+  return line ? `${opener} ${line}` : opener
+}
+
+function deedLine(action: ActionDef, god: DraftGod, targetName: string | null): string {
   const p = pastFor(god.gender)
   const G = god.name
   switch (action.key) {
