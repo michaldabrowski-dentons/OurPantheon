@@ -77,31 +77,17 @@ function mulberry32(seed: number) {
 }
 
 function landBiome(x: number): BiomeKey {
-  if (x < 0.3) return 'trawa'
-  if (x < 0.5) return 'puszcza'
-  if (x < 0.65) return 'wzgorza'
-  if (x < 0.77) return 'gory'
-  if (x < 0.87) return 'dzungla'
+  if (x < 0.38) return 'trawa'
+  if (x < 0.6) return 'puszcza'
+  if (x < 0.74) return 'gory'
+  if (x < 0.86) return 'dzungla'
   if (x < 0.95) return 'pustynia'
-  if (x < 0.98) return 'sawanna'
-  return 'bagno'
+  return 'zima'
 }
 
-const DECOR: Partial<Record<BiomeKey, string[]>> = {
-  puszcza: ['🌲', '🌲', '🎄', '🌳', '🪾'],
-  dzungla: ['🌴', '🌴', '🌳', '🪾'],
-  gory: ['⛰️', '🗻', '🏔️'],
-}
-
-export function decorFor(biome: BiomeKey, rnd: () => number): HexDecor[] {
-  const pool = DECOR[biome]
-  if (!pool) return []
-  const n = 2 + Math.floor(rnd() * 2)
-  return Array.from({ length: n }, () => ({
-    e: pool[Math.floor(rnd() * pool.length)],
-    x: Math.round((rnd() * 0.9 - 0.45) * 100) / 100,
-    y: Math.round((rnd() * 0.6 - 0.3) * 100) / 100,
-  }))
+/** the tiles paint their own forests and peaks: no decorations */
+export function decorFor(_biome: BiomeKey, _rnd: () => number): HexDecor[] {
+  return []
 }
 
 export function generatePreviewMap(gameId: string, seed = 7): Hex[] {

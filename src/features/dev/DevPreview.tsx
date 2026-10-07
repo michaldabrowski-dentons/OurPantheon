@@ -147,7 +147,7 @@ const entityGods = [
 /** the map: a seeded draw, with a known neighbourhood in the middle */
 function previewHexes(): Hex[] {
   const hexes = generatePreviewMap(G, 7)
-  const fixed: Record<string, BiomeKey> = { '0,0': 'trawa', '1,0': 'trawa', '1,-1': 'puszcza', '0,-1': 'wzgorza', '-1,0': 'trawa', '-1,1': 'pustynia', '0,1': 'bagno', '2,-2': 'woda', '0,2': 'gory' }
+  const fixed: Record<string, BiomeKey> = { '0,0': 'trawa', '1,0': 'trawa', '1,-1': 'puszcza', '0,-1': 'zima', '-1,0': 'trawa', '-1,1': 'pustynia', '0,1': 'dzungla', '2,-2': 'woda', '0,2': 'gory' }
   let seed = 11
   const rnd = () => {
     seed = (seed * 9301 + 49297) % 233280
@@ -197,7 +197,7 @@ const log: ActionLog[] = [
   row('l0g8', { round_number: 1, action_key: 'dots_reward', outcome: [{ player_id: P(1), total: 3, rank: 1, logos: 3 }, { player_id: P(2), total: 2, rank: 2, logos: 2 }], created_at: '2026-01-09T10:03:58' }),
   row('l0h', { round_number: 1, player_id: P(1), action_key: 'round_end', summary: 'I minęła runda 1. Bóstwa zapadają w sen, a świat toczy się dalej.', created_at: '2026-01-09T10:04:00' }),
   row('l1', { player_id: P(1), action_key: 'logos_roll', logos_delta: 8, roll: { d1: 3, d2: 4, total: 8, bonus_streak: 1, bonus_orthodoxy: 0 }, summary: 'Ta, Która Śpi Pod Rzeką budzi się i śni nowe Słowa. Kości mówią: 3 i 4, skromność dodaje 1. Nowych Słów jest 8.', created_at: '2026-01-10T10:00:00' }),
-  row('l2', { player_id: P(2), action_key: 'shape_land', logos_delta: -2, outcome: { biome: 'wzgorza', hexes: [{ q: 0, r: -1, from: 'trawa' }] }, created_at: '2026-01-10T10:01:00' }),
+  row('l2', { player_id: P(2), action_key: 'shape_land', logos_delta: -2, outcome: { biome: 'zima', hexes: [{ q: 0, r: -1, from: 'trawa' }] }, created_at: '2026-01-10T10:01:00' }),
   row('l2b', { player_id: P(2), action_key: 'develop_civilization', logos_delta: -12, entity_id: E(4), outcome: { city_id: E(4), city_name: 'Stoicy Znad Rzeki', d1: 2, d2: 3, attr: 'wisdom', score: 2, total: 7, tier: 'mixed', gained: 1, added: 1, wasted: 0, gift: 'Rachunek długu', level: 6 }, created_at: '2026-01-10T10:01:30' }),
   row('l3b', { player_id: P(2), action_key: 'great_miracle', is_avatar_free_action: true, summary: 'Cały kontynent unosi się nad morzem.', created_at: '2026-01-10T10:02:30' }),
   row('l4', { player_id: P(3), action_key: 'rest', summary: 'Bezimienny Wiatr odpoczywa. Zachowuje swoje Słowa i milczy do końca rundy.', created_at: '2026-01-10T10:03:00' }),

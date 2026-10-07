@@ -110,7 +110,7 @@ export interface Entity {
 }
 
 /** terrain of one field of the map (keys without diacritics; names in src/data/biomes.ts) */
-export type BiomeKey = 'woda' | 'gory' | 'puszcza' | 'dzungla' | 'trawa' | 'pustynia' | 'tundra' | 'bagno' | 'sawanna' | 'wzgorza' | 'zima'
+export type BiomeKey = 'woda' | 'gory' | 'puszcza' | 'dzungla' | 'trawa' | 'pustynia' | 'zima'
 
 /** a decorative emoji on a field, placed in units of the hex radius from its centre */
 export interface HexDecor {

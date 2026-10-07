@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -180,7 +180,7 @@ let spent = 0
 while (true) {
   const cur = (await q('select logos from players where user_id = $1 and game_id = $2', [turnUid, game.id]))[0].logos
   if (cur < 2) break
-  await db.query(`select perform_action($1, 'shape_land', '{"biome":"wzgorza","hexes":[{"q":-1,"r":0}]}')`, [game.id])
+  await db.query(`select perform_action($1, 'shape_land', '{"biome":"pustynia","hexes":[{"q":-1,"r":0}]}')`, [game.id])
   spent += 2
   const gg = (await q('select * from games where id = $1', [game.id]))[0]
   const now = cur - 2
@@ -217,7 +217,7 @@ ok((await rpcErr(`select perform_action($1, 'shape_land', $2::jsonb)`, [game.id,
 const shaped = (await q(`select * from perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'puszcza', hexes: [{ q: 1, r: -1 }, { q: 1, r: 0 }, { q: 0, r: 0 }] })]))[0]
 ok(shaped.logos_delta === -2 && shaped.outcome.hexes.length === 3 && shaped.outcome.hexes[1].from === 'trawa', 'three touching hexes reshaped, the old biomes remembered')
 ok((await q(`select count(*)::int as n from hexes where game_id = $1 and biome = 'puszcza' and (q, r) in ((1, -1), (1, 0), (0, 0))`, [game.id]))[0].n === 3, 'the map changed')
-ok((await q(`select count(*)::int as n from hexes where game_id = $1 and biome = 'puszcza' and jsonb_array_length(decor) = 0`, [game.id]))[0].n === 0, 'a raised forest carries decorations')
+ok((await rpcErr(`select perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'wzgorza', hexes: [{ q: 0, r: 0 }] })])) !== null, 'a terrain without a tile is refused')
 await db.query(`update hexes set biome = 'trawa', decor = '[]' where game_id = $1 and (q, r) in ((0, 0), (1, 0), (1, -1))`, [game.id])
 
 console.log('\n# life on the map')

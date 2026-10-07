@@ -1,28 +1,28 @@
-// The eleven terrains of the map. Keys match the check constraint in supabase/migrations/0012_hex_map.sql.
+// The seven terrains of the map, each a painted tile in public/biomes (copies of src/img/biomy, 128 px).
+// The ocean tile is a crisp hexagon 112 px wide; the land tiles are full squares with soft edges that
+// are meant to overlap their neighbours. Keys match the check constraint in 0014_biome_tiles.sql.
 import type { BiomeKey } from '@/lib/types'
 
 export interface Biome {
   key: BiomeKey
   name: string
   emoji: string
-  /** the field's fill on the map */
+  /** the tile */
+  image: string
+  /** a flat colour for legends and fallbacks */
   fill: string
-  /** no cities, no Exodus, no avatars; creatures may still live there */
+  /** no cities, no Exodus, no creatures, no avatars */
   blocked: boolean
 }
 
 export const BIOMES: Biome[] = [
-  { key: 'woda', name: 'Woda', emoji: '🌊', fill: '#24527f', blocked: true },
-  { key: 'gory', name: 'Góry', emoji: '⛰️', fill: '#6f6a66', blocked: true },
-  { key: 'puszcza', name: 'Puszcza', emoji: '🌲', fill: '#2a5a34', blocked: false },
-  { key: 'dzungla', name: 'Dżungla', emoji: '🌴', fill: '#1f7a45', blocked: false },
-  { key: 'trawa', name: 'Trawa', emoji: '🌱', fill: '#6aa84f', blocked: false },
-  { key: 'pustynia', name: 'Pustynia', emoji: '🏜️', fill: '#dcbd72', blocked: false },
-  { key: 'tundra', name: 'Tundra', emoji: '❄️', fill: '#a9bcb3', blocked: false },
-  { key: 'bagno', name: 'Bagno', emoji: '🐸', fill: '#55653c', blocked: false },
-  { key: 'sawanna', name: 'Sawanna', emoji: '🦁', fill: '#c1a84e', blocked: false },
-  { key: 'wzgorza', name: 'Wzgórza', emoji: '🪨', fill: '#8a9d55', blocked: false },
-  { key: 'zima', name: 'Zima', emoji: '⛄', fill: '#e9eef3', blocked: false },
+  { key: 'woda', name: 'Woda', emoji: '🌊', image: '/biomes/ocean.png', fill: '#24527f', blocked: true },
+  { key: 'gory', name: 'Góry', emoji: '⛰️', image: '/biomes/mountain.png', fill: '#6f6a66', blocked: true },
+  { key: 'puszcza', name: 'Puszcza', emoji: '🌲', image: '/biomes/forest.png', fill: '#2a5a34', blocked: false },
+  { key: 'dzungla', name: 'Dżungla', emoji: '🌴', image: '/biomes/jungle.png', fill: '#1f7a45', blocked: false },
+  { key: 'trawa', name: 'Trawa', emoji: '🌱', image: '/biomes/grass.png', fill: '#6aa84f', blocked: false },
+  { key: 'pustynia', name: 'Pustynia', emoji: '🏜️', image: '/biomes/desert.png', fill: '#dcbd72', blocked: false },
+  { key: 'zima', name: 'Zima', emoji: '⛄', image: '/biomes/snow.png', fill: '#e9eef3', blocked: false },
 ]
 
 export const BIOME_BY_KEY = Object.fromEntries(BIOMES.map((b) => [b.key, b])) as Record<BiomeKey, Biome>
@@ -42,10 +42,6 @@ export const BIOME_GEN: Record<BiomeKey, string> = {
   dzungla: 'dżungli',
   trawa: 'trawy',
   pustynia: 'pustyni',
-  tundra: 'tundry',
-  bagno: 'bagna',
-  sawanna: 'sawanny',
-  wzgorza: 'wzgórz',
   zima: 'zimy',
 }
 
@@ -57,10 +53,6 @@ export const BIOME_ACC: Record<BiomeKey, string> = {
   dzungla: 'dżunglę',
   trawa: 'trawę',
   pustynia: 'pustynię',
-  tundra: 'tundrę',
-  bagno: 'bagno',
-  sawanna: 'sawannę',
-  wzgorza: 'wzgórza',
   zima: 'zimę',
 }
 
@@ -72,10 +64,6 @@ export const BIOME_LOC: Record<BiomeKey, string> = {
   dzungla: 'w dżungli',
   trawa: 'na trawiastych równinach',
   pustynia: 'na pustyni',
-  tundra: 'w tundrze',
-  bagno: 'na bagnach',
-  sawanna: 'na sawannie',
-  wzgorza: 'na wzgórzach',
   zima: 'wśród wiecznych śniegów',
 }
 

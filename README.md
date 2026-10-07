@@ -20,7 +20,7 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
 2. W **SQL Editor** uruchom po kolei pliki z `supabase/migrations/`:
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
-   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`.
+   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -76,8 +76,12 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 
 - Wielki heksagon o promieniu 5 (91 pól, heksy wierzchołkiem do góry, współrzędne osiowe q, r, środek 0,0).
   Świat zaczyna się jako ocean (`generate_map` z migracji 0013): ląd wznoszą bóstwa Kształtowaniem Lądów.
-  Jedenaście biomów (`src/data/biomes.ts`); puszcza, dżungla i góry noszą losowe emotikony jako dekorację.
-  Pola stykają się bez widocznych krawędzi; znaki istot i piramidy kropek leżą na ciemnych płytkach z cieniem.
+  Siedem biomów z malowanymi kaflami (`src/data/biomes.ts`, pliki `public/biomes/*.png` skopiowane
+  z `src/img/biomy`, 128 px): woda, góry, puszcza, dżungla, trawa, pustynia, zima. Kafle lądu to miękkie
+  kwadraty, które na siebie nachodzą; woda jest ostrym heksem rysowanym nad lądem, a na krawędzi z lądem
+  biegnie brązowa linia brzegu. Bez emotikon na polach i bez szwów. Znaki istot i piramidy kropek leżą na
+  ciemnych płytkach z cieniem. Mapa przewija się, gdy nie mieści się w oknie; przybliżenie przyciskami
+  w rogu albo Ctrl i kółkiem myszy.
 - Woda i Góry są zablokowane: nie powstanie tam miasto, nie dojdzie Exodus, nie stanie awatar ani istota
   (także przez Migrację).
 - Każde pole ma trzy miejsca w rogach (`hex_occupants`): istoty, istoty rozumne i awatary stoją tam jako

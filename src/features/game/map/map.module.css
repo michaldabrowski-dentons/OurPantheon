@@ -11,52 +11,105 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  display: grid;
-  place-items: center;
   border-radius: var(--radius-slab);
   background:
     radial-gradient(ellipse at 50% 40%, rgba(255, 196, 110, 0.08), transparent 62%),
     var(--void-soft);
   box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.8);
 }
+/* the map may be taller or, zoomed in, wider than its room: it scrolls */
+.scroller {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  scrollbar-color: rgba(185, 138, 36, 0.6) rgba(0, 0, 0, 0.4);
+}
 .svg {
-  width: 100%;
-  height: 100%;
   display: block;
+  height: auto;
+  margin: 0 auto;
   overflow: visible;
+}
+.zoom {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 20px;
+  background: rgba(10, 8, 7, 0.75);
+  box-shadow: 0 0 0 1px rgba(255, 205, 140, 0.18), 0 4px 10px rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+.zoom button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #2a231d, #15110f);
+  color: var(--gold-light);
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.zoom button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.zoom span {
+  min-width: 44px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--marble-vein);
+  font-variant-numeric: tabular-nums;
+}
+/* the shore: the water's side of an edge that meets land */
+.shore {
+  stroke: #7a5230;
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
 }
 .layer {
   pointer-events: none;
 }
 
-/* the field: the only element that hears the mouse; its stroke is its own fill, so no seams show */
+/* the field: a transparent hexagon over the tile, the only element that hears the mouse */
 .hex {
+  fill: rgba(255, 255, 255, 0);
+  stroke: none;
   stroke-linejoin: round;
   cursor: pointer;
-  transition: filter var(--t-glow), stroke var(--t-glow), stroke-width var(--t-glow);
+  transition: fill var(--t-glow), stroke var(--t-glow), stroke-width var(--t-glow);
 }
 .hex:hover {
-  filter: brightness(1.14);
-  stroke: rgba(255, 220, 150, 0.55);
+  fill: rgba(255, 230, 170, 0.14);
 }
 .hexValid {
+  fill: rgba(255, 230, 170, 0.1);
   stroke: var(--gold-inlay);
   stroke-width: 2.4;
-  filter: brightness(1.08);
 }
 .hexValid:hover {
+  fill: rgba(255, 230, 170, 0.26);
   stroke: var(--gold-light);
   stroke-width: 3;
-  filter: brightness(1.22) drop-shadow(0 0 6px rgba(255, 216, 120, 0.55));
+  filter: drop-shadow(0 0 6px rgba(255, 216, 120, 0.55));
 }
 .hexDim {
-  filter: brightness(0.55) saturate(0.6);
+  fill: rgba(5, 5, 5, 0.5);
   cursor: not-allowed;
 }
 .hexSelected {
+  fill: rgba(255, 230, 170, 0.3);
   stroke: var(--gold-light);
   stroke-width: 3.2;
-  filter: brightness(1.2) drop-shadow(0 0 8px rgba(255, 216, 120, 0.7));
+  filter: drop-shadow(0 0 8px rgba(255, 216, 120, 0.7));
 }
 .hexInspected {
   stroke: var(--marble-light);
@@ -71,12 +124,6 @@
 .burst {
   pointer-events: none;
   user-select: none;
-}
-.decor {
-  opacity: 0.85;
-}
-.decorUnderCity {
-  opacity: 0.35;
 }
 .sign text {
   paint-order: stroke;
