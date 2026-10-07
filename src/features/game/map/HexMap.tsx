@@ -285,8 +285,9 @@ function useBurst(log: ActionLog[]): { id: string; q: number; r: number } | null
     if (first && Date.now() - new Date(last.created_at).getTime() > 15000) return
     const o = (last.outcome && !Array.isArray(last.outcome) ? last.outcome : {}) as Record<string, unknown>
     if (typeof o.q !== 'number' || typeof o.r !== 'number') return
+    const at = { id: last.id, q: o.q, r: o.r }
     // the die tumbles in its window first (DiceOverlay); the fire falls once it has stepped aside
-    const start = window.setTimeout(() => setBurst({ id: last.id, q: o.q, r: o.r }), 3000)
+    const start = window.setTimeout(() => setBurst(at), 3000)
     const stop = window.setTimeout(() => setBurst(null), 6400)
     return () => {
       window.clearTimeout(start)
