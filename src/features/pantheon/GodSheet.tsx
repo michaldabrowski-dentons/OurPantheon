@@ -16,9 +16,7 @@ import styles from './pantheon.module.css'
 const WORK_ORDER: { kind: EntityKind; title: string }[] = [
   { kind: 'avatar', title: 'Awatary' },
   { kind: 'civilization', title: 'Cywilizacje' },
-  { kind: 'orthodoxy', title: 'Religie' },
   { kind: 'creature', title: 'Istoty' },
-  { kind: 'faction', title: 'Frakcje' },
 ]
 
 /** A god's sheet: the painting, the domain, the six attributes, the god's own words, and its works. */
@@ -101,12 +99,11 @@ export function GodSheet({ playerId, onClose }: { playerId: string; onClose: () 
 function WorkRow({ entity, co }: { entity: Entity; co: boolean }) {
   return (
     <div className={[styles.work, entity.status !== 'active' ? styles.workDead : ''].join(' ')}>
-      <b>{entity.name}</b>
+      <b>{entity.emoji ? `${entity.emoji} ` : ''}{entity.name}</b>
       <small>
         {kindLabel(entity.kind)}
-        {entity.faction_type ? ` · ${entity.faction_type}` : ''}
         {co ? ' · współtwórca' : ''}
-        {entity.status === 'dead' ? ' · poległ' : entity.status === 'destroyed' ? ' · zniszczona' : ''}
+        {entity.status === 'dead' ? (entity.kind === 'avatar' ? ' · poległ' : ' · wymarły') : entity.status === 'destroyed' ? ' · ruina' : ''}
       </small>
       {entity.traits.slice(0, 3).map((t) => (
         <Tag key={t}>{t}</Tag>

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { actionsByCategory, type ActionDef, type Era } from '@/data/actions'
 import { useUser } from '@/features/auth/AuthGate'
-import { useGameStore, selectMyPlayer } from '@/store/useGameStore'
+import { useGameStore, selectMyPlayer, selectPendingContest } from '@/store/useGameStore'
 import { actionArt } from '@/data/actionArt'
+import { useWorld } from '../map/useWorld'
 import { ActionDialog } from './ActionDialog'
 import styles from '../game.module.css'
 
@@ -10,16 +11,15 @@ import styles from '../game.module.css'
 export function ActionsPanel() {
   const { user } = useUser()
   const game = useGameStore((s) => s.game)!
-  const entities = useGameStore((s) => s.entities)
-  const entityGods = useGameStore((s) => s.entityGods)
   const me = useGameStore(selectMyPlayer(user.id))
+  const pending = useGameStore(selectPendingContest)
+  const world = useWorld()
   const [open, setOpen] = useState<ActionDef | null>(null)
 
   const era = game.era as Era
-  const myTurn = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting
+  const myTurn = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting && !pending
   // a living avatar with its free action still unspent opens every word, whatever the Words in hand
-  const avatarFree =
-    !!me && !me.avatar_action_used && entityGods.some((g) => g.player_id === me.id && entities.some((e) => e.id === g.entity_id && e.kind === 'avatar' && e.status === 'active'))
+  const avatarFree = !!me && !me.avatar_action_used && world.avatarsOf(me.id).length > 0
   const groups = useMemo(() => actionsByCategory(era), [era])
 
   // the window of a word closes by itself when the Gods phase ends or the turn moves on:
@@ -33,7 +33,7 @@ export function ActionsPanel() {
   return (
     <aside className={styles.actions}>
       <p className={styles.actionsHint}>
-        {myTurn ? 'Twoja tura. Wybierz słowo i opisz, co czynisz.' : 'W każdej kategorii od najtańszego słowa do najdroższego.'}
+        {pending ? 'Trwa starcie. Słowa czekają na odpowiedź obrońcy.' : myTurn ? 'Twoja tura. Wybierz słowo i wskaż na mapie, co czynisz.' : 'W każdej kategorii od najtańszego słowa do najdroższego.'}
       </p>
 
       {groups.map(({ category, actions }) => (
@@ -41,9 +41,9 @@ export function ActionsPanel() {
           <h3 className="carved-glow">{category.name}</h3>
           {actions.map((a) => {
             const cost = a.costs[era - 1]
-            const affordable = !!me && me.logos >= cost
-            const reqOk = !a.requirement || a.requirement.check(entities)
-            const off = !myTurn || !(affordable || avatarFree) || !reqOk
+            const affordable = !!me && me.logos >= cost + (a.distance ? 1 : 0)
+            const reqOk = !a.requirement || a.requirement.check(world, me)
+            const off = !myTurn || !(affordable || (avatarFree && !a.contested)) || !reqOk
             const delay = 60 + tile++ * 30
             return (
               <button
@@ -56,9 +56,9 @@ export function ActionsPanel() {
                   !reqOk && a.requirement
                     ? `Najpierw: ${a.requirement.text}.`
                     : !affordable
-                      ? avatarFree
+                      ? avatarFree && !a.contested
                         ? `Za mało Logos (potrzeba ${cost}), ale awatar może to uczynić za darmo.`
-                        : `Za mało Logos: potrzeba ${cost}.`
+                        : `Za mało Logos: potrzeba ${cost}${a.distance ? ' plus dystans' : ''}.`
                       : a.summary
                 }
               >
@@ -67,12 +67,14 @@ export function ActionsPanel() {
                 </span>
                 <span className={styles.stoneBody}>
                   <span className={styles.stoneName}>{a.name}</span>
-                  {(a.requirement || a.requiresRoll) && (
+                  {(a.requirement || a.requiresRoll || a.distance || a.contested) && (
                     <span className={styles.stoneMeta}>
                       {a.requirement && (
                         <span className={[styles.stoneReq, reqOk ? '' : styles.reqUnmet].join(' ')}>{a.requirement.text}</span>
                       )}
                       {a.requiresRoll && <span className={styles.stoneRoll}>wymaga rzutu</span>}
+                      {a.contested && <span className={styles.stoneRoll}>rzut sporny</span>}
+                      {a.distance && <span className={styles.stoneRoll}>1 Logos za heks</span>}
                     </span>
                   )}
                 </span>
@@ -86,7 +88,7 @@ export function ActionsPanel() {
                         e === era && !affordable ? styles.costOver : '',
                       ].join(' ')}
                     >
-                      {a.costs[e - 1]}
+                      {a.distance && a.costs[e - 1] === 0 ? '+' : a.costs[e - 1]}
                     </span>
                   ))}
                 </span>

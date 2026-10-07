@@ -202,13 +202,11 @@ export function ChaosOverlay({ onError }: { onError: (m: string | null) => void 
   )
 }
 
-/** Which kinds of thing a card is about, read off its text: "Frakcja opuszcza region" -> factions. */
+/** Which kinds of thing a card is about, read off its text: "Lud opuszcza region" -> civilizations. */
 function subjectKinds(text: string, title: string): EntityKind[] {
   const t = `${title} ${text}`.toLowerCase()
   const kinds: EntityKind[] = []
-  if (/cywilizacj/.test(t)) kinds.push('civilization')
-  if (/frakcj/.test(t)) kinds.push('faction')
-  if (/religi/.test(t)) kinds.push('orthodoxy')
+  if (/cywilizacj|miast|lud |ludu|wyznawc/.test(t)) kinds.push('civilization')
   if (/awatar/.test(t)) kinds.push('avatar')
   if (/istot|gatun/.test(t)) kinds.push('creature')
   return kinds
@@ -258,7 +256,7 @@ function ChaosResult({
 }) {
   const [drafts, setDrafts] = useState<Record<number, string>>({})
 
-  // a card about an existing faction, civilization, religion, avatar or creature gets one god to name it
+  // a card about an existing civilization, avatar or creature gets one god to name it
   const kinds = subjectKinds(text, title)
   const candidates = entities.filter((e) => kinds.includes(e.kind) && e.status !== 'destroyed')
   const subject = candidates.find((e) => notes === subjectSentence(e)) ?? null

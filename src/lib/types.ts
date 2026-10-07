@@ -101,8 +101,104 @@ export interface Entity {
   created_era: number
   created_by_player_id: string | null
   attributes: Record<string, unknown>
+  /** the sign the creature, sapient or avatar wears on the map; unique in the game */
+  emoji: string | null
+  /** avatars only: life left, 3 when sent */
+  hp: number | null
   created_at: string
   updated_at: string
+}
+
+/** terrain of one field of the map (keys without diacritics; names in src/data/biomes.ts) */
+export type BiomeKey = 'woda' | 'gory' | 'puszcza' | 'dzungla' | 'trawa' | 'pustynia' | 'tundra' | 'bagno' | 'sawanna' | 'wzgorza' | 'zima'
+
+/** a decorative emoji on a field, placed in units of the hex radius from its centre */
+export interface HexDecor {
+  e: string
+  x: number
+  y: number
+}
+
+export interface Hex {
+  game_id: string
+  q: number
+  r: number
+  biome: BiomeKey
+  decor: HexDecor[]
+}
+
+/** a creature, sapient species or avatar standing in one of the three corner slots of a field */
+export interface HexOccupant {
+  id: string
+  game_id: string
+  q: number
+  r: number
+  /** 0 top-left, 1 top-right, 2 bottom */
+  slot: 0 | 1 | 2
+  entity_id: string
+  created_at: string
+}
+
+/** a civilization's place on the map: one city per field */
+export interface City {
+  entity_id: string
+  game_id: string
+  q: number
+  r: number
+}
+
+/** a god's followers in a city: the dots of the pyramid */
+export interface CityFollower {
+  game_id: string
+  city_id: string
+  player_id: string
+  dots: number
+}
+
+/** what a god gave a city through Rozwój Cywilizacji */
+export interface CityGift {
+  id: string
+  game_id: string
+  city_id: string
+  player_id: string | null
+  text: string
+  accepted: boolean
+  dots_gained: number
+  round_number: number
+  created_at: string
+}
+
+export type ContestKind = 'convert' | 'holy_war'
+export type ContestStatus = 'pending' | 'resolved' | 'committed' | 'cancelled'
+
+/** Nawracanie or Święta Wojna waiting for (or settled by) the defender's roll */
+export interface Contest {
+  id: string
+  game_id: string
+  round_number: number
+  era: number
+  kind: ContestKind
+  attacker_id: string
+  defender_id: string
+  target_city_id: string
+  source_city_id: string | null
+  army: number | null
+  cost: number
+  attacker_attr: AttrKey
+  attacker_d1: number
+  attacker_d2: number
+  attacker_mod: number
+  attacker_total: number
+  defender_attr: AttrKey | null
+  defender_d1: number | null
+  defender_d2: number | null
+  defender_mod: number | null
+  defender_total: number | null
+  status: ContestStatus
+  outcome: Record<string, unknown> | null
+  log_id: string | null
+  created_at: string
+  resolved_at: string | null
 }
 
 export interface EntityGod {
@@ -119,6 +215,15 @@ export interface EntityLink {
   relation: LinkRelation
 }
 
+/** one side of a contest, as stored in the roll of its book row */
+export interface SideRoll {
+  d1: number
+  d2: number
+  modifier: number
+  total: number
+  attr: AttrKey
+}
+
 export interface DiceRoll {
   d1: number
   d2: number
@@ -126,6 +231,11 @@ export interface DiceRoll {
   tier?: 'strong' | 'mixed' | 'weak'
   /** added to the two dice (the avatar's -2, extra Words) */
   modifier?: number
+  /** the attribute behind the modifier (contests) */
+  attr?: AttrKey
+  /** contests: both sides */
+  att?: SideRoll
+  def?: SideRoll
   bonus_streak?: number
   bonus_orthodoxy?: number
   category?: string
@@ -146,6 +256,8 @@ export interface ActionLog {
   entity_id: string | null
   is_avatar_free_action: boolean
   summary: string
+  /** what the action did to the map (perform_action, contests, end of Chaos); the verse is composed from it */
+  outcome: Record<string, unknown> | Record<string, unknown>[] | null
   created_at: string
 }
 
@@ -214,8 +326,42 @@ export interface EntityPayload {
   species_ids?: string[]
 }
 
+export interface HexRef {
+  q: number
+  r: number
+}
+
+/** Payload of perform_action; which keys matter depends on the action (see 0012_hex_map.sql) */
 export interface ActionPayload {
   summary?: string
   use_avatar_action?: boolean
   entity?: EntityPayload
+  /** shape_land */
+  biome?: BiomeKey
+  hexes?: HexRef[]
+  /** catastrophe */
+  type?: string
+  /** the field (creation, catastrophe, resurrection) */
+  q?: number
+  r?: number
+  slot?: number
+  /** creatures, sapients, avatars, variants */
+  emoji?: string
+  /** change_creature */
+  occupant_id?: string
+  /** migrate */
+  entity_id?: string
+  from?: HexRef
+  to?: HexRef
+  /** create_civilization, exodus */
+  species_id?: string
+  /** develop_civilization, exodus */
+  city_id?: string
+  attr?: AttrKey
+  gift?: string
+  dots?: number
+  name?: string
+  description?: string
+  /** command_avatar */
+  avatar_id?: string
 }

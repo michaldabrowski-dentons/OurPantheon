@@ -15,8 +15,6 @@ export interface DraftForm {
   traits: string[]
   specialties: string[]
   flaws: string[]
-  desires: string[]
-  requirements: string[]
   conditions: string[]
 }
 
@@ -30,10 +28,10 @@ export function draftEntityDescription(action: ActionDef, form: DraftForm, god: 
     traits: form.traits,
     specialties: form.specialties,
     flaws: form.flaws,
-    desires: form.desires,
-    requirements: form.requirements,
+    desires: [],
+    requirements: [],
     conditions: form.conditions,
-  } as Entity
+  } as unknown as Entity
   const opener = describeDeed('draft', god, action.key, form.name, form.kind)
   const detail = describeSeen('draft', god, ent, action.entityOp === 'update')
   return detail ? `${opener} ${detail}` : `${opener} ${arrival(form, god)}`
@@ -48,16 +46,14 @@ function arrival(form: DraftForm, god: DraftGod): string {
       return `Pojawiły się ${n} na świecie, a ${god.name} ${p('patrzy')} na nie z góry.`
     case 'civilization':
       return `Zeszli się ludzie w ${n}, i zaczęła się ich historia.`
-    case 'faction':
-      return `Zawiązała się ${n}, a świat jeszcze nie wiedział, czego chce.`
-    case 'orthodoxy':
-      return `Zapłonęły pierwsze ognie ${n}, a wierni szukali słów modlitwy.`
     case 'avatar':
       return `${cap(p('zesła'))} ${god.name} na świat ${n}, by chodzić między śmiertelnymi.`
+    default:
+      return ''
   }
 }
 
-/** A deed without a thing of its own (land, climate, catastrophe, miracle, orders): the whole verse, opening first. */
+/** A deed without a thing of its own (a miracle, an order): the whole verse, opening first. */
 export function draftDeedSummary(action: ActionDef, god: DraftGod, target: { name: string; kind: EntityKind } | null): string {
   const opener = describeDeed('draft', god, action.key, target?.name ?? '', target?.kind ?? null)
   const line = deedLine(action, god, target?.name ?? null)
@@ -68,18 +64,10 @@ function deedLine(action: ActionDef, god: DraftGod, targetName: string | null): 
   const p = pastFor(god.gender)
   const G = god.name
   switch (action.key) {
-    case 'shape_land':
-      return `Wyrosły góry i rozlały się wody tam, gdzie ${p('wskaza')} ${G}.`
-    case 'change_biome':
-      return `Zmienił się klimat tych ziem i inne życie na nie przyszło.`
-    case 'catastrophe':
-      return `Zadrżała ziemia i zmienił się kształt świata.`
     case 'great_miracle':
       return `I stało się tak na całym świecie, od krańca po kraniec.`
     case 'command_avatar':
       return `${cap(p('posłucha'))} ${targetName ? `awatar ${targetName}` : 'awatar'} i ${p('uczyni')} to, co mu kazano.`
-    case 'command_followers':
-      return `Usłyszeli wyznawcy wolę ${G} i wyszli ją spełnić.`
     case 'resurrect_avatar':
       return `${cap(p('wyrwa'))} ${G} ${targetName ? `awatara ${targetName}` : 'awatara'} z objęć śmierci.`
     default:

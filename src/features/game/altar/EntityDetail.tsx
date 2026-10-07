@@ -1,42 +1,36 @@
 import { useEffect, useState } from 'react'
 import { rpc } from '@/lib/supabase'
 import type { Entity, EntityKind } from '@/lib/types'
-import {
-  AVATAR_CONDITIONS, CIV_FLAWS, CIV_SPECIALTIES, CIV_TRAITS, CREATURE_TRAITS, FACTION_DESIRES, FACTION_TRAITS, FACTION_TYPES,
-  ORTHODOXY_REQUIREMENTS, SAPIENT_TRAITS,
-} from '@/data/traits'
+import { AVATAR_CONDITIONS, CIV_FLAWS, CIV_SPECIALTIES, CIV_TRAITS, CREATURE_TRAITS, SAPIENT_TRAITS } from '@/data/traits'
+import { BIOME_BY_KEY } from '@/data/biomes'
+import { cityLevelLabel, followersWord } from '@/data/cities'
+import { godColor } from '@/data/pantheon'
 import { godPortraitSrc } from '@/features/pantheon/GodPortrait'
 import { useGameStore, godLabel } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
-import { Modal, Tag, TextField, TextArea, Notice, Toggle, ConfirmDialog, inputClass, labelClass, fieldClass } from '@/components/ui/Primitives'
+import { Modal, Tag, TextField, TextArea, Notice, Toggle, ConfirmDialog } from '@/components/ui/Primitives'
 import { TraitPicker } from '@/components/ui/TraitPicker'
 import { kindLabel } from '../actions/ActionDialog'
+import { useWorld } from '../map/useWorld'
 import styles from '../game.module.css'
 import formStyles from '../actions/actions.module.css'
+import mapStyles from '../map/map.module.css'
 
 interface EditForm {
   name: string
   description: string
-  faction_type: string
-  parent_civilization_id: string
   traits: string[]
   specialties: string[]
   flaws: string[]
-  desires: string[]
-  requirements: string[]
   conditions: string[]
 }
 
 const fromEntity = (e: Entity): EditForm => ({
   name: e.name,
   description: e.description,
-  faction_type: e.faction_type ?? FACTION_TYPES[0],
-  parent_civilization_id: e.parent_civilization_id ?? '',
   traits: e.traits,
   specialties: e.specialties,
   flaws: e.flaws,
-  desires: e.desires,
-  requirements: e.requirements,
   conditions: e.conditions,
 })
 
@@ -45,17 +39,15 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
   const entityGods = useGameStore((s) => s.entityGods)
   const entityLinks = useGameStore((s) => s.entityLinks)
   const players = useGameStore((s) => s.players)
+  const world = useWorld()
 
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<EditForm>(() => fromEntity(entity))
   const [busy, setBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [pickRequirements, setPickRequirements] = useState(false)
-  const [requirements, setRequirements] = useState<string[]>(entity.requirements)
 
   useEffect(() => {
     if (!editing) setForm(fromEntity(entity))
-    setRequirements(entity.requirements)
   }, [entity, editing])
 
   const set = <K extends keyof EditForm>(k: K, v: EditForm[K]) => setForm((s) => ({ ...s, [k]: v }))
@@ -68,9 +60,14 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
   const variantOf = entityLinks.filter((l) => l.from_entity_id === entity.id && l.relation === 'variant_of').map((l) => entities.find((e) => e.id === l.to_entity_id)).filter(Boolean) as Entity[]
   const variants = entityLinks.filter((l) => l.to_entity_id === entity.id && l.relation === 'variant_of').map((l) => entities.find((e) => e.id === l.from_entity_id)).filter(Boolean) as Entity[]
   const creator = players.find((p) => p.id === entity.created_by_player_id)
-  const civs = entities.filter((e) => e.kind === 'civilization' && e.id !== entity.id)
-
   const sapient = entity.traits.some((t) => SAPIENT_TRAITS.includes(t))
+
+  // on the map
+  const places = world.occupantsOf(entity.id)
+  const city = entity.kind === 'civilization' ? world.cityOf(entity.id) : undefined
+  const followers = city ? world.followersOf(entity.id) : []
+  const ruler = city ? world.majorityOf(entity.id) : null
+  const gifts = entity.kind === 'civilization' ? world.giftsOf(entity.id) : []
 
   async function patch(p: Record<string, unknown>) {
     setBusy(true)
@@ -93,13 +90,7 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
       traits: form.traits,
       specialties: form.specialties,
       flaws: form.flaws,
-      desires: form.desires,
-      requirements: form.requirements,
       conditions: form.conditions,
-    }
-    if (entity.kind === 'faction' || entity.kind === 'orthodoxy') {
-      p.faction_type = form.faction_type
-      p.parent_civilization_id = form.parent_civilization_id
     }
     if (await patch(p)) setEditing(false)
   }
@@ -109,18 +100,6 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
       ? [...entity.traits.filter((t) => !SAPIENT_TRAITS.includes(t)), 'Rozumne']
       : entity.traits.filter((t) => !SAPIENT_TRAITS.includes(t))
     await patch({ traits })
-  }
-
-  async function toggleReligion(on: boolean) {
-    if (on) {
-      setPickRequirements(true)
-      return
-    }
-    await patch({ kind: 'faction' })
-  }
-
-  async function confirmReligion() {
-    if (await patch({ kind: 'orthodoxy', requirements })) setPickRequirements(false)
   }
 
   async function remove() {
@@ -135,18 +114,28 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
     }
   }
 
+  const statusNote =
+    entity.status === 'dead'
+      ? entity.kind === 'avatar'
+        ? 'Poległ. Może wrócić przez Wskrzeszenie Awatara.'
+        : 'Wymarły: nie żyje już na żadnym heksie.'
+      : entity.status === 'destroyed'
+        ? 'Ruina: miasto zniknęło z mapy.'
+        : null
+
   return (
-    <Modal title={entity.name} onClose={onClose} wide={editing}>
+    <Modal title={<>{entity.emoji ? `${entity.emoji} ` : ''}{entity.name}</>} onClose={onClose} wide={editing}>
       <div className={styles.detail}>
         <div className={styles.detailHead}>
           <div>
             <p>
               {kindLabel(entity.kind)}
-              {entity.faction_type ? ` · ${entity.faction_type}` : ''} · Era {entity.created_era}, runda {entity.created_round}
+              {sapient ? ' rozumna' : ''} · Era {entity.created_era}, runda {entity.created_round}
               {creator ? ` · ${godLabel(creator)}` : ''}
               {entity.is_chaos ? ' · dzieło Chaosu' : ''}
+              {entity.kind === 'avatar' && entity.status === 'active' ? ` · życie ${entity.hp ?? 0} z 3` : ''}
             </p>
-            {entity.status !== 'active' && <Notice tone="error">{entity.status === 'dead' ? 'Poległ. Może wrócić przez Wskrzeszenie Awatara.' : 'Zniszczona.'}</Notice>}
+            {statusNote && <Notice tone="error">{statusNote}</Notice>}
           </div>
         </div>
 
@@ -162,15 +151,6 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
                 hint={sapient ? 'ma cechę „Rozumne”: może założyć cywilizację' : 'bez cechy „Rozumne”: zwykła flora lub fauna'}
               />
             )}
-            {(entity.kind === 'faction' || entity.kind === 'orthodoxy') && (
-              <Toggle
-                checked={entity.kind === 'orthodoxy'}
-                disabled={busy}
-                onChange={toggleReligion}
-                label="Religia"
-                hint={entity.kind === 'orthodoxy' ? 'czci bóstwo i daje mu +1 do Rzutu Logos' : 'neutralna frakcja, nie służy żadnemu bóstwu'}
-              />
-            )}
             {entity.kind === 'avatar' && (
               <Toggle
                 checked={entity.status === 'dead'}
@@ -183,33 +163,53 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
           </div>
         )}
 
-        {pickRequirements && (
-          <div className={styles.section}>
-            <TraitPicker
-              label="Wymagania religii (2)"
-              options={ORTHODOXY_REQUIREMENTS.map((r) => r.name)}
-              value={requirements}
-              onChange={setRequirements}
-              max={2}
-              allowCustom={false}
-              tone="gold"
-            />
-            <div className={styles.detailActions}>
-              <StoneButton variant="gold" size="sm" disabled={busy || requirements.length === 0} onClick={confirmReligion}>
-                Uczyń religią
-              </StoneButton>
-              <StoneButton size="sm" onClick={() => setPickRequirements(false)}>Anuluj</StoneButton>
-            </div>
-          </div>
-        )}
-
         {editing ? (
-          <EntityEditor kind={entity.kind} form={form} set={set} civs={civs} />
+          <EntityEditor kind={entity.kind} form={form} set={set} />
         ) : (
           <>
+            {(places.length > 0 || city) && (
+              <div className={styles.section}>
+                <h4 className="engraved">Na mapie</h4>
+                <div className={styles.detailActions}>
+                  {city && <Tag tone="gold">miasto na ({city.q}, {city.r}), {BIOME_BY_KEY[world.hexAt(city.q, city.r)?.biome ?? 'trawa']?.name.toLowerCase()}</Tag>}
+                  {places.map((o) => (
+                    <Tag key={o.id}>({o.q}, {o.r}) {BIOME_BY_KEY[world.hexAt(o.q, o.r)?.biome ?? 'trawa']?.name.toLowerCase()}</Tag>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {entity.kind === 'civilization' && (
+              <div className={styles.section}>
+                <h4 className="engraved">{city ? cityLevelLabel(world.cityDots(entity.id)) : 'Ruina'}</h4>
+                {followers.length === 0 && <p className={mapStyles.popupEmpty}>Nikt tu nie wierzy.</p>}
+                {followers.map((f) => {
+                  const p = players.find((x) => x.id === f.player_id)
+                  const c = godColor(p?.domain_key)
+                  const rules = ruler === f.player_id
+                  return (
+                    <div key={f.player_id} className={[mapStyles.followerRow, rules ? mapStyles.ruler : ''].join(' ')}>
+                      <span className={mapStyles.swatch} style={{ background: c.fill, boxShadow: `0 0 0 1.5px ${c.stroke}` }} />
+                      <span>{godLabel(p)}: {followersWord(f.dots)}</span>
+                      {rules && <img className={mapStyles.rulerPortrait} src={godPortraitSrc(p?.domain_key)} alt="" title="Rządzi miastem" />}
+                    </div>
+                  )
+                })}
+                {gifts.length > 0 && (
+                  <div className={mapStyles.gifts}>
+                    {gifts.map((g) => (
+                      <span key={g.id} className={g.accepted ? '' : mapStyles.giftRejected}>
+                        {g.accepted ? '✦' : '✕'} {g.text} <small style={{ color: 'var(--ink-soft)' }}>({godLabel(players.find((x) => x.id === g.player_id))}, runda {g.round_number})</small>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {gods.length > 0 && (
               <div className={styles.section}>
-                <h4 className="engraved">{entity.kind === 'orthodoxy' ? 'Czczą' : entity.kind === 'avatar' ? 'Twórcy' : 'Stworzone przez'}</h4>
+                <h4 className="engraved">{entity.kind === 'avatar' ? 'Twórcy' : 'Stworzone przez'}</h4>
                 <div className={styles.detailActions}>
                   {gods.map(({ g, p }) => (
                     <span key={g.player_id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -226,9 +226,9 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
               <div className={styles.section}>
                 <h4 className="engraved">Powiązania</h4>
                 <div className={styles.detailActions}>
-                  {parent && <Tag tone="lapis">Cywilizacja: {parent.name}</Tag>}
+                  {parent && <Tag tone="lapis">miasto macierzyste: {parent.name}</Tag>}
                   {children.map((c) => (
-                    <Tag key={c.id}>{kindLabel(c.kind)}: {c.name}</Tag>
+                    <Tag key={c.id}>z niego wyszło: {c.name}</Tag>
                   ))}
                   {species.map((s) => (
                     <Tag key={s.id}>lud z istoty: {s.name}</Tag>
@@ -249,21 +249,6 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
             <TraitBlock title="Cechy" items={entity.traits} />
             <TraitBlock title="Specjalności" items={entity.specialties} tone="lapis" />
             <TraitBlock title="Braki" items={entity.flaws} tone="flaw" />
-            <TraitBlock title="Pragnienia" items={entity.desires} tone="lapis" />
-            {entity.requirements.length > 0 && (
-              <div className={styles.section}>
-                <h4 className="engraved">Wymagania</h4>
-                {entity.requirements.map((r) => {
-                  const def = ORTHODOXY_REQUIREMENTS.find((x) => x.name === r)
-                  return (
-                    <p key={r}>
-                      <b>{r}</b>
-                      {def ? `: ${def.text}` : ''}
-                    </p>
-                  )
-                })}
-              </div>
-            )}
             <TraitBlock title="Uwarunkowania" items={entity.conditions} />
 
             <div className={styles.section}>
@@ -298,7 +283,7 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
           onClose={() => setConfirmDelete(false)}
         >
           <p>
-            <b>{entity.name}</b> zniknie ze świata razem ze swoimi powiązaniami. Święta Księga zapamięta tylko, że tak się stało. Tej decyzji nie da się cofnąć.
+            <b>{entity.name}</b> zniknie ze świata i z mapy razem ze swoimi powiązaniami. Święta Księga zapamięta tylko, że tak się stało. Tej decyzji nie da się cofnąć.
           </p>
         </ConfirmDialog>
       )}
@@ -307,17 +292,7 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
 }
 
 /** Everything about the entity, editable; the kind itself changes through the switch above. */
-function EntityEditor({
-  kind,
-  form,
-  set,
-  civs,
-}: {
-  kind: EntityKind
-  form: EditForm
-  set: <K extends keyof EditForm>(k: K, v: EditForm[K]) => void
-  civs: Entity[]
-}) {
+function EntityEditor({ kind, form, set }: { kind: EntityKind; form: EditForm; set: <K extends keyof EditForm>(k: K, v: EditForm[K]) => void }) {
   return (
     <div className={formStyles.fields}>
       <div className={formStyles.nameRow}>
@@ -333,45 +308,6 @@ function EntityEditor({
           <TraitPicker label="Cechy" options={CIV_TRAITS} value={form.traits} onChange={(v) => set('traits', v)} />
           <TraitPicker label="Specjalności" options={CIV_SPECIALTIES} value={form.specialties} onChange={(v) => set('specialties', v)} tone="lapis" />
           <TraitPicker label="Braki" options={CIV_FLAWS} value={form.flaws} onChange={(v) => set('flaws', v)} tone="flaw" />
-        </>
-      )}
-
-      {(kind === 'faction' || kind === 'orthodoxy') && (
-        <>
-          <div className={formStyles.twoCol}>
-            <label className={fieldClass}>
-              <span className={labelClass}>Typ</span>
-              <select className={inputClass} value={form.faction_type} onChange={(e) => set('faction_type', e.target.value)}>
-                {FACTION_TYPES.map((t) => (
-                  <option key={t}>{t}</option>
-                ))}
-              </select>
-            </label>
-            <label className={fieldClass}>
-              <span className={labelClass}>Cywilizacja</span>
-              <select className={inputClass} value={form.parent_civilization_id} onChange={(e) => set('parent_civilization_id', e.target.value)}>
-                <option value="">żadna albo wiele</option>
-                {civs.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <TraitPicker label="Cechy" options={FACTION_TRAITS} value={form.traits} onChange={(v) => set('traits', v)} />
-          <TraitPicker label="Pragnienia" options={FACTION_DESIRES} value={form.desires} onChange={(v) => set('desires', v)} tone="lapis" />
-          {kind === 'orthodoxy' && (
-            <TraitPicker
-              label="Wymagania (2)"
-              options={ORTHODOXY_REQUIREMENTS.map((r) => r.name)}
-              value={form.requirements}
-              onChange={(v) => set('requirements', v)}
-              max={2}
-              allowCustom={false}
-              tone="gold"
-            />
-          )}
         </>
       )}
 

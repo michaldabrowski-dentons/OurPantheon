@@ -252,6 +252,33 @@ export function domainTitle(domain: DomainKey | null, gender: GodGender): string
   return domain ? `${head} ${DOMAIN_BY_KEY[domain].name}` : `${head} bez domeny`
 }
 
+/** every god's colour on the map: the dots of its followers, its outline, its place in the legend */
+export interface GodColor {
+  fill: string
+  /** a light rim for the dark ones, so they read on dark fields */
+  stroke: string
+  name: string
+}
+export const DOMAIN_COLORS: Record<DomainKey, GodColor> = {
+  light: { fill: '#f2cf3a', stroke: '#7a5f00', name: 'żółty' },
+  love: { fill: '#ff79b5', stroke: '#8a2d5b', name: 'różowy' },
+  forge: { fill: '#ff5a1f', stroke: '#7a2400', name: 'czerwono-pomarańczowy' },
+  war: { fill: '#cf1f2a', stroke: '#5c0b11', name: 'czerwony' },
+  rule: { fill: '#6b2bb5', stroke: '#2b0d4f', name: 'purpurowy' },
+  order: { fill: '#2b6fd6', stroke: '#0e2f66', name: 'niebieski' },
+  harvest: { fill: '#2fc4b2', stroke: '#0d5a52', name: 'turkusowy' },
+  storm: { fill: '#17171a', stroke: '#e6e2d8', name: 'czarny' },
+  secrets: { fill: '#8d3fd6', stroke: '#3c1363', name: 'fioletowy' },
+  knowledge: { fill: '#5b53d9', stroke: '#221c6b', name: 'niebiesko-fioletowy' },
+  nature: { fill: '#1f6b2e', stroke: '#0a2f13', name: 'zielony' },
+  vengeance: { fill: '#55602a', stroke: '#1d2208', name: 'oliwkowy' },
+}
+/** a god without a domain is marble grey */
+export const NO_DOMAIN_COLOR: GodColor = { fill: '#c9c2b6', stroke: '#5c554b', name: 'szary' }
+export function godColor(domain: DomainKey | null | undefined): GodColor {
+  return domain ? DOMAIN_COLORS[domain] : NO_DOMAIN_COLOR
+}
+
 /** Paintings in public/domains and public/attributes (768/192 px and 384/96 px JPEGs made from src/img). */
 export function domainArt(key: DomainKey | null | undefined, size: 'full' | 'thumb' = 'full'): string {
   const k = key ?? 'base'

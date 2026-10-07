@@ -17,15 +17,12 @@ interface Category {
 const SAPIENT: Category = { key: 'sapient', title: 'Istoty rozumne', hint: 'zdolne do kultury', filter: (e) => isSapient(e) }
 const CREATURES: Category = { key: 'creatures', title: 'Istoty', hint: 'flora i fauna', filter: (e) => e.kind === 'creature' && !isSapient(e) }
 const CIVILIZATIONS: Category = { key: 'civilizations', title: 'Cywilizacje', hint: 'ludy świata', filter: (e) => e.kind === 'civilization' }
-const RELIGIONS: Category = { key: 'religions', title: 'Religie', hint: 'czczą bóstwa', filter: (e) => e.kind === 'orthodoxy' }
-const FACTIONS: Category = { key: 'factions', title: 'Frakcje', hint: 'neutralne grupy', filter: (e) => e.kind === 'faction' }
 const AVATARS: Category = { key: 'avatars', title: 'Awatary', hint: 'most między boskością a śmiertelnikami', filter: (e) => e.kind === 'avatar' }
 
-/* The altar reads left to right the way the world grows: life, peoples, their groups, our envoys. */
+/* The lists read left to right the way the world grows: life, peoples, our envoys. */
 const COLUMNS: { key: string; sections: Category[] }[] = [
   { key: 'life', sections: [SAPIENT, CREATURES] },
   { key: 'peoples', sections: [CIVILIZATIONS] },
-  { key: 'groups', sections: [RELIGIONS, FACTIONS] },
   { key: 'envoys', sections: [AVATARS] },
 ]
 
@@ -90,7 +87,7 @@ function EntityCard({ entity, delay, onOpen }: { entity: Entity; delay: number; 
           .map((l) => entities.find((e) => e.id === l.to_entity_id)?.name)
           .filter(Boolean)
       : []
-  const showGods = entity.kind === 'avatar' || entity.kind === 'orthodoxy'
+  const showGods = entity.kind === 'avatar'
   const tags = [...entity.traits.slice(0, 3), ...entity.specialties.slice(0, 2)]
 
   return (
@@ -108,6 +105,7 @@ function EntityCard({ entity, delay, onOpen }: { entity: Entity; delay: number; 
       )}
       {entity.is_chaos && <span className={styles.chaosMark}>CHAOS</span>}
       <span className={styles.cardHead}>
+        {entity.emoji && <span aria-hidden>{entity.emoji}</span>}
         <span className={styles.cardName}>{entity.name}</span>
       </span>
       {entity.kind === 'civilization' && (
@@ -116,12 +114,9 @@ function EntityCard({ entity, delay, onOpen }: { entity: Entity; delay: number; 
         </span>
       )}
       <span className={styles.cardSub}>
-        {entity.kind === 'orthodoxy' && 'Religia · '}
-        {entity.kind === 'faction' && 'Frakcja · '}
-        {entity.faction_type ?? ''}
-        {parent ? `${entity.faction_type ? ' · ' : ''}${parent.name}` : ''}
-        {entity.status === 'dead' && ' · poległ'}
-        {entity.status === 'destroyed' && ' · zniszczona'}
+        {parent ? `z miasta ${parent.name}` : ''}
+        {entity.status === 'dead' && (entity.kind === 'avatar' ? ' · poległ' : ' · wymarły')}
+        {entity.status === 'destroyed' && ' · ruina'}
       </span>
       {tags.length > 0 && (
         <span className={styles.cardTags}>

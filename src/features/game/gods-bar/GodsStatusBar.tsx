@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
-import type { Player } from '@/lib/types'
-import { domainTitle } from '@/data/pantheon'
+import { domainTitle, godColor } from '@/data/pantheon'
+import { followersWord } from '@/data/cities'
+import { useWorld } from '@/features/game/map/useWorld'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer } from '@/store/useGameStore'
 import { GenderSign } from '@/features/lobby/GenderPicker'
@@ -19,16 +20,9 @@ export function GodsStatusBar() {
   const { user } = useUser()
   const game = useGameStore((s) => s.game)!
   const players = useGameStore((s) => s.players)
-  const entityGods = useGameStore((s) => s.entityGods)
-  const entities = useGameStore((s) => s.entities)
   const me = useGameStore(selectMyPlayer(user.id))
+  const world = useWorld()
   const [sheet, setSheet] = useState<string | null>(initialSheet)
-
-  const orthodoxyBonus = (p: Player) =>
-    Math.min(
-      3,
-      entityGods.filter((g) => g.player_id === p.id && entities.some((e) => e.id === g.entity_id && e.kind === 'orthodoxy' && e.status === 'active')).length,
-    )
 
   return (
     <header className={['basalt', styles.godsBar].join(' ')}>
@@ -36,13 +30,15 @@ export function GodsStatusBar() {
         {players.map((p, idx) => {
           const isTurn = game.phase === 'gods' && game.current_turn_player_id === p.id
           const isMe = p.id === me?.id
-          const bonus = p.low_logos_streak + orthodoxyBonus(p)
+          const bonus = p.low_logos_streak
+          const dots = world.totalDots(p.id)
+          const color = godColor(p.domain_key)
           return (
             <button
               key={p.id}
               type="button"
               className={['marble', 'emerge-from-dark', styles.plaque, isTurn ? styles.active : '', isMe ? styles.me : ''].join(' ')}
-              style={{ '--emerge-delay': `${80 + idx * 60}ms` } as CSSProperties}
+              style={{ '--emerge-delay': `${80 + idx * 60}ms`, '--god-color': color.fill, '--god-rim': color.stroke } as CSSProperties}
               aria-current={isTurn ? 'true' : undefined}
               onClick={() => setSheet(p.id)}
               title={isMe ? 'Twoja karta bóstwa' : `Karta: ${p.god_name || 'bóstwo bez imienia'}`}
@@ -59,10 +55,14 @@ export function GodsStatusBar() {
                   <span className={['engraved', styles.logosNum].join(' ')}>{p.logos}</span>
                   <span className={styles.logosWord}>LOGOS</span>
                   {bonus > 0 && (
-                    <span className={styles.bonus} title={`Premia do Rzutu Logos: skromność +${p.low_logos_streak}, religie +${orthodoxyBonus(p)}`}>
+                    <span className={styles.bonus} title={`Premia do Rzutu Logos za skromność: +${p.low_logos_streak}`}>
                       +{bonus}
                     </span>
                   )}
+                  <span className={styles.plaqueDots} title={`Wyznawcy na mapie: ${followersWord(dots)}`}>
+                    <span className={styles.plaqueSwatch} aria-hidden />
+                    {dots}
+                  </span>
                 </span>
               </span>
               {game.phase === 'rolling' && !p.has_rolled && <span className={styles.waiting}>CZEKA NA RZUT</span>}

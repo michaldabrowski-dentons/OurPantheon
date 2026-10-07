@@ -1,12 +1,14 @@
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
 import type {
-  ActionLog, ChaosDraw, CreationOption, CreationVote, Entity, EntityGod, EntityLink, EraVote, Game, PaletteEntry, Player, Profile,
+  ActionLog, ChaosDraw, City, CityFollower, CityGift, Contest, CreationOption, CreationVote, Entity, EntityGod, EntityLink, EraVote, Game,
+  Hex, HexOccupant, PaletteEntry, Player, Profile,
 } from '@/lib/types'
 
 export type RealtimeTable =
   | 'games' | 'players' | 'palette_entries' | 'entities' | 'entity_gods' | 'entity_links'
   | 'actions_log' | 'chaos_draws' | 'era_votes' | 'logos_rolls' | 'creation_options' | 'creation_votes'
+  | 'hexes' | 'hex_occupants' | 'cities' | 'city_followers' | 'city_gifts' | 'contests'
 
 interface GameState {
   gameId: string | null
@@ -22,6 +24,12 @@ interface GameState {
   eraVotes: EraVote[]
   creationOptions: CreationOption[]
   creationVotes: CreationVote[]
+  hexes: Hex[]
+  occupants: HexOccupant[]
+  cities: City[]
+  followers: CityFollower[]
+  gifts: CityGift[]
+  contests: Contest[]
   loading: boolean
   error: string | null
   connected: boolean
@@ -46,6 +54,12 @@ const empty = {
   eraVotes: [],
   creationOptions: [],
   creationVotes: [],
+  hexes: [],
+  occupants: [],
+  cities: [],
+  followers: [],
+  gifts: [],
+  contests: [],
   loading: false,
   error: null,
   connected: false,
@@ -69,13 +83,16 @@ const byLink = (a: EntityLink, b: EntityLink) =>
   a.from_entity_id === b.from_entity_id && a.to_entity_id === b.to_entity_id && a.relation === b.relation
 const byVote = (a: EraVote, b: EraVote) => a.game_id === b.game_id && a.player_id === b.player_id
 const byCreationVote = (a: CreationVote, b: CreationVote) => a.question_key === b.question_key && a.player_id === b.player_id
+const byHex = (a: Hex, b: Hex) => a.q === b.q && a.r === b.r
+const byCity = (a: City, b: City) => a.entity_id === b.entity_id
+const byFollower = (a: CityFollower, b: CityFollower) => a.city_id === b.city_id && a.player_id === b.player_id
 
 export const useGameStore = create<GameState>((set, get) => ({
   ...empty,
 
   async load(gameId) {
     set({ loading: true, error: null, gameId })
-    const [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes] = await Promise.all([
+    const [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes, hexes, occupants, cities, followers, gifts, contests] = await Promise.all([
       supabase.from('games').select('*').eq('id', gameId).single(),
       supabase.from('players').select('*').eq('game_id', gameId).order('seat_order'),
       supabase.from('palette_entries').select('*').eq('game_id', gameId).order('created_at'),
@@ -87,8 +104,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       supabase.from('era_votes').select('*').eq('game_id', gameId),
       supabase.from('creation_options').select('*').eq('game_id', gameId).order('created_at'),
       supabase.from('creation_votes').select('*').eq('game_id', gameId),
+      supabase.from('hexes').select('*').eq('game_id', gameId),
+      supabase.from('hex_occupants').select('*').eq('game_id', gameId).order('created_at'),
+      supabase.from('cities').select('*').eq('game_id', gameId),
+      supabase.from('city_followers').select('*').eq('game_id', gameId),
+      supabase.from('city_gifts').select('*').eq('game_id', gameId).order('created_at'),
+      supabase.from('contests').select('*').eq('game_id', gameId).order('created_at'),
     ])
-    const firstError = [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes].find((r) => r.error)?.error
+    const firstError = [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes, hexes, occupants, cities, followers, gifts, contests].find((r) => r.error)?.error
     if (firstError) {
       set({ loading: false, error: firstError.message })
       return
@@ -115,6 +138,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       eraVotes: (votes.data ?? []) as EraVote[],
       creationOptions: (cOptions.data ?? []) as CreationOption[],
       creationVotes: (cVotes.data ?? []) as CreationVote[],
+      hexes: (hexes.data ?? []) as Hex[],
+      occupants: (occupants.data ?? []) as HexOccupant[],
+      cities: (cities.data ?? []) as City[],
+      followers: (followers.data ?? []) as CityFollower[],
+      gifts: (gifts.data ?? []) as CityGift[],
+      contests: (contests.data ?? []) as Contest[],
     })
   },
 
@@ -185,6 +214,38 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ creationVotes: isDelete ? remove(s.creationVotes, r, byCreationVote) : upsert(s.creationVotes, r, byCreationVote) })
         break
       }
+      case 'hexes': {
+        const r = (isDelete ? old : row) as Hex
+        set({ hexes: isDelete ? remove(s.hexes, r, byHex) : upsert(s.hexes, r, byHex) })
+        break
+      }
+      case 'hex_occupants': {
+        const r = (isDelete ? old : row) as HexOccupant
+        set({ occupants: isDelete ? remove(s.occupants, r, byId) : upsert(s.occupants, r, byId) })
+        break
+      }
+      case 'cities': {
+        const r = (isDelete ? old : row) as City
+        set({ cities: isDelete ? remove(s.cities, r, byCity) : upsert(s.cities, r, byCity) })
+        break
+      }
+      case 'city_followers': {
+        const r = (isDelete ? old : row) as CityFollower
+        set({ followers: isDelete ? remove(s.followers, r, byFollower) : upsert(s.followers, r, byFollower) })
+        break
+      }
+      case 'city_gifts': {
+        const r = (isDelete ? old : row) as CityGift
+        set({ gifts: isDelete ? remove(s.gifts, r, byId) : upsert(s.gifts, r, byId) })
+        break
+      }
+      case 'contests': {
+        const r = (isDelete ? old : row) as Contest
+        const contests = isDelete ? remove(s.contests, r, byId) : upsert(s.contests, r, byId)
+        contests.sort((a, b) => a.created_at.localeCompare(b.created_at))
+        set({ contests })
+        break
+      }
       default:
         break
     }
@@ -232,6 +293,9 @@ export const selectEntitiesOf = (playerId: string) => (s: GameState): { entity: 
   }
   return out
 }
+
+/** the contest still waiting for its defender, if any */
+export const selectPendingContest = (s: GameState) => s.contests.find((c) => c.status === 'pending') ?? null
 
 /** The god's name only, never the human behind it (for the Chronicle and scenes). */
 export function godLabel(p: Player | null | undefined): string {

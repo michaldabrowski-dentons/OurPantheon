@@ -12,7 +12,9 @@ import { BottomBar } from './BottomBar'
 import { LatestVerse } from './LatestVerse'
 import { EraOverture, useEraOverture } from './EraOverture'
 import { ActionsPanel } from './actions/ActionsPanel'
-import { AltarGrid } from './altar/AltarGrid'
+import { MapStage } from './map/MapStage'
+import { ContestOverlay } from './map/ContestOverlay'
+import { ContestVerseDialog } from './map/ContestVerseDialog'
 import { ChaosOverlay } from './chaos/ChaosOverlay'
 import { ChronicleDrawer } from './chronicle/ChronicleDrawer'
 import styles from './game.module.css'
@@ -82,11 +84,13 @@ export function GamePage() {
             <StoneButton size="sm" onClick={() => setError(null)}>OK</StoneButton>
           </div>
         )}
-        <AltarGrid onError={setError} />
+        <MapStage onError={setError} />
       </main>
       <BottomBar onError={setError} />
 
       {game.phase === 'chaos' && !overture && <ChaosOverlay onError={setError} />}
+      {game.status === 'playing' && <ContestOverlay />}
+      {game.status === 'playing' && <ContestVerseDialog />}
       {chronicle && <ChronicleDrawer onClose={() => setChronicle(false)} />}
       {overture && game.status === 'playing' && <EraOverture era={overture} onEnter={enterEra} />}
 

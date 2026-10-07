@@ -458,6 +458,22 @@
   color: var(--gold-dark);
   font-weight: 700;
 }
+.plaqueDots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.plaqueSwatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--god-color, var(--marble-vein));
+  box-shadow: 0 0 0 1.5px var(--god-rim, var(--ink-soft));
+}
 .sleep {
   position: absolute;
   inset: 0;
@@ -852,36 +868,39 @@
   background-clip: text;
 }
 
-/* ---------- Altar: four columns under the torch ---------- */
+/* ---------- Altar: the map under the torch ---------- */
 .altar {
   grid-area: altar;
   position: relative;
   min-height: 0;
   overflow: auto;
-  padding: 26px 22px 40px;
+  padding: 18px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+/* the lists of things, in their window: the old four columns */
+.altarLists {
   display: grid;
   gap: 26px 22px;
   align-content: start;
   align-items: start;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-@media (max-width: 1280px) {
-  .altar {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-height: 70vh;
+  overflow: auto;
+  padding: 4px 2px;
 }
 @media (max-width: 900px) {
-  .altar {
+  .altarLists {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 680px) {
-  .altar {
+  .altarLists {
     grid-template-columns: 1fr;
   }
 }
 .altarBanner {
-  grid-column: 1 / -1;
   display: flex;
   gap: 14px;
   align-items: center;

@@ -1,28 +1,31 @@
-// Main actions of Our Pantheon (Alpha V2, PL), grouped the way the table wants them.
-// Costs are per Era: [I, II, III]. Keys match action_cost() in supabase/migrations.
-import type { Entity, EntityKind } from '@/lib/types'
+// The words of O BOGOWIE!, grouped the way the table wants them. Costs are per Era: [I, II, III].
+// Keys match action_cost() in supabase/migrations/0012_hex_map.sql. Most words act on the map.
+import type { Entity, Player } from '@/lib/types'
+import type { WorldView } from '@/lib/world'
 import { SAPIENT_TRAITS } from './traits'
 
 export type ActionKey =
   | 'shape_land'
-  | 'change_biome'
   | 'catastrophe'
   | 'great_miracle'
   | 'create_creature'
   | 'create_sapient'
   | 'change_creature'
+  | 'migrate'
   | 'create_civilization'
-  | 'change_civilization'
-  | 'create_faction'
-  | 'create_orthodoxy'
-  | 'change_faction'
-  | 'command_followers'
+  | 'develop_civilization'
+  | 'exodus'
+  | 'convert'
+  | 'holy_war'
   | 'create_avatar'
   | 'command_avatar'
   | 'resurrect_avatar'
 
 export type Era = 1 | 2 | 3
 export type ActionCategoryKey = 'terraform' | 'life' | 'mortals' | 'avatar'
+
+/** the steps of a word's window, in order; 'map' hands the choice to the map */
+export type FlowStep = 'setup' | 'roll' | 'map' | 'form' | 'confirm' | 'verse' | 'declare'
 
 export interface TierText {
   strong: string // 10+
@@ -35,10 +38,8 @@ export interface TierPicks {
   traits?: number
   specialties?: number
   flaws?: number
-  desires?: number
   otherTraits?: number
   otherFlaws?: number
-  otherDesires?: number
 }
 export type Tier = 'strong' | 'mixed' | 'weak'
 
@@ -46,7 +47,7 @@ export interface ActionRequirement {
   /** shown under the action name */
   text: string
   /** true when the world already holds what the action needs */
-  check: (entities: Entity[]) => boolean
+  check: (world: WorldView, me: Player | null) => boolean
 }
 
 export interface ActionDef {
@@ -54,10 +55,16 @@ export interface ActionDef {
   name: string
   category: ActionCategoryKey
   costs: [number, number, number]
+  /** the cost is paid on top of the distance on the map (1 Logos per field) */
+  distance?: boolean
+  /** a 2k6 with picks before the form (Stworzenie Cywilizacji); other dice are rolled by the server */
   requiresRoll: boolean
   /** which kind of entity the action creates or edits, if any */
-  entityKind?: EntityKind
+  entityKind?: 'creature' | 'civilization' | 'avatar'
   entityOp?: 'create' | 'update'
+  /** waits for the defender's answer (Nawracanie, Święta Wojna) */
+  contested?: boolean
+  flow: FlowStep[]
   /** one-line summary shown in the dialog */
   summary: string
   /** full rules text, one paragraph per entry */
@@ -76,8 +83,14 @@ export const ACTION_CATEGORIES: { key: ActionCategoryKey; name: string }[] = [
 ]
 
 export const isSapient = (e: Entity) => e.kind === 'creature' && e.traits.some((t) => SAPIENT_TRAITS.includes(t))
-const alive = (e: Entity) => e.status === 'active'
-const has = (pred: (e: Entity) => boolean) => (entities: Entity[]) => entities.some(pred)
+
+const anyCreatureOnMap = (w: WorldView) => w.hexes.some((h) => w.occupantsAt(h.q, h.r).some((o) => w.entityById(o.entity_id)?.kind === 'creature'))
+const anyCityOnMap = (w: WorldView) => w.cities.length > 0
+const sapientCanSettle = (w: WorldView) =>
+  w.hexes.some((h) => !w.blocked(h.q, h.r) && !w.cityAt(h.q, h.r) && w.occupantsAt(h.q, h.r).some((o) => w.isSapient(w.entityById(o.entity_id))))
+const myCities = (w: WorldView, me: Player | null) => (me ? w.cities.filter((c) => w.dotsOf(c.entity_id, me.id) > 0) : [])
+const rivalCities = (w: WorldView, me: Player | null) => (me ? w.cities.filter((c) => w.followersOf(c.entity_id).some((f) => f.player_id !== me.id)) : [])
+const aliveAvatar = (w: WorldView, me: Player | null) => !!me && w.avatarsOf(me.id).length > 0
 
 export const ACTIONS: ActionDef[] = [
   // ---------- Terraformacja ----------
@@ -87,24 +100,12 @@ export const ACTIONS: ActionDef[] = [
     category: 'terraform',
     costs: [2, 5, 12],
     requiresRoll: false,
-    summary: 'Stwórz lub zmień ląd: góry, lasy, pustynie, rzeki, wyspy, latające wyspy. Obszar około jednej jednostki.',
+    flow: ['form', 'map', 'confirm', 'verse'],
+    summary: 'Wybierz biom i zaznacz do trzech sąsiadujących heksów. Ląd zmienia się od razu.',
     details: [
-      'Ta akcja pozwala tworzyć lub zmieniać ląd świata: góry, lasy, pustynie, stepy, tundry, łąki, jeziora, rzeki, doliny, wyspy, latające wyspy i wszystko, co przyjdzie wam do głowy. Cechy te mogą być tak realistyczne lub tak fantazyjne, jak chcesz.',
-      'Wybierz do wypełnienia obszar około jednej jednostki albo taki, jaki jest rozsądny. Czy pojawia się natychmiast, czy zmienia się powoli przez dekady?',
-      'Gdy kształtujesz ląd, automatycznie określasz też klimat tego obszaru oraz to, jaki rodzaj życia tam istnieje lub będzie istniał. Jeśli w przyszłości zechcesz zmienić klimat tego obszaru, użyj Zmiany Klimatu.',
-    ],
-  },
-  {
-    key: 'change_biome',
-    name: 'Zmiana Klimatu',
-    category: 'terraform',
-    costs: [1, 3, 6],
-    requiresRoll: false,
-    summary: 'Zmień klimat istniejącego obszaru: las w pustynię, morze w lód, równiny nawiedzane przez niezwykłe burze.',
-    details: [
-      'Biom obszaru to złożona zależność między tym, co tam żyje, a jego warunkami klimatycznymi. Gdy zmieniasz klimat, zmieniasz ustalony klimat obszaru na jakiś inny. Trzeba to robić nad lądem, który został już stworzony lub uzgodniony jako istniejący.',
-      'Obejmuje to między innymi: przemienienie lasu w pustynię, zamrożenie morza tak, by pokrył je lód, albo sprawienie, że na falistych równinach regularnie występują burze, podczas których padają niezwykłe przedmioty: żaby, ryby, rzeczy anachroniczne.',
-      'Wybierz do wypełnienia obszar około jednej jednostki.',
+      'Ta akcja zmienia teren świata: góry, lasy, pustynie, stepy, tundry, bagna, sawanny, morza i śniegi. Wybierz biom, a potem kliknij na mapie od jednego do trzech heksów. Każdy kolejny heks musi sąsiadować z już zaznaczonym; trzeci klik kończy akcję sam.',
+      'Woda i Góry są zablokowane: nie powstanie na nich miasto, nie dojdzie tam Exodus i nie stanie tam awatar. Istoty mogą tam żyć. Heksu, na którym stoi miasto lub awatar, nie da się zatopić ani wypiętrzyć.',
+      'Czy ląd pojawia się natychmiast, czy zmienia się powoli przez dekady? To opowiedz w wersecie.',
     ],
   },
   {
@@ -113,10 +114,12 @@ export const ACTIONS: ActionDef[] = [
     category: 'terraform',
     costs: [10, 10, 10],
     requiresRoll: false,
-    summary: 'Okaż gniew. Ziemia drży, góry wybuchają, niebiosa runęły. Znaczący, lecz lokalny.',
+    flow: ['form', 'map', 'confirm', 'verse'],
+    summary: 'Wybierz rodzaj kataklizmu i heks. Obrażenia: k6 + Gniew. Każde niszczy kropkę miasta, istotę albo rani awatara.',
     details: [
-      'Bóstwa muszą czasem okazać swój gniew. Spraw, by ziemia zadrżała, góry wybuchły, pole uschło, fale uderzyły, niebiosa runęły. Czy dzieje się to z zazdrości, sprawiedliwości czy z nudów, decyzja należy do ciebie.',
-      'Kataklizm powinien być znaczący, ale lokalny. Może położyć kres miastu, cywilizacji lub wyspie, ale powinien obejmować około jednej jednostki. Aby wpłynąć na świat na większą skalę, użyj Wielkiego Cudu.',
+      'Bóstwa muszą czasem okazać swój gniew. Wybierz rodzaj kataklizmu (tsunami, susza, trzęsienie ziemi, meteor, plaga albo własny), a potem kliknij heks. Kości rzuca księga: k6 plus twój Gniew, najmniej jedno obrażenie.',
+      'Każde obrażenie trafia losowo w to, co stoi na heksie: w jedną kropkę miasta (losowego bóstwa), w jedną istotę nierozumną (znika z tego pola) albo w awatara (traci 1 z 3 punktów życia). Istoty rozumne giną dopiero wtedy, gdy nie ma już miasta. Miasto bez kropek staje się ruiną.',
+      'Kataklizm jest lokalny. Aby wpłynąć na świat na większą skalę, użyj Wielkiego Cudu.',
     ],
   },
   {
@@ -125,6 +128,7 @@ export const ACTIONS: ActionDef[] = [
     category: 'terraform',
     costs: [15, 30, 50],
     requiresRoll: false,
+    flow: ['confirm', 'verse'],
     summary: 'Coś WIELKIEGO na skalę całego świata. Nie ma ograniczeń. Użyj, gdy chcesz pójść na całość.',
     details: [
       'Czasem chcesz zrobić coś WIELKIEGO, co nie do końca pasuje do żadnej z pozostałych akcji. Być może chcesz określić coś prawdziwego na całym świecie: wskrzesić wszystkich, którzy zginęli podczas nuklearnej zimy, albo sprawić, by cały kontynent unosił się w przestworzach.',
@@ -142,11 +146,12 @@ export const ACTIONS: ActionDef[] = [
     requiresRoll: false,
     entityKind: 'creature',
     entityOp: 'create',
-    summary: 'Pojedynczy byt lub cały gatunek. Wybierz do 3 cech. Gdzie się pojawiają, jak wyglądają, co jedzą, co im zagraża?',
+    flow: ['form', 'map', 'confirm', 'verse'],
+    summary: 'Nowy gatunek: do 3 cech i własna emotikona. Potem kliknij heks, na którym się pojawia.',
     details: [
-      'Zwierzęta i rośliny wszelkiego rodzaju będą powstawać wskutek kształtowania lądów i klimatu, ale czasem chcesz stworzyć coś bardziej konkretnego. Może to dotyczyć pojedynczego bytu lub całego gatunku. Jeśli chcesz, śmiało zrób szybki szkic istoty.',
-      'Wybierz do 3 cech z listy. Następnie odpowiedz na dowolne lub wszystkie z pytań: Gdzie się pojawiają? Jak wyglądają? Co jedzą? Jak się rozmnażają? Co jest dla nich największym zagrożeniem?',
-      'Istoty bez cechy „Rozumne” ani „Umysł roju” nie mogą założyć cywilizacji. Do tego służy Stworzenie Istoty Rozumnej.',
+      'Zwierzęta i rośliny wszelkiego rodzaju powstają same wskutek kształtowania lądów, ale czasem chcesz stworzyć coś bardziej konkretnego: cały gatunek z własnym znakiem na mapie. Wybierz do 3 cech i emotikonę, której nikt jeszcze nie nosi.',
+      'Potem kliknij heks: istota zajmuje jedno z trzech miejsc w jego rogach. Istoty mogą żyć wszędzie, także na Wodzie i w Górach.',
+      'Istoty bez cechy „Rozumne” ani „Umysł roju” nie założą cywilizacji. Do tego służy Stworzenie Istoty Rozumnej.',
     ],
   },
   {
@@ -157,26 +162,43 @@ export const ACTIONS: ActionDef[] = [
     requiresRoll: false,
     entityKind: 'creature',
     entityOp: 'create',
-    summary: 'Gatunek zdolny do kultury. Otrzymuje cechę „Rozumne” i może założyć cywilizację.',
+    flow: ['form', 'map', 'confirm', 'verse'],
+    summary: 'Lud zdolny do kultury. Otrzymuje cechę „Rozumne”, swój znak i miejsce na mapie. Może założyć cywilizację.',
     details: [
-      'Tak jak Stworzenie Istoty, ale to, co powstaje, ma świadomość, język i zdolność do kultury. Istota otrzymuje cechę „Rozumne” (albo „Umysł roju”, jeśli tak ją opiszesz) i od tej pory można z niej wywieść cywilizację.',
-      'Wybierz do 3 cech i odpowiedz na te same pytania: gdzie się pojawiają, jak wyglądają, co jedzą, jak się rozmnażają, co im zagraża. Zastanów się też, jak myślą i co uznają za święte.',
+      'Tak jak Stworzenie Istoty, ale to, co powstaje, ma świadomość, język i zdolność do kultury. Istota otrzymuje cechę „Rozumne” (albo „Umysł roju”, jeśli tak ją opiszesz) i od tej pory na heksie, gdzie żyje, można założyć cywilizację.',
+      'Wybierz do 3 cech i emotikonę ludu, potem kliknij heks. Zastanów się, jak myślą i co uznają za święte.',
     ],
   },
   {
     key: 'change_creature',
-    name: 'Przekształcenie Istoty',
+    name: 'Zmiana Istoty',
     category: 'life',
     costs: [5, 1, 6],
     requiresRoll: false,
     entityKind: 'creature',
     entityOp: 'update',
-    summary: 'Dodaj, zmień lub usuń 1 cechę istoty. Albo stwórz odmianę: zachowaj co najmniej 2 cechy i dodaj 1 nową.',
+    flow: ['map', 'form', 'confirm', 'verse'],
+    summary: 'Kliknij jedną istotę na jednym heksie: tam powstaje jej odmiana. Zachowaj co najmniej 2 cechy, dodaj 1 nową.',
     details: [
-      'Użyj tej akcji, aby dodać istocie nową cechę lub zmienić istniejącą. W fikcji zmienia to każdego osobnika tej istoty. Może to następować przez pokolenia albo natychmiast, zależnie od tego, jak chcesz to przedstawić. Wybierz 1 cechę do dodania, zmiany lub usunięcia.',
-      'Alternatywnie możesz użyć tej akcji, by stworzyć odmianę istniejącej istoty. Wybierz wtedy co najmniej 2 cechy do zachowania i 1 nową.',
+      'Kliknij istotę na mapie. Tylko ta jedna, na tym jednym heksie, odmienia się: gdy niedźwiedzie żyją na dwóch polach, kliknięcie jednego z nich daje tam niedźwiedzia polarnego, a na drugim polu zostają zwykłe niedźwiedzie.',
+      'Odmiana to nowa istota: zachowaj co najmniej 2 cechy pierwowzoru, dodaj 1 nową, nadaj jej nazwę i wolną emotikonę. Dotyczy to tak samo istot rozumnych.',
     ],
-    requirement: { text: 'musi istnieć istota', check: has((e) => e.kind === 'creature') },
+    requirement: { text: 'musi istnieć istota na mapie', check: (w) => anyCreatureOnMap(w) },
+  },
+  {
+    key: 'migrate',
+    name: 'Migracja',
+    category: 'life',
+    costs: [0, 0, 0],
+    distance: true,
+    requiresRoll: false,
+    flow: ['map', 'map', 'confirm', 'verse'],
+    summary: 'Kliknij istotę, potem heks docelowy. Gatunek mnoży się na nowe pole; 1 Logos za każdy heks dystansu.',
+    details: [
+      'Kliknij heks z istotą i wybierz, którą istotę to dotyczy; potem kliknij heks, na który się rozprzestrzenia. Migracja nie opróżnia starego pola: gatunek mnoży się i żyje odtąd w obu miejscach.',
+      'Koszt to dystans: o 1 heks za 1 Logos, o 2 heksy za 2 Logos i tak dalej. Na docelowym heksie musi być wolne miejsce (trzy na heks), a tego gatunku nie może tam jeszcze być.',
+    ],
+    requirement: { text: 'musi istnieć istota na mapie', check: (w) => anyCreatureOnMap(w) },
   },
 
   // ---------- Śmiertelnicy ----------
@@ -188,17 +210,18 @@ export const ACTIONS: ActionDef[] = [
     requiresRoll: true,
     entityKind: 'civilization',
     entityOp: 'create',
-    summary: 'Lud zdolny do kultury. Wybierz spośród istot rozumnych. Określ region i opisz, jacy są. Rzuć 2k6.',
+    flow: ['map', 'setup', 'roll', 'form', 'confirm', 'verse'],
+    summary: 'Kliknij heks z istotą rozumną. Rzuć 2k6, wybierz cechy. Miasto rodzi się z jedną kropką w twoim kolorze.',
     details: [
-      'To są ludy świata. Nie po prostu zwierzęta czy gatunki, ale istoty zdolne do kultury i cywilizacji. Wybieraj spośród istot, które zostały już ustalone i mają cechę „Rozumne” lub „Umysł roju”. Jeden gatunek może mieć wiele skrajnie różnych cywilizacji, a jedna cywilizacja może składać się z wielu gatunków.',
-      'Cywilizacje mają cechy, specjalności i braki. Choć jednostki będą od nich odbiegać, dają wyraźniejsze pojęcie o tym, kim są ci ludzie i co ceni ich kultura. Wybierz, gdzie pojawiają się na mapie, i z grubsza określ region. Opisz, jak wyglądają i jaka jest ich kultura. Następnie rzuć 2k6 plus liczba Słów, które chcesz wydać.',
-      'Niezależnie od wyniku cywilizacja zaczyna z Religią poświęconą bóstwu-stwórcy albo z neutralną Frakcją: zakonem, formą rządów, tajemniczym kultem, czymkolwiek chcesz.',
+      'To są ludy świata: nie zwierzęta, ale istoty zdolne do kultury. Kliknij heks, na którym żyje istota rozumna (albo o umyśle roju) i który nie jest Wodą ani Górami. Na jednym heksie stoi jedno miasto.',
+      'Cywilizacje mają cechy, specjalności i braki. Rzuć 2k6 plus liczba Słów, które chcesz wydać; wynik mówi, ile możesz wybrać. Opisz, jak wyglądają i jaka jest ich kultura.',
+      'Miasto powstaje jako Koczowisko z jedną kropką w twoim kolorze: to twoi wyznawcy. Miasto może gromadzić wyznawców wielu bóstw; rządzi nim to, które ma ich najwięcej.',
     ],
-    requirement: { text: 'musi istnieć istota rozumna', check: has(isSapient) },
+    requirement: { text: 'istota rozumna na wolnym lądzie', check: (w) => sapientCanSettle(w) },
     tiers: {
-      strong: 'Wybierz 3 Cechy, 2 Specjalności i 1 Brak. Następnie stwórz Religię lub Frakcję.',
-      mixed: 'Wybierz 2 Cechy, 2 Specjalności i 1 Brak. Wybierz, który z pozostałych graczy wybiera 1 Cechę, a który 1 Brak. Stwórz Frakcję.',
-      weak: 'Wybierz 1 Cechę, 2 Specjalności, 1 Brak. Wybierz, który z pozostałych graczy wybiera 2 Cechy, a który 1 Brak. Stwórz Frakcję.',
+      strong: 'Wybierz 3 Cechy, 2 Specjalności i 1 Brak.',
+      mixed: 'Wybierz 2 Cechy, 2 Specjalności i 1 Brak. Wybierz, który z pozostałych graczy wybiera 1 Cechę, a który 1 Brak.',
+      weak: 'Wybierz 1 Cechę, 2 Specjalności, 1 Brak. Wybierz, który z pozostałych graczy wybiera 2 Cechy, a który 1 Brak.',
     },
     picks: {
       strong: { traits: 3, specialties: 2, flaws: 1 },
@@ -207,115 +230,67 @@ export const ACTIONS: ActionDef[] = [
     },
   },
   {
-    key: 'change_civilization',
-    name: 'Przekształcenie Cywilizacji',
+    key: 'develop_civilization',
+    name: 'Rozwój Cywilizacji',
     category: 'mortals',
     costs: [12, 8, 4],
-    requiresRoll: true,
-    entityKind: 'civilization',
-    entityOp: 'update',
-    summary: 'Odłam od cywilizacji albo zmiana jej kultury. Rzuć 2k6 + wydane Słowa.',
+    requiresRoll: false,
+    flow: ['map', 'form', 'confirm', 'verse'],
+    summary: 'Kliknij miasto i napisz, co ofiarowujesz wyznawcom. Księga rzuca 2k6 + Łaska albo Mądrość: 10+ to 2 kropki, 7..9 to 1.',
     details: [
-      'Być może ci ludzie oderwali się od głównej cywilizacji. A może po prostu zdecydowałeś, że muszą zmienić swoją kulturę. W pierwszym przypadku umieść nową grupę gdzieś w pobliżu pierwotnej cywilizacji albo odpowiednio podziel region.',
-      'Tak czy inaczej, rzuć 2k6 plus liczba Słów, które chcesz wydać, i zastosuj wynik z tabeli poniżej.',
+      'Ofiarowujesz coś wyznawcom: ogień, oliwki, rolnictwo, pismo, wielką budowlę. Kliknij miasto, napisz, co dajesz, i wybierz, czy wspiera cię Łaska, czy Mądrość. Kości rzuca księga: 2k6 plus atrybut.',
+      'Przy 10+ miasto rośnie o 2 kropki w twoim kolorze, przy 7..9 o 1 kropkę. Przy 6- dar nie chwyta: Logos przepadają, a księga odnotowuje, co odrzucono. Miasto mieści najwyżej 10 kropek.',
+      'Przyjęte dary zostają w karcie miasta na zawsze.',
     ],
-    requirement: { text: 'musi istnieć cywilizacja', check: has((e) => e.kind === 'civilization') },
-    tiers: {
-      strong: 'Zmień, dodaj lub usuń 1 cechę, 1 specjalność i/lub 1 brak, jak uznasz za stosowne.',
-      mixed: 'Zmień, dodaj lub usuń cechę lub specjalność.',
-      weak: 'Zmień cechę lub specjalność. Inny gracz może także zmienić jedną albo dodać brak.',
-    },
+    requirement: { text: 'musi istnieć miasto', check: (w) => anyCityOnMap(w) },
   },
   {
-    key: 'create_faction',
-    name: 'Stworzenie Frakcji',
+    key: 'exodus',
+    name: 'Exodus',
     category: 'mortals',
-    costs: [10, 6, 4],
-    requiresRoll: true,
-    entityKind: 'faction',
-    entityOp: 'create',
-    summary: 'Neutralna grupa ludzi: od rodziny po organ rządzący. Nadaje wyrazistość ludom świata. Wybierz typ, potem rzuć.',
+    costs: [0, 0, 0],
+    distance: true,
+    requiresRoll: false,
+    flow: ['map', 'form', 'map', 'confirm', 'verse'],
+    summary: 'Z miasta, w którym masz wyznawców, zabierz ich część i istotę rozumną na nowy heks. Tam powstaje twoje miasto; 1 Logos za heks.',
     details: [
-      'Frakcje są w dużej mierze neutralne, jeśli chodzi o bóstwa. Może czczą niektóre z nich lub są ich świadome, ale jest zupełnie w porządku, by miały o nich błędne wyobrażenie, były całkowicie obojętne, a nawet nieświadome istnienia rzeczywistych bóstw świata.',
-      'Mechanicznie neutralne frakcje same w sobie nie dają bóstwom żadnej korzyści ani utrudnienia. Można je przemienić w Religie, które korzyść już dają. Ich główną funkcją jest nadawanie wyrazistości ludom świata; to grupy, które tworzą ludzie, i do nich odwołują się zasady Chaosu.',
-      'Najpierw wybierz rodzaj frakcji: od małej grupy około 10 osób po cały organ rządzący społeczeństwem. Następnie rzuć 2k6 plus liczba Słów, które chcesz wydać.',
+      'Kliknij miasto, w którym masz kropki, i wybierz, ilu wyznawców zabierasz oraz którą istotę rozumną (jeśli żyje tam kilka). Potem kliknij heks docelowy: nie Wodę i nie Góry.',
+      'Koszt to dystans: 1 Logos za każdy heks. Na nowym heksie powstaje nowe miasto z twoimi kropkami i znakiem zabranej istoty; dziedziczy cechy i dary macierzystego. Jeśli na celu stoi już miasto, twoi wyznawcy i istota dołączają do niego.',
+      'Miasto, z którego wyszli wszyscy, staje się ruiną.',
     ],
-    requirement: { text: 'musi istnieć cywilizacja', check: has((e) => e.kind === 'civilization') },
-    tiers: {
-      strong: 'Wybierz 2 Cechy i Pragnienie.',
-      mixed: 'Wybierz 2 Cechy. Następnie inny gracz wybiera kolejne Pragnienie.',
-      weak: 'Wybierz Cechę. Następnie pozostali gracze wybierają Cechę i Pragnienie.',
-    },
-    picks: {
-      strong: { traits: 2, desires: 1 },
-      mixed: { traits: 2, otherDesires: 1 },
-      weak: { traits: 1, otherTraits: 1, otherDesires: 1 },
-    },
+    requirement: { text: 'miasto z twoimi wyznawcami', check: (w, me) => myCities(w, me).length > 0 },
   },
   {
-    key: 'create_orthodoxy',
-    name: 'Stworzenie Religii',
+    key: 'convert',
+    name: 'Nawracanie',
     category: 'mortals',
-    costs: [12, 8, 6],
-    requiresRoll: true,
-    entityKind: 'orthodoxy',
-    entityOp: 'create',
-    summary: 'Grupa, która wie o tobie i cię czci. Każda religia daje +1 do Rzutu Logos (maks. +3). Stwórz jak frakcję, potem wybierz 2 wymagania.',
+    costs: [6, 4, 3],
+    requiresRoll: false,
+    contested: true,
+    flow: ['map', 'form', 'declare'],
+    summary: 'Kliknij miasto i wskaż, czyich wyznawców nawracasz. Rzut sporny: 2k6 + Majestat albo Podszept po obu stronach.',
     details: [
-      'Za każdą Religię, którą ma bóstwo, zyskuje ono +1 do swojego Rzutu Logos na początku rundy, maksymalnie do premii +3. Możesz mieć więcej religii, ale premia się za nie nie liczy.',
-      'Te grupy wiedzą o bóstwach, a przynajmniej to, co im powiedziano, i prawdopodobnie je czczą. Czy dzieje się tak dlatego, że je wielbią, czy dlatego, że się ich boją, zależy od ciebie. Stwórz religię tak, jak stworzyłbyś frakcję, a następnie wybierz 2 rzeczy, których od nich wymagasz: Szerzyć, Bronić, Uciskać, Folgować, Pokutować, Wstrzymywać się, Uległość.',
-      'Opisz też, w jaki sposób praktykują swój kult. Jakie są powszechne rytuały i obrzędy? Czy mają scentralizowane miejsce kultu, jak kościół lub świątynia? Gdy wiele bóstw tworzy religię wspólnie, wszystkie zyskują premię +1 do Rzutu Logos.',
+      'Kliknij miasto, w którym inne bóstwo ma wyznawców, i wskaż to bóstwo. Wybierz, czy działasz Majestatem, czy Podszeptem; kości rzuca księga. Broniące się bóstwo odpowiada u siebie: też wybiera Majestat albo Podszept i rzuca. Twoja tura czeka na jego odpowiedź.',
+      'Jeśli wygrasz o 3 lub więcej, dwóch jego wyznawców przechodzi na twoją stronę; jeśli o 1 lub 2, jeden. Remis i przegrana nie zmieniają nic. Logos płacisz przy deklaracji.',
     ],
-    requirement: { text: 'musi istnieć cywilizacja', check: has((e) => e.kind === 'civilization') },
-    tiers: {
-      strong: 'Wybierz 2 Cechy i Pragnienie. Potem 2 wymagania.',
-      mixed: 'Wybierz 2 Cechy. Inny gracz wybiera Pragnienie. Potem 2 wymagania.',
-      weak: 'Wybierz Cechę. Pozostali gracze wybierają Cechę i Pragnienie. Potem 2 wymagania.',
-    },
-    picks: {
-      strong: { traits: 2, desires: 1 },
-      mixed: { traits: 2, otherDesires: 1 },
-      weak: { traits: 1, otherTraits: 1, otherDesires: 1 },
-    },
+    requirement: { text: 'miasto z cudzymi wyznawcami', check: (w, me) => rivalCities(w, me).length > 0 },
   },
   {
-    key: 'change_faction',
-    name: 'Przekształcenie Frakcji lub Religii',
+    key: 'holy_war',
+    name: 'Święta Wojna',
     category: 'mortals',
-    costs: [4, 4, 2],
-    requiresRoll: true,
-    entityKind: 'faction',
-    entityOp: 'update',
-    summary: 'Zmień frakcję lub religię. Możesz też zamienić frakcję w religię (wybierz 2 wymagania) albo religię w neutralną frakcję.',
+    costs: [0, 0, 0],
+    distance: true,
+    requiresRoll: false,
+    contested: true,
+    flow: ['map', 'form', 'map', 'form', 'declare'],
+    summary: 'Z miasta, w którym rządzisz, wyślij armię z kropek na cudze miasto. 1 Logos za heks. Obie strony rzucają 2k6 + atrybut + siły.',
     details: [
-      'Frakcje i religie można zmieniać tak samo jak cywilizacje. Rzuć 2k6 plus liczba Słów, które chcesz wydać, i zastosuj wynik z tabeli.',
-      'Używając tej akcji, możesz zmienić frakcję w religię i odwrotnie. Gdy frakcja zostaje zmieniona w religię, wybierasz 2 wymagania z listy Stworzenia Religii. Jeśli religia staje się neutralną frakcją, mechanicznie traci wymagania i nie zapewnia już premii do Rzutu Logos bóstwu, któremu dawniej służyła. Nadal możecie wykorzystywać te wymagania w fikcji.',
+      'Wybierz swoje miasto (takie, w którym masz najwięcej kropek) i zdecyduj, ile swoich kropek zabierasz: to twoja Armia. Co najmniej jedna kropka zostaje w domu. Wybierz cel i broniące się bóstwo. Płacisz 1 Logos za każdy heks dystansu między miastami.',
+      'Atakujący rzuca 2k6 + Gniew + wielkość Armii. Obrońca rzuca 2k6 + wybrany atrybut (Łaska to mury, Gniew to wyjście przed mury) + liczba swoich kropek w atakowanym mieście. Różnica wyników decyduje.',
+      'Wygrana o 3+: wymazujesz tyle kropek wroga, ile liczy Armia; połowa z nich (w górę) staje się twoimi wyznawcami w tym mieście, Armia wraca cała. Wygrana o 1..2: to samo, lecz tracisz połowę Armii. Remis: obie strony tracą po 1 kropce, Armia wraca. Przegrana o 1..2: wraca 1 kropka, obrońca traci 1. Przegrana o 3+: Armia ginie co do kropki, miasto nietknięte.',
     ],
-    requirement: { text: 'musi istnieć frakcja lub religia', check: has((e) => e.kind === 'faction' || e.kind === 'orthodoxy') },
-    tiers: {
-      strong: 'Zmień lub dodaj 1 Cechę i/lub 1 Pragnienie, jak uznasz za stosowne.',
-      mixed: 'Zmień lub dodaj Cechę lub Pragnienie.',
-      weak: 'Zmień Cechę lub Pragnienie. Jeśli zmieniłeś Pragnienie, w jaki sposób spełniono poprzednie?',
-    },
-  },
-  {
-    key: 'command_followers',
-    name: 'Objawienie Wyznawcom',
-    category: 'mortals',
-    costs: [2, 2, 2],
-    requiresRoll: true,
-    summary: 'Zażądaj daniny (zyskujesz Logos równe najwyższej kości + 1) albo poleć wielki czyn. Przy 10+ odzyskujesz wydane Słowa.',
-    details: [
-      'Czy to z twoich Religii, czy skądinąd, twoje bóstwo prawdopodobnie ma ludzi, którzy je czczą. Ta akcja pozwala zyskać Logos od wyznawców albo polecić im zrobić coś konkretnego: coś zbudować, dokądś się udać.',
-      'Opisz, czego żądasz, i rzuć 2k6 plus dowolna liczba dodatkowych Słów. Przy sukcesie wybierz 1 opcję i ustaw krótką scenę. Przy 10+ odzyskujesz wszystkie wydane Słowa. Żądanie daniny: ustaw krótką scenę wokół jednego z ich wymagań; zyskujesz tyle Słów, ile wynosi najwyższy wynik na kości plus 1. Podjęcie wielkiego czynu: stworzyć coś cudownego, wyruszyć na pielgrzymkę, wystawić armię, szukać czegoś utraconego.',
-      'Przy porażce również wybierz jedną z powyższych opcji, opisz, co poszło nie tak, i wybierz: jesteś zmuszony do Odpoczynku aż do następnej rundy albo tracisz tyle Słów, ile wynosi najwyższy wynik na kości minus 1.',
-    ],
-    requirement: { text: 'musi istnieć religia', check: has((e) => e.kind === 'orthodoxy' && alive(e)) },
-    tiers: {
-      strong: 'Sukces. Wybierz: Żądanie daniny (zyskujesz najwyższą kość + 1 Logos) lub Wielki czyn. Odzyskujesz wydane Słowa.',
-      mixed: 'Sukces. Wybierz: Żądanie daniny (zyskujesz najwyższą kość + 1 Logos) lub Wielki czyn.',
-      weak: 'Porażka. Opisz, co poszło nie tak. Wybierz: Odpoczynek do końca rundy albo utrata najwyższej kości − 1 Logos.',
-    },
+    requirement: { text: 'miasto, w którym rządzisz, i cudze miasto', check: (w, me) => !!me && w.cities.some((c) => w.holds(c.entity_id, me.id)) && rivalCities(w, me).length > 0 },
   },
 
   // ---------- Działania Awatara ----------
@@ -327,11 +302,12 @@ export const ACTIONS: ActionDef[] = [
     requiresRoll: false,
     entityKind: 'avatar',
     entityOp: 'create',
-    summary: 'Most między boskością a śmiertelnikami. Wybierz 1–3 uwarunkowania. Co rundę masz 1 darmową akcję awatara.',
+    flow: ['form', 'map', 'confirm', 'verse'],
+    summary: 'Most między boskością a śmiertelnikami. 1..3 uwarunkowania, własny znak, miejsce na mapie, 3 punkty życia. Co rundę 1 darmowa akcja.',
     details: [
       'Gdy zsyłasz awatara, tworzysz coś, co przerzuca most nad przepaścią między boskością a śmiertelnikami. Twoje awatary nie są tobą, lecz twoim przedłużeniem. Mogą mieć własne pragnienia i ambicje, a nawet ulegać wpływom innych bóstw.',
-      'W każdej rundzie masz 1 darmową akcję, którą może wykonać twój awatar. Możesz jej użyć w dowolnym momencie swojej tury bez wydawania Logos. Może z niej korzystać tylko bóstwo, które stworzyło awatara.',
-      'Awatary wymagają uwarunkowań, by istnieć w świecie. Wybierz od 1 do 3 z listy albo stwórz własne. Pojedynczy awatar może zostać stworzony przez wiele bóstw; wtedy oba mają dostęp do darmowej akcji, ale można jej użyć tylko raz na rundę.',
+      'Awatar staje na wybranym heksie (nie na Wodzie ani w Górach), nosi własny znak i ma 3 punkty życia; Kataklizm może go ranić. Gdy życie spadnie do zera, ginie i wraca tylko przez Wskrzeszenie.',
+      'W każdej rundzie masz 1 darmową akcję, którą może wykonać twój awatar. Awatary wymagają uwarunkowań, by istnieć w świecie: wybierz od 1 do 3.',
     ],
   },
   {
@@ -339,14 +315,16 @@ export const ACTIONS: ActionDef[] = [
     name: 'Rozkaz dla Awatara',
     category: 'avatar',
     costs: [2, 2, 2],
+    distance: true,
     requiresRoll: false,
-    summary: 'Awatar używa mocy bóstwa. Przy rzutach odejmij 2. Wielki Cud niszczy awatara. Stworzenie istoty raz na Erę.',
+    flow: ['form', 'map', 'confirm', 'verse'],
+    summary: 'Awatar czyni wolę bóstwa. Może też przejść do 3 heksów: 1 Logos za każdy. Przy rzutach odejmij 2.',
     details: [
-      'Awatary mają dostęp do tych samych mocy, które mają bóstwa, i możesz im rozkazać użyć tych akcji. Zastrzeżenia: Wielki Cud niszczy awatara, Stworzenie Istoty można wykonać tylko raz na Erę, Zesłanie Awatara jest dozwolone (półbóg, postać podobna do Heraklesa), Wskrzeszenie Awatara oznacza, że awatar poświęca samego siebie. Jeśli rozkazujesz awatarowi innego bóstwa, niech tamten gracz także rzuci; czyj rzut jest wyższy, ten ma kontrolę narracyjną.',
-      'Niezależnie od akcji weź pod uwagę uwarunkowania awatara i zbuduj wokół nich krótką scenę. Jeśli to awatar twojego bóstwa, dostajesz z nim 1 darmową akcję na rundę; w przeciwnym razie płacisz koszt akcji w Logos. Jeśli akcja wymaga rzutu, odejmij 2 od wyniku.',
-      'Przy 10+ uwarunkowania awatara pomagają w sytuacji. Przy 7–9 uwarunkowania komplikują sprawy. Przy 6− awatar nie jest w stanie posłuchać, odrzuca rozkaz albo zawodzi.',
+      'Awatary mają dostęp do tych samych mocy, które mają bóstwa, i możesz im rozkazać użyć tych akcji. Zastrzeżenia: Wielki Cud niszczy awatara, Stworzenie Istoty można wykonać tylko raz na Erę, Wskrzeszenie Awatara oznacza, że awatar poświęca samego siebie.',
+      'Rozkaz może też przesunąć awatara po mapie: do 3 heksów, 1 Logos za każdy, na pole z wolnym miejscem, nie na Wodę ani w Góry. Zbuduj wokół rozkazu krótką scenę z uwarunkowań awatara.',
+      'Jeśli akcja wymaga rzutu, odejmij 2 od wyniku. Przy 10+ uwarunkowania pomagają, przy 7..9 komplikują, przy 6- awatar odrzuca rozkaz albo zawodzi.',
     ],
-    requirement: { text: 'musi istnieć awatar', check: has((e) => e.kind === 'avatar' && alive(e)) },
+    requirement: { text: 'musi istnieć twój żywy awatar', check: (w, me) => aliveAvatar(w, me) },
   },
   {
     key: 'resurrect_avatar',
@@ -356,12 +334,13 @@ export const ACTIONS: ActionDef[] = [
     requiresRoll: false,
     entityKind: 'avatar',
     entityOp: 'update',
-    summary: 'Awatar wraca, lecz zawsze nieco inny. Opisz, jak zmieniła go śmierć. Możesz wskrzesić awatara innego bóstwa.',
+    flow: ['form', 'map', 'confirm', 'verse'],
+    summary: 'Awatar wraca na wybrany heks z pełnym życiem, lecz zawsze nieco inny. Możesz wskrzesić awatara innego bóstwa.',
     details: [
-      'Jest wiele sposobów, na jakie awatar może spotkać nieszczęśliwy koniec. Gdy tak się stanie, ta akcja jest jedyną opcją, jeśli chcesz, by ten awatar nadal istniał w świecie.',
-      'Wskrzeszone awatary zawsze wracają nieco inne. Gdy decydujesz się jednego wskrzesić, opisz, jak zmieniła go śmierć. Pomysłów szukaj na liście uwarunkowań. Możesz wskrzeszać poległe awatary innych bóstw; traktuj takiego awatara jako mającego odtąd wielu twórców.',
+      'Jest wiele sposobów, na jakie awatar może spotkać nieszczęśliwy koniec. Gdy tak się stanie, ta akcja jest jedyną opcją, jeśli chcesz, by ten awatar nadal istniał w świecie. Kliknij heks, na którym powraca.',
+      'Wskrzeszone awatary zawsze wracają nieco inne. Opisz, jak zmieniła go śmierć. Możesz wskrzeszać poległe awatary innych bóstw; traktuj takiego awatara jako mającego odtąd wielu twórców.',
     ],
-    requirement: { text: 'musi umrzeć awatar', check: has((e) => e.kind === 'avatar' && e.status === 'dead') },
+    requirement: { text: 'musi umrzeć awatar', check: (w) => w.entities.some((e) => e.kind === 'avatar' && e.status === 'dead') },
   },
 ]
 
@@ -403,7 +382,6 @@ function plural(n: number, forms: [string, string, string]): string {
 const TRAIT = ['cechę', 'cechy', 'cech'] as [string, string, string]
 const SPEC = ['specjalność', 'specjalności', 'specjalności'] as [string, string, string]
 const FLAW = ['brak', 'braki', 'braków'] as [string, string, string]
-const DESIRE = ['pragnienie', 'pragnienia', 'pragnień'] as [string, string, string]
 
 function list(items: string[]): string {
   if (items.length <= 1) return items.join('')
@@ -416,11 +394,9 @@ export function picksText(p: TierPicks): { mine: string; others: string | null }
   if (p.traits) mine.push(plural(p.traits, TRAIT))
   if (p.specialties) mine.push(plural(p.specialties, SPEC))
   if (p.flaws) mine.push(plural(p.flaws, FLAW))
-  if (p.desires) mine.push(plural(p.desires, DESIRE))
   const others: string[] = []
   if (p.otherTraits) others.push(plural(p.otherTraits, TRAIT))
   if (p.otherFlaws) others.push(plural(p.otherFlaws, FLAW))
-  if (p.otherDesires) others.push(plural(p.otherDesires, DESIRE))
   return { mine: list(mine), others: others.length ? list(others) : null }
 }
 
@@ -439,6 +415,11 @@ export const LOG_LABELS: Record<string, string> = {
   chaos_notes: 'Chaos: ustalenia',
   entity_edit: 'Zmiana w świecie',
   entity_removed: 'Usunięcie',
+  city_destroyed: 'Ruina',
+  cities_grow: 'Miasta rosną',
+  dots_reward: 'Dary wyznawców',
+  contest_declared: 'Starcie',
+  contest_cancelled: 'Starcie odwołane',
   round_end: 'Koniec rundy',
   era_advance: 'Nowa Era',
   game_start: 'Początek',

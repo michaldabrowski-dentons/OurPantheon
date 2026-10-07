@@ -35,33 +35,6 @@ export const CIV_FLAWS = [
   'Potęga', 'Zdrowie', 'Ludność', 'Bezpieczeństwo', 'Wiedza', 'Konkretny zasób',
 ]
 
-export const FACTION_TYPES = [
-  'Rodzina', 'Rodzina królewska', 'Wojsko', 'Organ rządzący', 'Kolektyw',
-  'Partia polityczna', 'Przedsiębiorstwo/Lokal', 'Sekta/Kult', 'Gang',
-]
-
-export const FACTION_TRAITS = [
-  'Dobra', 'Dyplomatyczna', 'Brutalna', 'Zła', 'Fanatyczna', 'Żądna przygód',
-  'Chaotyczna', 'Biurokratyczna', 'Pokojowa', 'Praworządna', 'Dewiacyjna', 'Hulaszcza',
-  'Ambitna', 'Wędrowna', 'Magiczna', 'Mężna', 'Obowiązkowa', 'Skryta',
-]
-
-export const FACTION_DESIRES = [
-  'Kontrola', 'Wiedza', 'Wolność', 'Chwała', 'Zniszczenie', 'Przezwyciężyć',
-  'Zasoby', 'Dominować', 'Ochrona', 'Szacunek', 'Konkretny przedmiot', 'Przetrwanie',
-  'Pokój', 'Współpraca', 'Przemiana',
-]
-
-export const ORTHODOXY_REQUIREMENTS: { name: string; text: string }[] = [
-  { name: 'Szerzyć', text: 'Rozgłaszać słowo o tobie lub konkretnej idei albo zwiększać swoją liczebność.' },
-  { name: 'Bronić', text: 'Chronić lub zachowywać coś, co wybierzesz: miejsce, cywilizację, ideę, przedmiot.' },
-  { name: 'Uciskać', text: 'Gromić wybraną przez ciebie grupę: cywilizację, religię, frakcję, istotę.' },
-  { name: 'Folgować', text: 'Świętowanie, uczty, hulanki, rytualne spożywanie czegoś.' },
-  { name: 'Pokutować', text: 'Pokuta za grzechy własne lub cudze. Opisz te grzechy.' },
-  { name: 'Wstrzymywać się', text: 'Wstrzemięźliwość od czegoś lub unikanie czegoś, kogoś lub jakiegoś miejsca.' },
-  { name: 'Uległość', text: 'Muszą stawiać ciebie ponad wszystko inne.' },
-]
-
 export const AVATAR_CONDITIONS = [
   'Nadmiernie przejmują się sprawami śmiertelników.',
   'Mają nienasycony głód lub pragnienie czegoś.',

@@ -1,7 +1,7 @@
 # O BOGOWIE!: wirtualny stół
 
 Wieloosobowy, przeglądarkowy stół do gry *Our Pantheon* (hack *Dawn of Worlds*, D. W. O'Boyle, CC BY-SA 4.0).
-Śledzi Logos, dynamiczną inicjatywę, Paletę, byty świata (istoty, cywilizacje, frakcje, ortodoksje, awatary),
+Śledzi Logos, dynamiczną inicjatywę, Paletę, mapę heksagonalną z istotami, miastami i wyznawcami bóstw,
 Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
 
 ## Stos
@@ -20,9 +20,10 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
 2. W **SQL Editor** uruchom po kolei pliki z `supabase/migrations/`:
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
-   `0010_ensure_turn.sql`, `0011_playbooks.sql`.
+   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
-   Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy.
+   Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
+   przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
 3. Skopiuj `.env.example` do `.env.local` i wpisz `VITE_SUPABASE_URL` oraz `VITE_SUPABASE_ANON_KEY`
    (Project Settings → API).
 4. `npm install`, potem `npm run dev`. Otwórz `http://localhost:5173`.
@@ -56,8 +57,9 @@ więc po zmianie zmiennych trzeba zrobić redeploy.
 - `npm run dev` i `http://localhost:5173/preview?screen=game`: podgląd ekranów na sztucznych danych
   (`screen=login|lobby|room|palette|creation|game|rolling|chaos`, `&turn=me`, `&draw=1|chosen`,
   `&step=N&host=0` dla Stwarzania Świata, `&overture=1|2|3` odtwarza otwarcie Ery, `&overture=0` je pomija,
-  `&domain=0` w przedsionku to bóstwo bez domeny, `&sheet=p2` w grze otwiera kartę tego bóstwa).
-  Tylko w trybie dev.
+  `&domain=0` w przedsionku to bóstwo bez domeny, `&sheet=p2` w grze otwiera kartę tego bóstwa,
+  `&contest=defender|attacker|resolved` pokazuje starcie w danym stanie). Podgląd odpowiada na wołania
+  okien lokalnie (`window.__previewRpc`), więc każdą akcję na mapie da się przejść bez Supabase. Tylko w trybie dev.
 
 ## Przebieg
 
@@ -66,13 +68,64 @@ więc po zmianie zmiennych trzeba zrobić redeploy.
 atrybuty, opis, dodatkowe informacje; kod do zaproszenia) → Paleta (Tak / Zasłony / Nie; swoje wpisy przeciąga się między kolumnami, a w grze Paleta wraca
 pod przyciskiem nad ołtarzem) → Stwarzanie Świata (gospodarz przewraca pytania, wszyscy widzą to samo i głosują;
 przy remisie rozstrzyga głos gospodarza; wynik trafia do Świętej Księgi jako Prolog) → otwarcie Ery (kurtyna z
-rysunkiem epoki, `EraOverture`) → gra: Rzut Logos → Faza Bóstw (turę ma bóstwo z największym Logos) →
-Faza Chaosu (Karta z ogniem, wybór jednego z dwóch zdarzeń, pytania przydzielone bóstwom) → następna runda.
+rysunkiem epoki, `EraOverture`) → gra: Rzut Logos → Faza Bóstw (turę ma bóstwo z największym Logos; słowa
+wskazuje się na mapie) → Faza Chaosu (Karta z ogniem, wybór jednego z dwóch zdarzeń, pytania przydzielone
+bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) → następna runda.
+
+## Mapa
+
+- Wielki heksagon o promieniu 5 (91 pól, heksy wierzchołkiem do góry, współrzędne osiowe q, r, środek 0,0),
+  losowany przy starcie gry (`generate_map`): w środku kontynent (trawa, puszcza, wzgórza, góry, dżungla,
+  pustynia, sawanna, bagno), na dwóch zewnętrznych pierścieniach przeważa woda. Jedenaście biomów
+  (`src/data/biomes.ts`); puszcza, dżungla i góry noszą losowe emotikony jako dekorację.
+- Woda i Góry są zablokowane: nie powstanie tam miasto, nie dojdzie Exodus, nie stanie awatar. Istoty mogą
+  tam żyć.
+- Każde pole ma trzy miejsca w rogach (`hex_occupants`): istoty, istoty rozumne i awatary stoją tam jako
+  emotikony (`entities.emoji`, unikalne w grze; pule w `src/data/emoji.ts`). Awatar ma 3 punkty życia
+  (`entities.hp`).
+- Miasto (`cities`, jedno na pole) leży na środku jako piramida kropek; każda kropka to wyznawca jednego
+  bóstwa (`city_followers`), w kolorze jego domeny (`DOMAIN_COLORS` w `src/data/pantheon.ts`). Poziom miasta
+  to liczba kropek (1 Koczowisko … 10 Wielkie imperium, `src/data/cities.ts`); dziesięć to sufit. Miasto bez
+  kropek obraca się w ruinę (`destroy_city_if_empty`). Rządzi nim bóstwo z największą liczbą kropek.
+- Mysz słyszą tylko wielokąty pól; emotikony i kropki mają `pointer-events: none`. Klik poza akcją otwiera
+  kartę pola przy myszce (biom, dostępność, współrzędne, istoty, awatary, karta miasta z rozkładem wyznawców,
+  darami i cechami). W trakcie akcji dozwolone pola mają złoty obrys i jaśnieją; obok mapy stoi karta
+  z pytaniem, kosztem oraz przyciskami „Zakończ akcję” i „Przerwij” (`src/features/game/map/`).
+- Dawne listy bytów (istoty rozumne, istoty, cywilizacje, awatary) otwiera przycisk „Byty świata”.
+
+## Słowa na mapie
+
+- Kształtowanie Lądów: biom, potem do trzech sąsiadujących pól (trzeci klik kończy sam). Pola z miastem lub
+  awatarem nie staną się Wodą ani Górami.
+- Kataklizm: rodzaj i pole; obrażenia k6 + Gniew (najmniej 1), każde losowo w kropkę miasta, istotę nierozumną
+  albo awatara (−1 życia); istoty rozumne giną dopiero bez miasta. Na polu wybucha animacja.
+- Stworzenie Istoty / Istoty Rozumnej / Zesłanie Awatara: nazwa, cechy, emotikona, potem pole z wolnym miejscem.
+- Zmiana Istoty: klik w jedną istotę na jednym polu; tam powstaje odmiana (nowy byt, `variant_of`).
+- Migracja: istota, potem pole docelowe; gatunek mnoży się na nowe pole; koszt to dystans w Logos.
+- Stworzenie Cywilizacji: pole z istotą rozumną, rzut 2k6 jak dotąd (jedyny rzut z „Rzuć ponownie”), cechy;
+  miasto rodzi się z jedną kropką twórcy.
+- Rozwój Cywilizacji: miasto, dar (tekst) i Łaska albo Mądrość; księga rzuca 2k6 + atrybut: 10+ to dwie kropki,
+  7..9 jedna, 6- nic (dar odnotowany jako odrzucony w `city_gifts`).
+- Exodus: miasto z moimi kropkami, liczba kropek i istota rozumna, pole docelowe; 1 Logos za heks; na pustym
+  polu powstaje nowe miasto (dziedziczy cechy i dary), w zajętym wyznawcy dołączają.
+- Nawracanie i Święta Wojna to starcia (`contests`): atakujący deklaruje i płaci (`declare_contest`), księga
+  rzuca za niego; tura zamiera, aż obrońca u siebie wybierze atrybut i rzuci (`answer_contest`), potem atakujący
+  dopisuje werset (`commit_contest`) albo odwołuje starcie przed odpowiedzią (`cancel_contest`). Nawracanie:
+  2k6 + Majestat albo Podszept po obu stronach, wygrana o 3+ przejmuje dwóch wyznawców, o 1..2 jednego. Wojna:
+  armia to moje kropki z miasta, w którym rządzę (jedna zostaje), koszt to dystans; atakujący 2k6 + Gniew +
+  armia, obrońca 2k6 + atrybut + swoje kropki w celu; skala zwycięstwa jak w briefie (pełne, pyrrusowe, remis
+  bez oblężenia, odparcie, masakra).
+- Rozkaz dla Awatara może przesunąć awatara do trzech pól (1 Logos za heks); Wskrzeszenie stawia go na
+  wybranym polu z pełnym życiem.
+- Koniec Chaosu (`end_chaos_phase`): każde miasto zyskuje kropkę dla bóstwa, które nim rządzi (remis losowo),
+  a suma kropek daje +3, +2 i +1 Logos trzem najwierniej czczonym bóstwom.
+- Każde słowo kończy się krokiem wersetu: księga układa werset z wyniku (`actions_log.outcome`,
+  `composeVerse`), gracz może go przepisać (`edit_log_summary`). Frakcje i religie zniknęły z gry.
 
 ## Zasady wdrożone w bazie
 
 - Start bez Logos: pierwsza runda zaczyna się od rzutu wszystkich bóstw. Co rundę 2k6 + premia za skromność
-  (≤5 Logos na koniec rundy, do +3) + religie (do +3). Rzut Logos jest w dolnym pasku, z animacją kości.
+  (≤5 Logos na koniec rundy, do +3). Rzut Logos jest w dolnym pasku, z animacją kości.
 - Darmowa akcja awatara (raz na rundę) z bezpiecznikami z podręcznika: istotę tworzy tylko raz na Erę,
   Wielki Cud niszczy awatara, Wskrzeszenie przez awatara to jego poświęcenie, rzut z −2 (`log_dice_roll`
   z modyfikatorem), a każdy nowy awatar musi mieć od 1 do 3 uwarunkowań.
@@ -93,8 +146,9 @@ Faza Chaosu (Karta z ogniem, wybór jednego z dwóch zdarzeń, pytania przydziel
   (bezkształtne bóstwo przed wyborem). Kliknięcie tabliczki w grze otwiera kartę postaci (atrybuty, opis,
   dodatkowe informacje, dzieła bóstwa); właściciel edytuje tam imię, rodzaj, opis i notatki.
 - Stwarzanie Świata: bieżące pytanie trzyma `games.settings.creation_step` (`set_creation_step`, tylko gospodarz).
-- Ekran gry: u góry tylko bóstwa; cały lewy panel to akcje z obrazami (`public/actions`, źródła w `src/img`);
-  dolny pasek trzyma Odpoczynek, Przekaż Logos, Rzuć 2k6, Rzuć 2k6 na Logos, animację kości i wyjście.
+- Ekran gry: u góry tylko bóstwa (z barwą domeny i liczbą wyznawców); cały lewy panel to akcje z obrazami
+  (`public/actions`, źródła w `src/img`); środek to mapa; dolny pasek trzyma Odpoczynek, Przekaż Logos,
+  Rzuć 2k6, Rzuć 2k6 na Logos, animację kości i wyjście.
 - Tura zawsze u bóstwa z największym Logos wśród nieśpiących; remis: aktualny gracz zachowuje turę, potem
   najniższe miejsce przy stole. Spadek poniżej innego gracza przekazuje turę natychmiast (Realtime).
   Bezpiecznik: gdy klient widzi Fazę Bóstw bez posiadacza tury dłużej niż chwilę, odświeża wiersz gry
@@ -105,26 +159,28 @@ Faza Chaosu (Karta z ogniem, wybór jednego z dwóch zdarzeń, pytania przydziel
 - Kości rzuca serwer (`log_dice_roll`, `roll_logos`, `reveal_chaos`), więc wszyscy widzą to samo.
 - Era: głosowanie w dowolnej rundzie; decyduje większość bóstw. Każdą nową Erę (i pierwszą) otwiera kurtyna
   z rysunkiem epoki; to, którą już widziano, pamięta `localStorage` na danym urządzeniu.
-- Akcje w panelu: Terraformacja, Tworzenie Życia, Śmiertelnicy, Działania Awatara; w kategorii od najtańszej.
-  Stworzenie Istoty Rozumnej (15 / 4 / 18) nadaje cechę „Rozumne”. Akcje z warunkiem (np. „musi istnieć
-  cywilizacja”) są nieaktywne, póki świat go nie spełnia.
-- Okno akcji nie otwiera się z pustym opisem: układa go w słowach Świętej Księgi z wybranych cech
-  (`src/data/draft.ts`, to samo zdanie, które księga dodałaby o cechach), a przy akcjach bez bytu z krótkiej
-  linii o czynie. Gracz może go nadpisać; wyczyszczone pole wraca do podpowiedzi. Księga nie powtarza zdania
-  o cechach, jeśli opis już je wszystkie wymienia.
+- Akcje w panelu: Terraformacja (Kształtowanie Lądów, Kataklizm, Wielki Cud), Tworzenie Życia (Stworzenie
+  Istoty, Stworzenie Istoty Rozumnej, Zmiana Istoty, Migracja), Śmiertelnicy (Stworzenie Cywilizacji, Rozwój
+  Cywilizacji, Exodus, Nawracanie, Święta Wojna), Działania Awatara (Zesłanie, Rozkaz, Wskrzeszenie); w kategorii
+  od najtańszej. Akcje z warunkiem (np. „musi istnieć miasto”) są nieaktywne, póki mapa go nie spełnia.
+- Werset do Świętej Księgi powstaje na końcu każdej akcji z tego, co się stało (opener, wynik z mapy, zdanie
+  o cechach); gracz może go przepisać; „Zostaw jak jest” zapisuje podpowiedź. Opis nowego bytu to ten sam
+  werset.
 - Przykładowi bogowie każdej domeny są odnośnikami do polskiej Wikipedii (`wikiUrl` w `src/data/pantheon.ts`).
-- Bez Logos, przez `edit_entity`: istota ↔ istota rozumna, frakcja ↔ religia, śmierć awatara; `delete_entity`
-  usuwa byt po potwierdzeniu. Każda taka zmiana ma wpis w Świętej Księdze.
+- Bez Logos, przez `edit_entity`: istota ↔ istota rozumna, śmierć awatara; `delete_entity` usuwa byt (także
+  z mapy) po potwierdzeniu. Każda taka zmiana ma wpis w Świętej Księdze.
 
 ## Struktura
 
 ```
 supabase/migrations/   schemat, RLS, funkcje RPC, publikacja Realtime
-src/data/              koszty akcji, listy cech, tabele Chaosu, panteon (atrybuty i domeny), rysunki Er (eraArt.tsx)
+src/data/              akcje i koszty, listy cech, biomy, emotikony, miasta, tabele Chaosu, panteon (atrybuty,
+                       domeny, kolory), księga (chronicle.ts), rysunki Er (eraArt.tsx)
+src/lib/               typy wierszy, geometria heksów (hex.ts), widok świata dla mapy i akcji (world.ts)
 src/store/             stan gry synchronizowany z Realtime
 src/features/          auth, lobby, palette, creation, pantheon (zegar domen, atrybuty, karta postaci),
-                       game (gods-bar, actions, altar, chaos, chronicle)
-src/components/ui/     StoneButton, MarblePanel, FrescoFrame, kości, TraitPicker
+                       game (gods-bar, actions, map, altar, chaos, chronicle)
+src/components/ui/     StoneButton, MarblePanel, FrescoFrame, kości, TraitPicker, EmojiPicker
 src/styles/            tokeny materiałów i tekstury CSS
 src/img/               źródłowe obrazy: akcje (PNG 512px), domeny/ i atrybuty/ (PNG 1024px)
 public/actions/        kopie JPG 512px i miniatury 160px

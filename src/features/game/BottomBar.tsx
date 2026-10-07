@@ -7,6 +7,7 @@ import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer, playerLabel } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { Modal, inputClass, labelClass, fieldClass, Notice, Dice2d6 } from '@/components/ui/Primitives'
+import { useWorld } from './map/useWorld'
 import styles from './game.module.css'
 
 /**
@@ -24,6 +25,7 @@ export function BottomBar({ onError }: { onError: (m: string | null) => void }) 
   const entityGods = useGameStore((s) => s.entityGods)
   const log = useGameStore((s) => s.log)
   const me = useGameStore(selectMyPlayer(user.id))
+  const world = useWorld()
   const [busy, setBusy] = useState(false)
   const [transfer, setTransfer] = useState(false)
 
@@ -43,8 +45,7 @@ export function BottomBar({ onError }: { onError: (m: string | null) => void }) 
   const myTurn = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting
 
   // what I hold
-  const myReligions = me ? entityGods.filter((g) => g.player_id === me.id && entities.some((e) => e.id === g.entity_id && e.kind === 'orthodoxy' && e.status === 'active')).length : 0
-  const religionBonus = Math.min(3, myReligions)
+  const myDots = me ? world.totalDots(me.id) : 0
   const hasAvatar = !!me && entityGods.some((g) => g.player_id === me.id && entities.some((e) => e.id === g.entity_id && e.kind === 'avatar' && e.status === 'active'))
   const avatarState: 'free' | 'used' | 'none' = !hasAvatar ? 'none' : me?.avatar_action_used ? 'used' : 'free'
 
@@ -99,8 +100,8 @@ export function BottomBar({ onError }: { onError: (m: string | null) => void }) 
           <small>Logos</small>
         </div>
         <div className={styles.bbChips}>
-          <span className={[styles.chip, religionBonus > 0 ? styles.chipOn : ''].join(' ')} title="Premia z religii do Rzutu Logos, najwyżej +3.">
-            <TempleIcon /> religie +{religionBonus}
+          <span className={[styles.chip, myDots > 0 ? styles.chipOn : ''].join(' ')} title="Twoi wyznawcy na mapie. Najwierniej czczone bóstwa dostają Logos pod koniec Chaosu.">
+            <TempleIcon /> wyznawcy {myDots}
           </span>
           {!!me && me.low_logos_streak > 0 && (
             <span className={[styles.chip, styles.chipOn].join(' ')} title="Premia za skromność: kolejne rundy zakończone z 5 lub mniej Słowami.">

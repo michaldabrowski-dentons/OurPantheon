@@ -42,6 +42,28 @@ export function describeEvent(l: ActionLog, ctx: EventContext): string {
       return l.summary
     case 'game_start':
       return 'Pierwsza Era się zaczęła. Wszyscy rzucają na Logos.'
+    case 'contest_declared': {
+      const o = (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as Record<string, unknown>
+      const def = ctx.god(typeof o.defender_id === 'string' ? o.defender_id : null).name
+      const began = gender === 'm' ? 'zaczął' : gender === 'f' ? 'zaczęła' : 'zaczęło'
+      const what = o.kind === 'holy_war' ? `${p('wyruszy')} na świętą wojnę` : `${began} nawracać`
+      return `${G} ${what} przeciw ${def}${typeof o.target_name === 'string' ? ` w mieście ${o.target_name}` : ''}. Czekamy na obronę.`
+    }
+    case 'contest_cancelled':
+      return `${G} ${p('odwoła')} starcie.`
+    case 'convert':
+    case 'holy_war': {
+      const att = r?.att
+      const def = r?.def
+      const dice = att && def ? `: ${att.total} przeciw ${def.total}` : ''
+      return `${l.action_key === 'holy_war' ? 'Święta Wojna' : 'Nawracanie'} rozstrzygnięte${dice}.`
+    }
+    case 'city_destroyed':
+      return `Miasto ${ctx.entity(l.entity_id)?.name ?? 'bez imienia'} obróciło się w ruinę.`
+    case 'cities_grow':
+      return 'Miasta urosły o jedną kropkę dla tego, kto nimi rządzi.'
+    case 'dots_reward':
+      return 'Najwierniej czczone bóstwa dostały Logos od wyznawców.'
     case 'followers_gain':
     case 'followers_loss':
     case 'entity_edit':
@@ -53,7 +75,14 @@ export function describeEvent(l: ActionLog, ctx: EventContext): string {
       if (!a) return l.summary
       const e = ctx.entity(l.entity_id)
       const who = l.is_avatar_free_action ? ' przez awatara' : ''
-      return `${G}: ${a.name}${e ? ` (${e.name})` : ''}${who}.`
+      const o = (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as Record<string, unknown>
+      const dice =
+        l.action_key === 'develop_civilization' && typeof o.d1 === 'number'
+          ? ` Kości: ${o.d1} + ${o.d2} ${Number(o.score) < 0 ? '-' : '+'} ${Math.abs(Number(o.score))} = ${o.total}.`
+          : l.action_key === 'catastrophe' && typeof o.d6 === 'number'
+            ? ` Kość: ${o.d6} ${Number(o.wrath) < 0 ? '-' : '+'} ${Math.abs(Number(o.wrath))} (Gniew) = ${o.damage}.`
+            : ''
+      return `${G}: ${a.name}${e ? ` (${e.name})` : ''}${who}.${dice}`
     }
   }
 }

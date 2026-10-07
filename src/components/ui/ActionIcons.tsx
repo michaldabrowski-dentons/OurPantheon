@@ -12,14 +12,6 @@ const SHAPES: Record<ActionKey, ReactNode> = {
       <circle cx="17.5" cy="5.5" r="1.8" />
     </>
   ),
-  // wind over the land
-  change_biome: (
-    <>
-      <path d="M3 9h9.5a2.5 2.5 0 1 0-2.5-2.5" />
-      <path d="M3 14h13a2.5 2.5 0 1 1-2.5 2.5" />
-      <path d="M4 19h6" />
-    </>
-  ),
   // a bolt striking down
   catastrophe: (
     <>
@@ -71,40 +63,48 @@ const SHAPES: Record<ActionKey, ReactNode> = {
       <path d="M13 9h2M13 13h2M13 17h2" />
     </>
   ),
-  // scales
-  change_civilization: (
+  // a city growing: a pyramid of dots
+  develop_civilization: (
     <>
-      <path d="M12 3v18M8 21h8M5 7h14" />
-      <path d="M5 7l-3 6.5a3.2 3.2 0 0 0 6 0zM19 7l-3 6.5a3.2 3.2 0 0 0 6 0z" />
+      <circle cx="12" cy="6" r="1.7" />
+      <circle cx="8.5" cy="12" r="1.7" />
+      <circle cx="15.5" cy="12" r="1.7" />
+      <circle cx="5" cy="18" r="1.7" />
+      <circle cx="12" cy="18" r="1.7" />
+      <circle cx="19" cy="18" r="1.7" />
     </>
   ),
-  // a banner on its pole
-  create_faction: (
+  // footprints leading away
+  exodus: (
     <>
-      <path d="M6 3v18M4 21h4" />
-      <path d="M6 4h12l-3 4.5 3 4.5H6" />
+      <path d="M4 20l5-4M13 14l5-4" />
+      <ellipse cx="6" cy="11" rx="1.8" ry="2.6" transform="rotate(-20 6 11)" />
+      <ellipse cx="11" cy="7" rx="1.8" ry="2.6" transform="rotate(-20 11 7)" />
+      <ellipse cx="16" cy="19" rx="1.8" ry="2.6" transform="rotate(-20 16 19)" />
+      <path d="M17 4l3 3-3 3" />
     </>
   ),
-  // a temple front
-  create_orthodoxy: (
+  // a hand turning a head
+  convert: (
     <>
-      <path d="M2 8 12 3l10 5H2z" />
-      <path d="M4 8v9M9 8v9M15 8v9M20 8v9M2 20h20M3 17h18" />
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M6 21c0-3.5 2.7-6 6-6s6 2.5 6 6" />
+      <path d="M17.5 4.5a5 5 0 0 1 2.5 4.5M20 9l-1.6-1.2M20 9l1.2-1.6" />
     </>
   ),
-  // two arrows chasing each other
-  change_faction: (
+  // crossed swords
+  holy_war: (
     <>
-      <path d="M4 10a8 8 0 0 1 13.7-3.3L20 9M20 4v5h-5" />
-      <path d="M20 14a8 8 0 0 1-13.7 3.3L4 15M4 20v-5h5" />
+      <path d="M4 4l13 13M17 4 4 17" />
+      <path d="M14 17l3 3M7 17l-3 3M17 14l3 3M4 7l3-3" />
     </>
   ),
-  // an eye that sees from above
-  command_followers: (
+  // a species spreading: two paths from one point
+  migrate: (
     <>
-      <path d="M2 13s4-6 10-6 10 6 10 6-4 6-10 6S2 13 2 13z" />
-      <circle cx="12" cy="13" r="2.5" />
-      <path d="M12 2v2.2M6.3 3.6l1.1 1.9M17.7 3.6l-1.1 1.9" />
+      <circle cx="6" cy="12" r="2" />
+      <path d="M8 12h4l4-5M12 12l4 5" />
+      <path d="M14 7h3v3M14 17h3v-3" />
     </>
   ),
 
