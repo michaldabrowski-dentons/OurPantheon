@@ -9,6 +9,7 @@ import { StoneButton } from '@/components/ui/StoneButton'
 import { GodsStatusBar } from './gods-bar/GodsStatusBar'
 import { EraAnchor } from './EraAnchor'
 import { SummaryPanel } from './SummaryPanel'
+import { DiceOverlay } from './DiceOverlay'
 import { LatestVerse } from './LatestVerse'
 import { EraOverture, useEraOverture } from './EraOverture'
 import { ActionsPanel } from './actions/ActionsPanel'
@@ -90,6 +91,7 @@ export function GamePage() {
       {game.phase === 'chaos' && !overture && <ChaosOverlay onError={setError} />}
       {game.status === 'playing' && <ContestOverlay />}
       {game.status === 'playing' && <ContestVerseDialog />}
+      {game.status === 'playing' && <DiceOverlay />}
       {chronicle && <ChronicleDrawer onClose={() => setChronicle(false)} />}
       {overture && game.status === 'playing' && <EraOverture era={overture} onEnter={enterEra} />}
 

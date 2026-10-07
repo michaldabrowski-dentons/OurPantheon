@@ -61,7 +61,7 @@ export function describeEvent(l: ActionLog, ctx: EventContext): string {
     case 'city_destroyed':
       return `Miasto ${ctx.entity(l.entity_id)?.name ?? 'bez imienia'} obróciło się w ruinę.`
     case 'cities_grow':
-      return 'Miasta urosły o jedną kropkę dla tego, kto nimi rządzi.'
+      return 'Każde miasto zyskało wyznawcę dla tego, kto nim rządzi.'
     case 'dots_reward':
       return 'Najwierniej czczone bóstwa dostały Logos od wyznawców.'
     case 'followers_gain':

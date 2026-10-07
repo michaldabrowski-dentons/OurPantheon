@@ -68,13 +68,3 @@ export const GIFTS: string[] = [
   'Muzyka', 'Oliwki i wino', 'Hodowla', 'Garncarstwo', 'Tkactwo', 'Mury', 'Świątynia', 'Koszary', 'Port', 'Targ',
   'Biblioteka', 'Akwedukt', 'Pałac', 'Teatr', 'Latarnia morska', 'Droga', 'Most', 'Spichlerz', 'Szkoła', 'Mennica',
 ]
-
-/** "1 kropka", "2 kropki", "5 kropek" */
-export function dotsWord(n: number): string {
-  const a = Math.abs(n)
-  const tens = a % 100
-  const ones = a % 10
-  if (a === 1) return '1 kropka'
-  if (ones >= 2 && ones <= 4 && !(tens >= 12 && tens <= 14)) return `${a} kropki`
-  return `${a} kropek`
-}

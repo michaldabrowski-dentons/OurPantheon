@@ -482,7 +482,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
               </button>
               {lead}
             </div>
-            <CostSeal label={sealLabel} cost={paid} have={me.logos} free={f.useAvatar} />
+            <CostSeal label={sealLabel} cost={f.useAvatar ? 0 : action.distance ? Math.max(1, cost) : cost} have={me.logos} free={f.useAvatar} />
           </div>
           {children}
         </div>
@@ -593,7 +593,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
             <b className="engraved">{Number(o.total)}</b>
             <small>{Number(o.d1)} + {Number(o.d2)} {Number(o.score) < 0 ? '−' : '+'} {Math.abs(Number(o.score))} ({ATTRIBUTE_BY_KEY[String(o.attr) as AttrKey]?.name ?? ''}){o.avatar ? ' − 2' : ''}</small>
           </span>
-          <span className={styles.hint}>{o.tier === 'strong' ? '10+: dwie kropki' : o.tier === 'mixed' ? '7..9: jedna kropka' : '6-: dar odrzucony'}</span>
+          <span className={styles.hint}>{o.tier === 'strong' ? '10+: dwóch wyznawców' : o.tier === 'mixed' ? '7..9: jeden wyznawca' : '6-: dar odrzucony'}</span>
         </div>
       )}
       {action.key === 'catastrophe' && typeof o.d6 === 'number' && (
@@ -641,7 +641,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
               <div className={styles.biomes} role="radiogroup" aria-label="Biom">
                 {BIOMES.map((b) => (
                   <button key={b.key} type="button" role="radio" aria-checked={f.biome === b.key} className={[styles.biomeBtn, f.biome === b.key ? styles.biomeOn : ''].join(' ')} style={{ '--biome': b.fill } as React.CSSProperties} onClick={() => set('biome', b.key)}>
-                    <span className={styles.biomeSwatch} aria-hidden>{b.emoji}</span>
+                    <img className={styles.biomeSwatch} src={b.image} alt="" />
                     <span>{b.name}</span>
                     {b.blocked && <small>zablokowany</small>}
                   </button>
@@ -665,7 +665,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
                 </select>
               </label>
               {!CATASTROPHE_TYPES.includes(f.catastrophe) && <TextField id="cat_own" label="Nazwij kataklizm" value={f.catastrophe} onChange={(e) => set('catastrophe', e.target.value)} maxLength={60} />}
-              <p className={styles.hint}>Obrażenia: k6 + Gniew ({scoreText(scores.wrath)}), najmniej 1. Każde trafia losowo w kropkę miasta, istotę albo awatara.</p>
+              <p className={styles.hint}>Obrażenia: k6 + Gniew ({scoreText(scores.wrath)}), najmniej 1. Każde trafia losowo w wyznawcę miasta, istotę albo awatara.</p>
             </div>
           ),
         }
@@ -721,7 +721,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
                   </select>
                 </label>
               ) : (
-                sap[0] && <p className={styles.hint}>Lud wychodzi z istot {sap[0].emoji ?? ''} {sap[0].name}. Miasto rodzi się z jedną kropką w twoim kolorze.</p>
+                sap[0] && <p className={styles.hint}>Lud wychodzi z istot {sap[0].emoji ?? ''} {sap[0].name}. Miasto rodzi się z pierwszymi wyznawcami w twoim kolorze.</p>
               )}
               {coCreators}
             </div>
@@ -746,7 +746,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
               </label>
               {f.gift === OWN_GIFT && <TextField id="gift_own" label="Nazwij dar" value={f.giftOwn} onChange={(e) => set('giftOwn', e.target.value)} maxLength={80} />}
               <AttrPicker label="Co wspiera ten dar" options={['grace', 'wisdom']} value={f.attr} scores={scores} onChange={(v) => set('attr', v)} />
-              <p className={styles.hint}>Księga rzuci 2k6 + atrybut{f.useAvatar ? ' − 2 (awatar)' : ''}: 10+ to dwie kropki, 7..9 jedna, 6- nic.</p>
+              <p className={styles.hint}>Księga rzuci 2k6 + atrybut{f.useAvatar ? ' − 2 (awatar)' : ''}: 10+ to dwóch wyznawców, 7..9 jeden, 6- nic.</p>
             </div>
           ),
         }

@@ -1,10 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { rpc } from '@/lib/supabase'
-import type { ActionLog } from '@/lib/types'
-import { logosWords } from '@/data/chronicle'
+import { rollOf } from '@/data/dice'
 import { describeEvent } from '@/data/tableEvents'
-import { ACTION_BY_KEY, type ActionKey } from '@/data/actions'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer, selectPendingContest, playerLabel } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
@@ -16,10 +14,10 @@ import { MapInstructionCard, ContestBanner, GodLegend } from './map/MapCards'
 import styles from './game.module.css'
 
 /**
- * The left slab of the temple: everything that is not a word and not the map, in the order a god
- * needs it. First what the map or a contest asks of me right now; then the turn and my Words; the
- * words that need no map (rest, transfer); the dice everyone sees; the book, the Palette and the
- * lists of the world; the other gods' followers; and the door out.
+ * The left slab of the temple: everything that is not a word and not the map. At the top what the
+ * map or a contest asks of me right now; then the world (the book, the Palette, the lists, the other
+ * gods' followers); pinned to the bottom the dice everyone sees, the turn, my Words and the words
+ * that need no map (rest, transfer), with the door out.
  */
 export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError: (m: string | null) => void; chronicleOpen: boolean; onChronicle: () => void }) {
   const { user } = useUser()
@@ -94,50 +92,21 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
       <MapInstructionCard world={world} />
       <ContestBanner onError={onError} />
 
-      {/* the turn and my Words */}
+      {/* the world: the book, the Palette, the lists */}
       <section className={styles.sumBlock}>
-        <span className={styles.bbStatus}>{status}</span>
-        {lastEvent && (
-          <span key={lastRow!.id} className={['emerge-from-dark', styles.bbEvent].join(' ')} aria-live="polite" title={lastEvent}>
-            {lastEvent}
-          </span>
-        )}
-        <div className={styles.bbMe} aria-label="Twoje Słowa i premie">
-          <div className={styles.bbLogos}>
-            <b className="engraved-dark marble-text">{me?.logos ?? 0}</b>
-            <small>Logos</small>
-          </div>
-          <div className={styles.bbChips}>
-            <span className={[styles.chip, myDots > 0 ? styles.chipOn : ''].join(' ')} title="Twoi wyznawcy na mapie. Najwierniej czczone bóstwa dostają Logos pod koniec Chaosu.">
-              <TempleIcon /> wyznawcy {myDots}
-            </span>
-            {!!me && me.low_logos_streak > 0 && (
-              <span className={[styles.chip, styles.chipOn].join(' ')} title="Premia za skromność: kolejne rundy zakończone z 5 lub mniej Słowami.">
-                skromność +{me.low_logos_streak}
-              </span>
-            )}
-            <span
-              className={[styles.chip, avatarState === 'free' ? styles.chipGold : '', avatarState === 'none' ? styles.chipOff : ''].join(' ')}
-              title={avatarState === 'none' ? 'Nie masz żywego awatara.' : avatarState === 'used' ? 'Darmowa akcja awatara zużyta w tej rundzie.' : 'Darmowa akcja awatara czeka: zaznacz ją w oknie akcji.'}
-            >
-              <AvatarIcon /> {avatarState === 'none' ? 'brak awatara' : avatarState === 'used' ? 'akcja awatara zużyta' : 'akcja awatara wolna'}
-            </span>
-          </div>
-        </div>
+        <h4 className={styles.sumTitle}>Świat</h4>
         <div className={styles.sumRow}>
-          <StoneButton
-            variant="marble"
-            size="sm"
-            disabled={busy || game.phase !== 'gods' || !me || me.is_resting || !!pending}
-            onClick={() => call('rest', { p_game_id: game.id })}
-            title="Pas: zachowujesz Logos, ale do końca rundy nie działasz."
-          >
-            <Hourglass /> Odpoczynek
+          <StoneButton variant="clay" size="sm" pressed={chronicleOpen} onClick={onChronicle}>
+            <BookIcon /> Święta Księga
           </StoneButton>
-          <StoneButton variant="marble" size="sm" disabled={busy || rolling || !!pending} onClick={() => setTransfer(true)}>
-            Przekaż Logos
+          <StoneButton size="sm" onClick={() => setPalette(true)} title="Paleta: co w tym świecie jest na Tak, za Zasłoną i na Nie.">
+            <PaletteIcon /> Paleta
+          </StoneButton>
+          <StoneButton size="sm" onClick={() => setLists(true)} title="Istoty rozumne, istoty, cywilizacje i awatary jako listy.">
+            <ListIcon /> Byty świata
           </StoneButton>
         </div>
+        <GodLegend world={world} />
       </section>
 
       {/* the dice everyone sees */}
@@ -187,27 +156,54 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
         {shown && shownRoll && <small className={styles.sumDiceWho}>{ctx.god(shown.player_id).name}: {shownRoll.label}</small>}
       </section>
 
-      {/* the world: the book, the Palette, the lists */}
-      <section className={styles.sumBlock}>
-        <h4 className={styles.sumTitle}>Świat</h4>
+      {/* the turn and my Words */}
+      <section className={[styles.sumBlock, styles.sumBottom].join(' ')}>
+        <span className={styles.bbStatus}>{status}</span>
+        {lastEvent && (
+          <span key={lastRow!.id} className={['emerge-from-dark', styles.bbEvent].join(' ')} aria-live="polite" title={lastEvent}>
+            {lastEvent}
+          </span>
+        )}
+        <div className={styles.bbMe} aria-label="Twoje Słowa i premie">
+          <div className={styles.bbLogos}>
+            <b className="engraved-dark marble-text">{me?.logos ?? 0}</b>
+            <small>Logos</small>
+          </div>
+          <div className={styles.bbChips}>
+            <span className={[styles.chip, myDots > 0 ? styles.chipOn : ''].join(' ')} title="Twoi wyznawcy na mapie. Najwierniej czczone bóstwa dostają Logos pod koniec Chaosu.">
+              <TempleIcon /> wyznawcy {myDots}
+            </span>
+            {!!me && me.low_logos_streak > 0 && (
+              <span className={[styles.chip, styles.chipOn].join(' ')} title="Premia za skromność: kolejne rundy zakończone z 5 lub mniej Słowami.">
+                skromność +{me.low_logos_streak}
+              </span>
+            )}
+            <span
+              className={[styles.chip, avatarState === 'free' ? styles.chipGold : '', avatarState === 'none' ? styles.chipOff : ''].join(' ')}
+              title={avatarState === 'none' ? 'Nie masz żywego awatara.' : avatarState === 'used' ? 'Darmowa akcja awatara zużyta w tej rundzie.' : 'Darmowa akcja awatara czeka: zaznacz ją w oknie akcji.'}
+            >
+              <AvatarIcon /> {avatarState === 'none' ? 'brak awatara' : avatarState === 'used' ? 'akcja awatara zużyta' : 'akcja awatara wolna'}
+            </span>
+          </div>
+        </div>
         <div className={styles.sumRow}>
-          <StoneButton variant="clay" size="sm" pressed={chronicleOpen} onClick={onChronicle}>
-            <BookIcon /> Święta Księga
+          <button className={styles.bbExit} onClick={() => navigate('/')} title="Wyjdź do listy światów. Gra trwa dalej." aria-label="Wyjdź do listy światów">
+            <Exit />
+          </button>
+          <StoneButton
+            variant="marble"
+            size="sm"
+            disabled={busy || game.phase !== 'gods' || !me || me.is_resting || !!pending}
+            onClick={() => call('rest', { p_game_id: game.id })}
+            title="Pas: zachowujesz Logos, ale do końca rundy nie działasz."
+          >
+            <Hourglass /> Odpoczynek
           </StoneButton>
-          <StoneButton size="sm" onClick={() => setPalette(true)} title="Paleta: co w tym świecie jest na Tak, za Zasłoną i na Nie.">
-            <PaletteIcon /> Paleta
-          </StoneButton>
-          <StoneButton size="sm" onClick={() => setLists(true)} title="Istoty rozumne, istoty, cywilizacje i awatary jako listy.">
-            <ListIcon /> Byty świata
+          <StoneButton variant="marble" size="sm" disabled={busy || rolling || !!pending} onClick={() => setTransfer(true)}>
+            Przekaż Logos
           </StoneButton>
         </div>
-        <GodLegend world={world} />
       </section>
-
-      {/* the door */}
-      <button className={styles.bbExit} onClick={() => navigate('/')} title="Wyjdź do listy światów. Gra trwa dalej." aria-label="Wyjdź do listy światów">
-        <Exit />
-      </button>
 
       {transfer && me && (
         <TransferDialog
@@ -234,21 +230,6 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
       )}
     </aside>
   )
-}
-
-/** the dice a row carries, whoever threw them: a Logos roll, a table 2k6, a word's own dice, a contest */
-function rollOf(l: ActionLog): { kind: '2d6' | 'd6'; d1: number; d2: number; total: number; label: string } | null {
-  const r = l.roll
-  const o = (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as Record<string, unknown>
-  if (l.action_key === 'logos_roll' && r) return { kind: '2d6', d1: r.d1, d2: r.d2, total: r.total ?? r.d1 + r.d2, label: `+${logosWords(l.logos_delta)}` }
-  if (l.action_key === 'dice' && r) return { kind: '2d6', d1: r.d1, d2: r.d2, total: r.total ?? r.d1 + r.d2, label: l.summary === 'Rzut 2k6' ? 'rzut' : l.summary }
-  if (l.action_key === 'develop_civilization' && typeof o.d1 === 'number') return { kind: '2d6', d1: Number(o.d1), d2: Number(o.d2), total: Number(o.total), label: `Rozwój, ${Number(o.score) < 0 ? '−' : '+'}${Math.abs(Number(o.score))}` }
-  if (l.action_key === 'catastrophe' && typeof o.d6 === 'number') return { kind: 'd6', d1: Number(o.d6), d2: 0, total: Number(o.damage), label: `Kataklizm, obrażeń ${o.damage}` }
-  if (l.action_key === 'contest_declared' && r) return { kind: '2d6', d1: r.d1, d2: r.d2, total: r.total ?? r.d1 + r.d2, label: 'atak' }
-  if ((l.action_key === 'convert' || l.action_key === 'holy_war') && r?.def) return { kind: '2d6', d1: r.def.d1, d2: r.def.d2, total: r.def.total, label: `obrona (atak ${r.att?.total ?? '?'})` }
-  const a = ACTION_BY_KEY[l.action_key as ActionKey]
-  if (a && r) return { kind: '2d6', d1: r.d1, d2: r.d2, total: r.total ?? r.d1 + r.d2, label: a.name }
-  return null
 }
 
 function Hourglass() {

@@ -168,7 +168,7 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
                 {followers.length === 0 && <p className={mapStyles.popupEmpty}>Nikt tu nie wierzy.</p>}
                 {followers.map((f) => {
                   const p = players.find((x) => x.id === f.player_id)
-                  const c = godColor(p?.domain_key)
+                  const c = godColor(p)
                   const rules = ruler === f.player_id
                   return (
                     <div key={f.player_id} className={[mapStyles.followerRow, rules ? mapStyles.ruler : ''].join(' ')}>

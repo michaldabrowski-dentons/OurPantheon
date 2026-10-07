@@ -77,11 +77,15 @@ function mulberry32(seed: number) {
 }
 
 function landBiome(x: number): BiomeKey {
-  if (x < 0.38) return 'trawa'
-  if (x < 0.6) return 'puszcza'
-  if (x < 0.74) return 'gory'
-  if (x < 0.86) return 'dzungla'
-  if (x < 0.95) return 'pustynia'
+  if (x < 0.3) return 'trawa'
+  if (x < 0.48) return 'puszcza'
+  if (x < 0.58) return 'gory'
+  if (x < 0.64) return 'gory_sniezne'
+  if (x < 0.7) return 'gory_pustynne'
+  if (x < 0.8) return 'dzungla'
+  if (x < 0.88) return 'pustynia'
+  if (x < 0.93) return 'bagno'
+  if (x < 0.97) return 'ziemia'
   return 'zima'
 }
 

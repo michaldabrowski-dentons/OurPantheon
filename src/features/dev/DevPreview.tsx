@@ -51,6 +51,7 @@ const player = (n: number, over: Partial<Player>): Player => ({
   attr_primary: null,
   attr_bonus: null,
   god_notes: '',
+  god_color: null,
   seat_order: n,
   logos: 5,
   has_rolled: true,
@@ -147,7 +148,7 @@ const entityGods = [
 /** the map: a seeded draw, with a known neighbourhood in the middle */
 function previewHexes(): Hex[] {
   const hexes = generatePreviewMap(G, 7)
-  const fixed: Record<string, BiomeKey> = { '0,0': 'trawa', '1,0': 'trawa', '1,-1': 'puszcza', '0,-1': 'zima', '-1,0': 'trawa', '-1,1': 'pustynia', '0,1': 'dzungla', '2,-2': 'woda', '0,2': 'gory' }
+  const fixed: Record<string, BiomeKey> = { '0,0': 'trawa', '1,0': 'trawa', '1,-1': 'puszcza', '0,-1': 'zima', '-1,0': 'trawa', '-1,1': 'pustynia', '0,1': 'bagno', '2,-2': 'woda', '0,2': 'gory', '1,1': 'ziemia', '-2,1': 'gory_sniezne' }
   let seed = 11
   const rnd = () => {
     seed = (seed * 9301 + 49297) % 233280
@@ -265,7 +266,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     useGameStore.setState((st) => ({
       players: st.players.map((p) =>
         p.user_id === U1
-          ? { ...p, god_name: String(args.p_god_name ?? ''), god_description: String(args.p_god_description ?? ''), god_gender: (args.p_god_gender as Player['god_gender']) ?? 'm', domain_key: (args.p_domain_key as Player['domain_key']) ?? null, attr_primary: (args.p_attr_primary as Player['attr_primary']) ?? null, attr_bonus: (args.p_attr_bonus as Player['attr_bonus']) ?? null, god_notes: String(args.p_god_notes ?? '') }
+          ? { ...p, god_name: String(args.p_god_name ?? ''), god_description: String(args.p_god_description ?? ''), god_gender: (args.p_god_gender as Player['god_gender']) ?? 'm', domain_key: (args.p_domain_key as Player['domain_key']) ?? null, attr_primary: (args.p_attr_primary as Player['attr_primary']) ?? null, attr_bonus: (args.p_attr_bonus as Player['attr_bonus']) ?? null, god_notes: String(args.p_god_notes ?? ''), god_color: (args.p_god_color as string | null) ?? null }
           : p,
       ),
     }))

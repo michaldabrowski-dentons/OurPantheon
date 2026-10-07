@@ -32,9 +32,9 @@
 /* ---------- the summary slab ---------- */
 .summary {
   grid-area: summary;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-content: start;
   padding: 12px 12px 18px;
   min-height: 0;
   overflow: auto;
@@ -70,8 +70,81 @@
   font-style: italic;
   color: #cfc3ad;
 }
+.sumBottom {
+  margin-top: auto;
+}
 .summary .bbExit {
-  justify-self: start;
+  flex: none;
+}
+
+/* ---------- every throw at the table, watched by everyone ---------- */
+.diceVeil {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse 60% 50% at 50% 45%, rgba(12, 9, 7, 0.55), rgba(3, 2, 2, 0.8));
+}
+.diceCard {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px 36px 22px;
+  border-radius: 8px;
+  min-width: 320px;
+  text-align: center;
+}
+.diceWho {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--marble-vein);
+}
+.diceWhat {
+  font-size: 1.05rem;
+  font-style: italic;
+  color: #e9d9b8;
+}
+.diceStage {
+  display: flex;
+  gap: 18px;
+  padding: 10px 0 4px;
+  transform: scale(1.6);
+  transform-origin: center;
+  margin: 18px 0 22px;
+}
+.diceResult {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-height: 62px;
+  opacity: 0.35;
+  transition: opacity var(--t-glow);
+}
+.diceResult b {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+.diceResult small {
+  color: #cfc3ad;
+  font-style: italic;
+}
+.diceResultOn {
+  opacity: 1;
+}
+.diceClose {
+  border: 1px solid rgba(255, 205, 140, 0.25);
+  background: transparent;
+  color: var(--gold-light);
+  font: inherit;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  padding: 6px 16px;
+  border-radius: 3px;
+  cursor: pointer;
 }
 
 /* ---------- Era anchor: top-left, as wide as the colonnade. A square numeral, the rest beside it. ---------- */

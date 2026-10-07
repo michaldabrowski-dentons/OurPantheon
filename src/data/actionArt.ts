@@ -2,7 +2,6 @@ import type { ActionKey } from './actions'
 
 /** the painted plates in public/actions keep their old file names; the new words borrow fitting ones */
 const ART_FILE: Partial<Record<ActionKey, string>> = {
-  migrate: 'change_biome',
   develop_civilization: 'change_civilization',
   exodus: 'command_followers',
   convert: 'create_orthodoxy',

@@ -32,7 +32,7 @@ export function GodsStatusBar() {
           const isMe = p.id === me?.id
           const bonus = p.low_logos_streak
           const dots = world.totalDots(p.id)
-          const color = godColor(p.domain_key)
+          const color = godColor(p)
           return (
             <button
               key={p.id}

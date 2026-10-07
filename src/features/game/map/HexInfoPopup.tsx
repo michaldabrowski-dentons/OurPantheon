@@ -49,7 +49,7 @@ export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect
   return (
     <div ref={ref} className={['marble', 'emerge-from-dark', styles.popup].join(' ')} style={pos} role="dialog" aria-label={cityEnt ? cityEnt.name : `Heks ${at.q}, ${at.r}`}>
       <div className={styles.popupHead}>
-        <span className={styles.popupBiome} aria-hidden>{biome?.emoji ?? '?'}</span>
+        {biome && <img className={styles.popupBiome} src={biome.image} alt="" />}
         {cityEnt ? (
           <button type="button" className={styles.popupTitleBtn} onClick={() => onOpenEntity(cityEnt)} title="Otwórz kartę miasta">
             {cityEnt.name}
@@ -73,7 +73,7 @@ export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect
             {followers.length === 0 && <span className={styles.popupEmpty}>Nikt tu nie wierzy.</span>}
             {followers.map((f) => {
               const p = byId(f.player_id)
-              const c = godColor(p?.domain_key)
+              const c = godColor(p)
               const rules = ruler === f.player_id
               return (
                 <div key={f.player_id} className={[styles.followerRow, rules ? styles.ruler : ''].join(' ')}>

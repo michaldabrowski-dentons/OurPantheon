@@ -86,7 +86,7 @@ export function GodLegend({ world }: { world: WorldView }) {
   return (
     <div className={styles.legend}>
       {players.map((p) => {
-        const c = godColor(p.domain_key)
+        const c = godColor(p)
         const n = world.totalDots(p.id)
         return (
           <div key={p.id} className={styles.legendRow} title={followersWord(n)}>

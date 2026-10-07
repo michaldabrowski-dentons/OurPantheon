@@ -20,7 +20,7 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
 2. W **SQL Editor** uruchom po kolei pliki z `supabase/migrations/`:
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
-   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`.
+   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -76,17 +76,18 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 
 - Wielki heksagon o promieniu 5 (91 pól, heksy wierzchołkiem do góry, współrzędne osiowe q, r, środek 0,0).
   Świat zaczyna się jako ocean (`generate_map` z migracji 0013): ląd wznoszą bóstwa Kształtowaniem Lądów.
-  Siedem biomów z malowanymi kaflami (`src/data/biomes.ts`, pliki `public/biomes/*.png` skopiowane
-  z `src/img/biomy`, 128 px): woda, góry, puszcza, dżungla, trawa, pustynia, zima. Kafle lądu to miękkie
-  kwadraty, które na siebie nachodzą; woda jest ostrym heksem rysowanym nad lądem, a na krawędzi z lądem
-  biegnie brązowa linia brzegu. Bez emotikon na polach i bez szwów. Znaki istot i piramidy kropek leżą na
-  ciemnych płytkach z cieniem. Mapa przewija się, gdy nie mieści się w oknie; przybliżenie przyciskami
-  w rogu albo Ctrl i kółkiem myszy.
+  Jedenaście biomów z malowanymi kaflami w kształcie heksa (`src/data/biomes.ts`, pliki `public/biomes/*.png`
+  skopiowane z `src/img/biomy`, 128 px wysokości, heks 112 px szerokości): woda, góry, góry pustynne, góry
+  śnieżne, puszcza, dżungla, trawa, pustynia, zima, bagno, ugór. Kafel jest też ikoną biomu (karta pola,
+  wybór biomu). Bez emotikon, bez szwów, bez linii brzegu. Znaki istot i piramidy wyznawców leżą na ciemnych
+  płytkach z cieniem, pod miastem stoi jego nazwa. Mapa przewija się, gdy nie mieści się w oknie; przybliżenie
+  przyciskami w rogu albo Ctrl i kółkiem myszy.
 - Woda i Góry są zablokowane: nie powstanie tam miasto, nie dojdzie Exodus, nie stanie awatar ani istota
   (także przez Migrację).
 - Każde pole ma trzy miejsca w rogach (`hex_occupants`): istoty, istoty rozumne i awatary stoją tam jako
   emotikony (`entities.emoji`, unikalne w grze; pule w `src/data/emoji.ts`). Awatar ma 3 punkty życia
-  (`entities.hp`).
+  (`entities.hp`). Każde bóstwo wybiera w przedsionku jeden z trzech odcieni swojej domeny
+  (`players.god_color`, `DOMAIN_COLOR_OPTIONS`); w tekstach gry wyznawcy to zawsze „wyznawcy”, nigdy kropki.
 - Miasto (`cities`, jedno na pole) leży na środku jako piramida kropek; każda kropka to wyznawca jednego
   bóstwa (`city_followers`), w kolorze jego domeny (`DOMAIN_COLORS` w `src/data/pantheon.ts`). Poziom miasta
   to liczba kropek (1 Koczowisko … 10 Wielkie imperium, `src/data/cities.ts`); dziesięć to sufit. Miasto bez
@@ -97,10 +98,11 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   mają złoty obrys i jaśnieją; na lewym panelu stoi karta z pytaniem, kosztem oraz przyciskami „Zakończ akcję”
   i „Przerwij” (`src/features/game/map/`). Przy słowach płatnych dystansem świecą tylko pola, na które
   starcza Logos.
-- Ekran gry to trzy kolumny: lewy panel podsumowań (`SummaryPanel`: pytanie mapy i starcie, status tury
-  i Logos z premiami, Odpoczynek i Przekaż Logos, kości widoczne dla wszystkich z ostatnim rzutem kogokolwiek,
-  Święta Księga, Paleta, Byty świata, legenda bóstw z liczbą wyznawców, wyjście), kolumna akcji i mapa na
-  reszcie ekranu. Dawne listy bytów otwiera „Byty świata”.
+- Ekran gry to trzy kolumny: lewy panel podsumowań (`SummaryPanel`: u góry pytanie mapy i starcie, potem
+  Święta Księga, Paleta, Byty świata i legenda bóstw z liczbą wyznawców, a na dole kości z ostatnim rzutem
+  kogokolwiek, status tury, Logos z premiami, Odpoczynek, Przekaż Logos i wyjście), kolumna akcji i mapa na
+  reszcie ekranu. Każdy rzut kośćmi na akcję (Rozwój, Kataklizm, starcia, 2k6 przy stole) otwiera u wszystkich
+  okno `DiceOverlay`: kości toczą się przez chwilę, dopiero potem pada wynik.
 - Cechy, specjalności, braki i uwarunkowania zniknęły: istota, cywilizacja i awatar mają tylko nazwę, znak
   i opis (opis nowego bytu to werset z księgi). Stworzenie Cywilizacji nie wymaga rzutu.
 

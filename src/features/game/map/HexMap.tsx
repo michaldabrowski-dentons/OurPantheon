@@ -14,15 +14,6 @@ const HEXES = allHexes()
 const VIEW = mapViewBox(R)
 /** the painted tiles are 128 px high for a hex 2R high: one tile is 2R by 2R */
 const TILE = 2 * R
-/** the six neighbours in corner order: the edge between corners i and i+1 faces this neighbour */
-const EDGE_NEIGHBOURS: { q: number; r: number }[] = [
-  { q: 1, r: 0 },
-  { q: 0, r: 1 },
-  { q: -1, r: 1 },
-  { q: -1, r: 0 },
-  { q: 0, r: -1 },
-  { q: 1, r: -1 },
-]
 const ZOOMS = [1, 1.35, 1.8, 2.4, 3.2]
 
 export interface Inspect {
@@ -32,16 +23,10 @@ export interface Inspect {
   y: number
 }
 
-function corner(cx: number, cy: number, i: number, inset = 0): { x: number; y: number } {
-  const angle = (Math.PI / 180) * (60 * i - 30)
-  return { x: cx + (R - inset) * Math.cos(angle), y: cy + (R - inset) * Math.sin(angle) }
-}
-
 /**
- * The map itself: 91 painted fields in an SVG. Land tiles overlap softly; water tiles lie above them
- * with a crisp hexagon, and where water meets land a brown shoreline runs along the edge. Only the
- * transparent polygons on top hear the mouse; everything painted lets clicks through. In a map mode
- * a click is an answer; otherwise it opens the field's card beside the mouse.
+ * The map itself: 91 painted hexagonal tiles in an SVG. Only the transparent polygons on top hear
+ * the mouse; everything painted lets clicks through. In a map mode a click is an answer; otherwise
+ * it opens the field's card beside the mouse.
  */
 export function HexMap({ world, inspected, onInspect }: { world: WorldView; inspected: Inspect | null; onInspect: (i: Inspect | null) => void }) {
   const mode = useMapMode((s) => s.mode)
@@ -56,7 +41,7 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
   const colorOf = useMemo(() => {
     const m = new Map<string, Player>()
     for (const p of players) m.set(p.id, p)
-    return (playerId: string) => godColor(m.get(playerId)?.domain_key)
+    return (playerId: string) => godColor(m.get(playerId))
   }, [players])
 
   useEffect(() => {
@@ -97,10 +82,6 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
 
   const burst = useBurst(log)
 
-  // the painted ground: land first (soft squares that overlap), water on top (crisp hexagons)
-  const land = HEXES.filter(({ q, r }) => world.hexAt(q, r)?.biome !== 'woda')
-  const water = HEXES.filter(({ q, r }) => world.hexAt(q, r)?.biome === 'woda')
-
   return (
     <div className={styles.board} onWheel={onWheel}>
       <div className={styles.scroller}>
@@ -112,26 +93,11 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
           </defs>
 
           <g className={styles.layer}>
-            {land.map(({ q, r }) => {
+            {HEXES.map(({ q, r }) => {
               const hex = world.hexAt(q, r)
               const { x, y } = axialToPixel(q, r, R)
               const biome = hex ? BIOME_BY_KEY[hex.biome] : undefined
-              return <image key={hexKey(q, r)} href={biome?.image ?? BIOME_BY_KEY.trawa.image} x={x - TILE / 2} y={y - TILE / 2} width={TILE} height={TILE} preserveAspectRatio="xMidYMid slice" />
-            })}
-            {water.map(({ q, r }) => {
-              const { x, y } = axialToPixel(q, r, R)
-              return <image key={hexKey(q, r)} href={BIOME_BY_KEY.woda.image} x={x - TILE / 2} y={y - TILE / 2} width={TILE} height={TILE} preserveAspectRatio="xMidYMid meet" />
-            })}
-            {/* the shore: where water meets land, a brown rim on the water's side of the edge */}
-            {water.map(({ q, r }) => {
-              const { x, y } = axialToPixel(q, r, R)
-              return EDGE_NEIGHBOURS.map((d, i) => {
-                const n = world.hexAt(q + d.q, r + d.r)
-                if (!n || n.biome === 'woda') return null
-                const a = corner(x, y, i, 1)
-                const b = corner(x, y, i + 1, 1)
-                return <line key={`${hexKey(q, r)}-${i}`} className={styles.shore} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
-              })
+              return <image key={hexKey(q, r)} href={biome?.image ?? BIOME_BY_KEY.woda.image} x={x - TILE / 2} y={y - TILE / 2} width={TILE} height={TILE} preserveAspectRatio="xMidYMid meet" />
             })}
           </g>
 
@@ -220,14 +186,18 @@ function CityPyramid({ x, y, city, world, colorOf }: { x: number; y: number; cit
   const rows = PYRAMID[total] ?? [total]
   const owners: string[] = []
   for (const f of followers) for (let i = 0; i < f.dots; i++) owners.push(f.player_id)
-  const step = R * 0.2
-  const dotR = R * 0.09
+  const step = R * 0.16
+  const dotR = R * 0.068
   const height = rows.length * step
   const plateW = Math.max(...rows) * step + step * 0.9
+  const name = world.entityById(city)?.name ?? ''
   let k = 0
   return (
     <g className={styles.dots}>
-      <rect className={styles.cityPlate} x={x - plateW / 2} y={y - height / 2 - step * 0.35} width={plateW} height={height + step * 0.7} rx={5} />
+      <rect className={styles.cityPlate} x={x - plateW / 2} y={y - height / 2 - step * 0.35} width={plateW} height={height + step * 0.7} rx={4} />
+      <text className={styles.cityName} x={x} y={y + height / 2 + step * 0.35 + R * 0.19} textAnchor="middle" dominantBaseline="central" fontSize={R * 0.17}>
+        {name.length > 18 ? `${name.slice(0, 17)}…` : name}
+      </text>
       {rows.map((count, rowIdx) => {
         const cy = y + height / 2 - step / 2 - rowIdx * step
         const startX = x - ((count - 1) * step) / 2

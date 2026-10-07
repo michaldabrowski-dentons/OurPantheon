@@ -130,6 +130,6 @@ export function verdict(c: Contest, attacker: string, defender: string, converte
   if (diff >= 3) return `Pełne zwycięstwo ${attacker} (o ${diff}): ${defender} traci ${followersWord(removed)}, ${conv} z nich przechodzi na stronę ${attacker}. Armia wraca cała (${returned}).`
   if (diff >= 1) return `Pyrrusowe zwycięstwo ${attacker} (o ${diff}): ${defender} traci ${followersWord(removed)}, ${conv} przechodzi na stronę ${attacker}, lecz armia traci ${attLost}. Wraca ${returned}.`
   if (diff === 0) return `Remis: obie strony tracą po jednej kropce. Armia wraca do domu (${returned}).`
-  if (diff >= -2) return `${defender} odpiera atak (o ${-diff}): z armii wraca tylko jedna kropka, obrońca traci jedną.`
+  if (diff >= -2) return `${defender} odpiera atak (o ${-diff}): z armii wraca tylko jeden, obrońca traci jednego.`
   return `Pełne zwycięstwo ${defender} (o ${-diff}): cała armia ginie, miasto nietknięte.`
 }

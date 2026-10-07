@@ -88,7 +88,7 @@ export function ActionsPanel() {
                         e === era && !affordable ? styles.costOver : '',
                       ].join(' ')}
                     >
-                      {a.distance && a.costs[e - 1] === 0 ? '+' : a.costs[e - 1]}
+                      {a.distance ? Math.max(1, a.costs[e - 1]) : a.costs[e - 1]}
                     </span>
                   ))}
                 </span>

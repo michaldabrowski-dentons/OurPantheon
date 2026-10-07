@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql', '0015_fix_biome_draw.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql', '0015_fix_biome_draw.sql', '0016_colors_and_tiles.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -69,8 +69,10 @@ let players = await q('select * from players where game_id = $1 order by seat_or
 ok(players.length === 2 && players[1].seat_order === 2, 'second god seated')
 ok((await rpcErr(`select open_palette($1)`, [game.id])) !== null, 'non-host cannot open palette')
 await as(A)
-await db.query(`select set_god($1, 'Ta Pod Rzeką', 'bogini rzek i cierpliwości', 'f', 'harvest', 'grace', 'wisdom', 'Śpi pod rzeką od początku świata.')`, [game.id])
-const godRow = (await q('select god_description, god_gender, domain_key, attr_primary, attr_bonus, god_notes from players where user_id = $1', [A]))[0]
+await db.query(`select set_god($1, 'Ta Pod Rzeką', 'bogini rzek i cierpliwości', 'f', 'harvest', 'grace', 'wisdom', 'Śpi pod rzeką od początku świata.', '#6fe3d3')`, [game.id])
+const godRow = (await q('select god_description, god_gender, domain_key, attr_primary, attr_bonus, god_notes, god_color from players where user_id = $1', [A]))[0]
+ok(godRow.god_color === '#6fe3d3', 'the god keeps its chosen shade')
+ok((await rpcErr(`select set_god($1, 'X', '', 'f', 'harvest', 'grace', 'wisdom', '', 'zielony')`, [game.id])) !== null, 'a colour must be a hex string')
 ok(godRow.god_description === 'bogini rzek i cierpliwości' && godRow.god_gender === 'f', 'god description and gender saved')
 ok(godRow.domain_key === 'harvest' && godRow.attr_primary === 'grace' && godRow.attr_bonus === 'wisdom' && godRow.god_notes.startsWith('Śpi'), 'playbook keys and notes saved')
 ok((await rpcErr(`select set_god($1, 'X', '', 'x')`, [game.id])) !== null, 'unknown gender refused')
@@ -218,6 +220,8 @@ const shaped = (await q(`select * from perform_action($1, 'shape_land', $2::json
 ok(shaped.logos_delta === -2 && shaped.outcome.hexes.length === 3 && shaped.outcome.hexes[1].from === 'trawa', 'three touching hexes reshaped, the old biomes remembered')
 ok((await q(`select count(*)::int as n from hexes where game_id = $1 and biome = 'puszcza' and (q, r) in ((1, -1), (1, 0), (0, 0))`, [game.id]))[0].n === 3, 'the map changed')
 ok((await rpcErr(`select perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'wzgorza', hexes: [{ q: 0, r: 0 }] })])) !== null, 'a terrain without a tile is refused')
+await db.query(`update hexes set biome = 'gory_sniezne' where game_id = $1 and q = 0 and r = 2`, [game.id])
+ok((await q(`select hex_blocked('gory_sniezne') as b, hex_blocked('bagno') as c`))[0].b === true, 'all three mountain kinds block, a swamp does not')
 await db.query(`update hexes set biome = 'trawa', decor = '[]' where game_id = $1 and (q, r) in ((0, 0), (1, 0), (1, -1))`, [game.id])
 
 console.log('\n# life on the map')

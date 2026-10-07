@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { rpc } from '@/lib/supabase'
 import type { AttrKey, DomainKey, GodGender, Player } from '@/lib/types'
-import { isComplete } from '@/data/pantheon'
+import { DOMAIN_COLOR_OPTIONS, isComplete } from '@/data/pantheon'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { EngravedTitle, TextField, TextArea, Notice } from '@/components/ui/Primitives'
 import { GenderPicker } from '@/features/lobby/GenderPicker'
@@ -22,6 +22,7 @@ export function GodCreation({ me, gameId }: { me: Player | null; gameId: string 
   const [primary, setPrimary] = useState<AttrKey | null>(null)
   const [bonus, setBonus] = useState<AttrKey | null>(null)
   const [notes, setNotes] = useState('')
+  const [color, setColor] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -35,6 +36,7 @@ export function GodCreation({ me, gameId }: { me: Player | null; gameId: string 
       setPrimary(me.attr_primary ?? null)
       setBonus(me.attr_bonus ?? null)
       setNotes(me.god_notes ?? '')
+      setColor(me.god_color ?? null)
     }
   }, [me, dirty])
 
@@ -45,6 +47,7 @@ export function GodCreation({ me, gameId }: { me: Player | null; gameId: string 
     setDomain(d)
     setPrimary(null)
     setBonus(null)
+    setColor(null)
     touch()
   }
 
@@ -64,6 +67,7 @@ export function GodCreation({ me, gameId }: { me: Player | null; gameId: string 
         p_attr_primary: primary,
         p_attr_bonus: bonus,
         p_god_notes: notes,
+        p_god_color: domain ? color ?? DOMAIN_COLOR_OPTIONS[domain][0].fill : null,
       })
       setDirty(false)
     } catch (err) {
@@ -116,6 +120,34 @@ export function GodCreation({ me, gameId }: { me: Player | null; gameId: string 
               touch()
             }}
           />
+          {domain && (
+            <div className={styles.colorPick} role="radiogroup" aria-label="Twój kolor na mapie">
+              <span className={styles.colorLabel}>Twój kolor na mapie</span>
+              <div className={styles.colorRow}>
+                {DOMAIN_COLOR_OPTIONS[domain].map((c, i) => {
+                  const on = (color ?? DOMAIN_COLOR_OPTIONS[domain][0].fill) === c.fill
+                  return (
+                    <button
+                      key={c.fill}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      className={[styles.colorBtn, on ? styles.colorOn : ''].join(' ')}
+                      style={{ '--swatch': c.fill, '--rim': c.stroke } as React.CSSProperties}
+                      title={c.name}
+                      onClick={() => {
+                        setColor(c.fill)
+                        touch()
+                      }}
+                    >
+                      <span className={styles.colorSwatch} aria-hidden />
+                      <small>{i === 0 ? c.name : c.name}</small>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           <TextField
             id="god_desc"
             label="Czym jest twoje bóstwo (krótko, na tabliczkę)"

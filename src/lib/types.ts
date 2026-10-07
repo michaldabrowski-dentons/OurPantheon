@@ -48,6 +48,8 @@ export interface Player {
   attr_primary: AttrKey | null
   attr_bonus: AttrKey | null
   god_notes: string
+  /** the god's own shade on the map (one of three of its domain); null = the domain's first */
+  god_color: string | null
   seat_order: number
   logos: number
   has_rolled: boolean
@@ -110,7 +112,7 @@ export interface Entity {
 }
 
 /** terrain of one field of the map (keys without diacritics; names in src/data/biomes.ts) */
-export type BiomeKey = 'woda' | 'gory' | 'puszcza' | 'dzungla' | 'trawa' | 'pustynia' | 'zima'
+export type BiomeKey = 'woda' | 'gory' | 'gory_pustynne' | 'gory_sniezne' | 'puszcza' | 'dzungla' | 'trawa' | 'pustynia' | 'zima' | 'bagno' | 'ziemia'
 
 /** a decorative emoji on a field, placed in units of the hex radius from its centre */
 export interface HexDecor {

@@ -68,13 +68,7 @@
   color: var(--marble-vein);
   font-variant-numeric: tabular-nums;
 }
-/* the shore: the water's side of an edge that meets land */
-.shore {
-  stroke: #7a5230;
-  stroke-width: 3.2;
-  stroke-linecap: round;
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
-}
+
 .layer {
   pointer-events: none;
 }
@@ -141,6 +135,16 @@
   stroke: var(--parchment);
   stroke-width: 0.9;
   opacity: 0.9;
+}
+.cityName {
+  fill: #f3ede0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  paint-order: stroke fill;
+  stroke: rgba(5, 4, 3, 0.9);
+  stroke-width: 1.6px;
+  stroke-linejoin: round;
 }
 .cityPlate {
   fill: rgba(10, 8, 7, 0.62);
@@ -276,8 +280,10 @@
   color: var(--ink-soft);
 }
 .popupBiome {
-  font-size: 1.6rem;
-  line-height: 1;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  flex: none;
 }
 .popupCoords {
   margin-left: auto;

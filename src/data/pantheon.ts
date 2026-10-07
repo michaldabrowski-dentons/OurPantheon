@@ -259,24 +259,85 @@ export interface GodColor {
   stroke: string
   name: string
 }
-export const DOMAIN_COLORS: Record<DomainKey, GodColor> = {
-  light: { fill: '#f2cf3a', stroke: '#7a5f00', name: 'żółty' },
-  love: { fill: '#ff79b5', stroke: '#8a2d5b', name: 'różowy' },
-  forge: { fill: '#ff5a1f', stroke: '#7a2400', name: 'czerwono-pomarańczowy' },
-  war: { fill: '#cf1f2a', stroke: '#5c0b11', name: 'czerwony' },
-  rule: { fill: '#6b2bb5', stroke: '#2b0d4f', name: 'purpurowy' },
-  order: { fill: '#2b6fd6', stroke: '#0e2f66', name: 'niebieski' },
-  harvest: { fill: '#2fc4b2', stroke: '#0d5a52', name: 'turkusowy' },
-  storm: { fill: '#17171a', stroke: '#e6e2d8', name: 'czarny' },
-  secrets: { fill: '#8d3fd6', stroke: '#3c1363', name: 'fioletowy' },
-  knowledge: { fill: '#5b53d9', stroke: '#221c6b', name: 'niebiesko-fioletowy' },
-  nature: { fill: '#1f6b2e', stroke: '#0a2f13', name: 'zielony' },
-  vengeance: { fill: '#55602a', stroke: '#1d2208', name: 'oliwkowy' },
+/** three shades per domain; the god picks one when it is made */
+export const DOMAIN_COLOR_OPTIONS: Record<DomainKey, GodColor[]> = {
+  light: [
+    { fill: '#f2cf3a', stroke: '#7a5f00', name: 'żółty' },
+    { fill: '#ffe680', stroke: '#8a6a00', name: 'jasnożółty' },
+    { fill: '#d9a400', stroke: '#5a4300', name: 'złoty' },
+  ],
+  love: [
+    { fill: '#ff79b5', stroke: '#8a2d5b', name: 'różowy' },
+    { fill: '#ff9ecf', stroke: '#a0416f', name: 'jasnoróżowy' },
+    { fill: '#d84f8a', stroke: '#6b1c40', name: 'malinowy' },
+  ],
+  forge: [
+    { fill: '#ff5a1f', stroke: '#7a2400', name: 'czerwono-pomarańczowy' },
+    { fill: '#ff8a4c', stroke: '#8a3a10', name: 'pomarańczowy' },
+    { fill: '#c8410f', stroke: '#5a1c05', name: 'rdzawy' },
+  ],
+  war: [
+    { fill: '#cf1f2a', stroke: '#5c0b11', name: 'czerwony' },
+    { fill: '#ff4b55', stroke: '#7a1a20', name: 'szkarłatny' },
+    { fill: '#8f0f18', stroke: '#3a0408', name: 'krwisty' },
+  ],
+  rule: [
+    { fill: '#6b2bb5', stroke: '#2b0d4f', name: 'purpurowy' },
+    { fill: '#9b5de5', stroke: '#3f1f6b', name: 'liliowy' },
+    { fill: '#4a1b82', stroke: '#1c0733', name: 'ciemna purpura' },
+  ],
+  order: [
+    { fill: '#2b6fd6', stroke: '#0e2f66', name: 'niebieski' },
+    { fill: '#5aa0ff', stroke: '#1b4ea0', name: 'błękitny' },
+    { fill: '#1b4ea0', stroke: '#0a2048', name: 'granatowy' },
+  ],
+  harvest: [
+    { fill: '#2fc4b2', stroke: '#0d5a52', name: 'turkusowy' },
+    { fill: '#6fe3d3', stroke: '#1a7a6e', name: 'miętowy' },
+    { fill: '#1a8f80', stroke: '#083d37', name: 'morski' },
+  ],
+  storm: [
+    { fill: '#17171a', stroke: '#e6e2d8', name: 'czarny' },
+    { fill: '#3a3a44', stroke: '#d8d4ca', name: 'grafitowy' },
+    { fill: '#5c5c6e', stroke: '#eae6dc', name: 'burzowy szary' },
+  ],
+  secrets: [
+    { fill: '#8d3fd6', stroke: '#3c1363', name: 'fioletowy' },
+    { fill: '#b57bff', stroke: '#4a2080', name: 'wrzosowy' },
+    { fill: '#5f2596', stroke: '#260a40', name: 'ciemny fiolet' },
+  ],
+  knowledge: [
+    { fill: '#5b53d9', stroke: '#221c6b', name: 'niebiesko-fioletowy' },
+    { fill: '#8a84ff', stroke: '#332d8a', name: 'lawendowy' },
+    { fill: '#3a339e', stroke: '#15123f', name: 'indygo' },
+  ],
+  nature: [
+    { fill: '#1f6b2e', stroke: '#0a2f13', name: 'zielony' },
+    { fill: '#3c9a4a', stroke: '#14421d', name: 'jasnozielony' },
+    { fill: '#124a1e', stroke: '#041a0a', name: 'ciemnozielony' },
+  ],
+  vengeance: [
+    { fill: '#55602a', stroke: '#1d2208', name: 'oliwkowy' },
+    { fill: '#7d8a3a', stroke: '#2c3210', name: 'zgniłozielony' },
+    { fill: '#3a4218', stroke: '#eae6dc', name: 'bagienny' },
+  ],
 }
+/** the first shade of each domain */
+export const DOMAIN_COLORS: Record<DomainKey, GodColor> = Object.fromEntries(
+  (Object.keys(DOMAIN_COLOR_OPTIONS) as DomainKey[]).map((k) => [k, DOMAIN_COLOR_OPTIONS[k][0]]),
+) as Record<DomainKey, GodColor>
 /** a god without a domain is marble grey */
 export const NO_DOMAIN_COLOR: GodColor = { fill: '#c9c2b6', stroke: '#5c554b', name: 'szary' }
-export function godColor(domain: DomainKey | null | undefined): GodColor {
-  return domain ? DOMAIN_COLORS[domain] : NO_DOMAIN_COLOR
+/** the colour a god wears: its own pick, else the first shade of its domain */
+export function godColor(p: { domain_key: DomainKey | null; god_color?: string | null } | null | undefined): GodColor {
+  if (!p || !p.domain_key) return NO_DOMAIN_COLOR
+  const options = DOMAIN_COLOR_OPTIONS[p.domain_key]
+  if (p.god_color) {
+    const own = options.find((o) => o.fill.toLowerCase() === p.god_color!.toLowerCase())
+    if (own) return own
+    return { fill: p.god_color, stroke: '#1a120c', name: 'własny' }
+  }
+  return options[0]
 }
 
 /** Paintings in public/domains and public/attributes (768/192 px and 384/96 px JPEGs made from src/img). */

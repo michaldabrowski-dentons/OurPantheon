@@ -55,7 +55,7 @@ export function GodSheet({ playerId, onClose }: { playerId: string; onClose: () 
                 playerId={player.id}
                 gameId={player.game_id}
                 initial={{ name: player.god_name, desc: player.god_description ?? '', gender: player.god_gender ?? 'm', notes: player.god_notes ?? '' }}
-                keys={{ domain: player.domain_key, primary: player.attr_primary, bonus: player.attr_bonus }}
+                keys={{ domain: player.domain_key, primary: player.attr_primary, bonus: player.attr_bonus, color: player.god_color }}
                 onDone={() => setEditing(false)}
               />
             ) : (
@@ -118,7 +118,7 @@ function SheetEditor({
   playerId: string
   gameId: string
   initial: { name: string; desc: string; gender: GodGender; notes: string }
-  keys: { domain: string | null; primary: string | null; bonus: string | null }
+  keys: { domain: string | null; primary: string | null; bonus: string | null; color: string | null }
   onDone: () => void
 }) {
   const [name, setName] = useState(initial.name)
@@ -141,6 +141,7 @@ function SheetEditor({
         p_attr_primary: keys.primary,
         p_attr_bonus: keys.bonus,
         p_god_notes: notes,
+        p_god_color: keys.color,
       })
       onDone()
     } catch (err) {
