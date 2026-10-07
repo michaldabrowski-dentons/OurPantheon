@@ -72,6 +72,12 @@
 }
 .sumBottom {
   margin-top: auto;
+  padding-top: 6px;
+}
+.bbChips {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
 }
 .summary .bbExit {
   flex: none;
@@ -557,10 +563,42 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: 6px;
-  font-size: 0.72rem;
+  margin-left: 8px;
+  font-size: 0.7rem;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.plaqueDots b {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+.plaqueBonusOn b {
+  color: var(--gold-dark);
+}
+.godsBar {
+  position: relative;
+}
+.barExit {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 205, 140, 0.14);
+  border-radius: 50%;
+  color: var(--marble-vein);
+  background: linear-gradient(180deg, #1b1613, #0a0807);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+.barExit:hover {
+  color: var(--gold-light);
+  box-shadow: 0 0 0 1px var(--gold-dark), 0 0 12px var(--divine-aura-soft);
 }
 .plaqueSwatch {
   width: 9px;

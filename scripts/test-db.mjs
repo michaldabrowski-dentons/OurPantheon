@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql', '0015_fix_biome_draw.sql', '0016_colors_and_tiles.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql', '0015_fix_biome_draw.sql', '0016_colors_and_tiles.sql', '0017_prices_and_ruins.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -216,6 +216,8 @@ await topUp()
 ok((await rpcErr(`select perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'puszcza', hexes: [{ q: 0, r: 0 }, { q: 2, r: 0 }] })])) !== null, 'hexes that do not touch are refused')
 ok((await rpcErr(`select perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'lawa', hexes: [{ q: 0, r: 0 }] })])) !== null, 'unknown biome refused')
 ok((await rpcErr(`select perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'puszcza', hexes: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }] })])) !== null, 'four hexes refused')
+ok((await rpcErr(`select perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'gory_pustynne', hexes: [{ q: 3, r: -3 }] })])) === null, 'the desert mountains are a terrain the words know')
+await topUp()
 const shaped = (await q(`select * from perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'puszcza', hexes: [{ q: 1, r: -1 }, { q: 1, r: 0 }, { q: 0, r: 0 }] })]))[0]
 ok(shaped.logos_delta === -2 && shaped.outcome.hexes.length === 3 && shaped.outcome.hexes[1].from === 'trawa', 'three touching hexes reshaped, the old biomes remembered')
 ok((await q(`select count(*)::int as n from hexes where game_id = $1 and biome = 'puszcza' and (q, r) in ((1, -1), (1, 0), (0, 0))`, [game.id]))[0].n === 3, 'the map changed')
@@ -246,7 +248,7 @@ await topUp()
 ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: 0, r: 0 } })])) !== null, 'migration needs a different hex')
 ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: 2, r: -2 } })])) !== null, 'no migration onto water')
 const mig = (await q(`select * from perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: -1, r: 1 } })]))[0]
-ok(mig.logos_delta === -1 && mig.outcome.distance === 1, 'migration costs its distance (1 hex, 1 Logos)')
+ok(mig.logos_delta === -4 && mig.outcome.distance === 1, 'migration costs 3 plus its distance (1 hex)')
 ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1', [sapient.entity_id]))[0].n === 2, 'the species now lives on two hexes')
 ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: -1, r: 1 } })])) !== null, 'cannot migrate where the species already lives')
 await topUp()
@@ -287,7 +289,7 @@ ok((await rpcErr(`select perform_action($1, 'exodus', $2::jsonb)`, [game.id, J({
 ok((await rpcErr(`select perform_action($1, 'exodus', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, dots: 2, species_id: sapient.entity_id, to: { q: 0, r: 2 }, name: 'W Górach' })])) !== null, 'no exodus into mountains')
 ok((await rpcErr(`select perform_action($1, 'exodus', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, dots: 2, species_id: creature.entity_id, to: { q: 1, r: -1 }, name: 'Kocie' })])) !== null, 'exodus takes a sapient species')
 const exo = (await q(`select * from perform_action($1, 'exodus', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, dots: 2, species_id: sapient.entity_id, to: { q: 1, r: -1 }, name: 'Nowe Sowiska', description: 'Wyszli nocą.' })]))[0]
-ok(exo.logos_delta === -1 && exo.outcome.new === true && exo.outcome.distance === 1, 'exodus one hex away costs 1 and founds a city')
+ok(exo.logos_delta === -13 && exo.outcome.new === true && exo.outcome.distance === 1, 'exodus one hex away costs 12 plus 1 and founds a city')
 const newCity = (await q('select * from entities where id = $1', [exo.entity_id]))[0]
 ok(newCity.name === 'Nowe Sowiska' && newCity.traits.join() === 'Zachowawcza' && newCity.parent_civilization_id === civ.entity_id, 'the new city inherits the traits of the mother city')
 ok((await q('select player_dots($1, $2) as d', [newCity.id, actor.id]))[0].d === 2 && (await q('select player_dots($1, $2) as d', [civ.entity_id, actor.id]))[0].d === 2, 'two dots moved, two stayed')
@@ -411,7 +413,7 @@ await db.query('insert into city_followers (game_id, city_id, player_id, dots) v
 ok((await rpcErr(`select declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: civ.entity_id, army: 5, target_city_id: newCity.id, defender_id: otherP.id })])) !== null, 'at least one dot stays home')
 ok((await rpcErr(`select declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: newCity.id, army: 1, target_city_id: civ.entity_id, defender_id: otherP.id })])) !== null, 'an army marches only from a city I hold')
 const war = (await q(`select * from declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: civ.entity_id, army: 2, target_city_id: newCity.id, defender_id: otherP.id })]))[0]
-ok(war.status === 'pending' && war.cost === 1 && war.army === 2 && war.attacker_mod === 2 + (await q(`select attr_score(p, 'wrath') as s from players p where id = $1`, [actor.id]))[0].s, 'war declared: cost is the distance, modifier is Gniew plus the army')
+ok(war.status === 'pending' && war.cost === 9 && war.army === 2 && war.attacker_mod === 2 + (await q(`select attr_score(p, 'wrath') as s from players p where id = $1`, [actor.id]))[0].s, 'war declared: cost is the distance, modifier is Gniew plus the army')
 ok((await q('select player_dots($1, $2) as d', [civ.entity_id, actor.id]))[0].d === 3, 'the army left the city')
 await db.query(`select cancel_contest($1)`, [war.id])
 ok((await q('select player_dots($1, $2) as d', [civ.entity_id, actor.id]))[0].d === 5 && (await q('select logos from players where id = $1', [actor.id]))[0].logos === 60, 'a cancelled war refunds the army and the Logos')
@@ -515,6 +517,7 @@ ok((await q('select player_dots($1, $2) as d', [civ.entity_id, actor.id]))[0].d 
   await db.query('delete from city_followers where city_id = $1', [newCity.id])
   ok((await q('select destroy_city_if_empty($1, 2, 1::smallint) as d', [newCity.id]))[0].d === true, 'an empty city becomes a ruin')
   ok((await q('select status from entities where id = $1', [newCity.id]))[0].status === 'destroyed' && (await q('select count(*)::int as n from cities where entity_id = $1', [newCity.id]))[0].n === 0, 'the ruin is gone from the map, the name stays in the book')
+  ok((await q('select attributes from entities where id = $1', [newCity.id]))[0].attributes.ruin.q === 1, 'the ruin remembers where it stood')
   ok((await q(`select count(*)::int as n from actions_log where action_key = 'city_destroyed' and entity_id = $1`, [newCity.id]))[0].n === 1, 'the fall is written down')
 }
 await as(actor.user_id)

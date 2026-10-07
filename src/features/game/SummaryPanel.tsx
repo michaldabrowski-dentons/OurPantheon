@@ -1,27 +1,29 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { rpc } from '@/lib/supabase'
 import { rollOf } from '@/data/dice'
 import { describeEvent } from '@/data/tableEvents'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer, selectPendingContest, playerLabel } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
-import { Modal, inputClass, labelClass, fieldClass, Notice, Dice2d6, Die } from '@/components/ui/Primitives'
+import { Modal, Dice2d6, Die } from '@/components/ui/Primitives'
 import { PalettePage } from '@/features/palette/PalettePage'
 import { AltarGrid } from './altar/AltarGrid'
 import { useWorld } from './map/useWorld'
-import { MapInstructionCard, ContestBanner, GodLegend } from './map/MapCards'
+import { MapInstructionCard, ContestBanner } from './map/MapCards'
 import styles from './game.module.css'
 
+/** the Logos the faithful will pay at the end of Chaos, by the god's place among the pantheon */
+export function followersPrize(rank: number): number {
+  return rank === 1 ? 3 : rank === 2 ? 2 : rank === 3 ? 1 : 0
+}
+
 /**
- * The left slab of the temple: everything that is not a word and not the map. At the top what the
- * map or a contest asks of me right now; then the world (the book, the Palette, the lists, the other
- * gods' followers); pinned to the bottom the dice everyone sees, the turn, my Words and the words
- * that need no map (rest, transfer), with the door out.
+ * The left slab of the temple, read from the top: the game speaking to me (the turn, the last
+ * thing that happened), the dice everyone sees and the two roll buttons, my Words and premiums,
+ * the world (the book, the Palette, the lists), and at the very bottom the rest.
  */
 export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError: (m: string | null) => void; chronicleOpen: boolean; onChronicle: () => void }) {
   const { user } = useUser()
-  const navigate = useNavigate()
   const game = useGameStore((s) => s.game)!
   const players = useGameStore((s) => s.players)
   const profiles = useGameStore((s) => s.profiles)
@@ -31,7 +33,6 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
   const pending = useGameStore(selectPendingContest)
   const world = useWorld()
   const [busy, setBusy] = useState(false)
-  const [transfer, setTransfer] = useState(false)
   const [palette, setPalette] = useState(false)
   const [lists, setLists] = useState(false)
 
@@ -50,6 +51,10 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
   const rolling = game.phase === 'rolling'
   const myTurn = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting && !pending
   const myDots = me ? world.totalDots(me.id) : 0
+  // my place among the gods by followers, and what it will pay at the end of Chaos
+  const totals = players.map((p) => world.totalDots(p.id)).filter((n) => n > 0)
+  const myRank = myDots > 0 ? 1 + new Set(totals.filter((n) => n > myDots)).size : 0
+  const prize = followersPrize(myRank)
   const hasAvatar = !!me && world.avatarsOf(me.id).length > 0
   const avatarState: 'free' | 'used' | 'none' = !hasAvatar ? 'none' : me?.avatar_action_used ? 'used' : 'free'
 
@@ -88,9 +93,85 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
 
   return (
     <aside className={['basalt', styles.summary].join(' ')} aria-label="Podsumowanie">
+      {/* the game speaking to me */}
+      <section className={styles.sumBlock} aria-live="polite">
+        <span className={styles.bbStatus}>{status}</span>
+        {lastEvent && (
+          <span key={lastRow!.id} className={['emerge-from-dark', styles.bbEvent].join(' ')} title={lastEvent}>
+            {lastEvent}
+          </span>
+        )}
+      </section>
+
       {/* what the map or a contest asks of me right now */}
       <MapInstructionCard world={world} />
       <ContestBanner onError={onError} />
+
+      {/* the dice everyone sees, and the two throws */}
+      <section className={styles.sumBlock}>
+        <div className={[styles.bbDice, shown ? '' : styles.bbDiceIdle].join(' ')} aria-live="polite">
+          {shown && shownRoll ? (
+            <div className={styles.bbDiceInner} key={shown.id}>
+              {shownRoll.kind === 'd6' ? <Die value={shownRoll.d1} /> : <Dice2d6 d1={shownRoll.d1} d2={shownRoll.d2} showTotal={false} animateKey={shown.id} />}
+              <span className={styles.bbTotal}>
+                <b className="engraved">{shownRoll.total}</b>
+                <small>{shownRoll.label}</small>
+              </span>
+            </div>
+          ) : (
+            <span className={styles.bbDicePlaceholder}>? ?</span>
+          )}
+        </div>
+        {shown && shownRoll && <small className={styles.sumDiceWho}>{ctx.god(shown.player_id).name}: {shownRoll.label}</small>}
+        <div className={styles.sumRow}>
+          <StoneButton
+            variant="marble"
+            size="sm"
+            disabled={busy}
+            onClick={() => call('log_dice_roll', { p_game_id: game.id, p_context: 'Rzut 2k6' })}
+            title="Rzuć 2k6 na oczach wszystkich. Taki rzut nie trafia do Świętej Księgi."
+          >
+            <DieIcon /> 2k6
+          </StoneButton>
+          <StoneButton
+            variant="marble"
+            size="sm"
+            aura={rolling && !!me && !me.has_rolled}
+            disabled={busy || !rolling || !me || me.has_rolled}
+            onClick={() => call('roll_logos', { p_game_id: game.id })}
+            title={rolling ? 'Rzuć 2k6 na Logos: nowe Słowa na tę rundę.' : 'Na Logos rzuca się na początku rundy.'}
+          >
+            <DieIcon /> Logos
+          </StoneButton>
+        </div>
+      </section>
+
+      {/* my Words and premiums */}
+      <section className={styles.sumBlock}>
+        <div className={styles.bbMe} aria-label="Twoje Słowa i premie">
+          <div className={styles.bbLogos}>
+            <b className="engraved-dark marble-text">{me?.logos ?? 0}</b>
+            <small>Logos</small>
+          </div>
+          <div className={styles.bbChips}>
+            <span className={[styles.chip, myDots > 0 ? styles.chipOn : ''].join(' ')} title="Twoi wyznawcy na mapie: liczba grup wiernych we wszystkich miastach.">
+              <TempleIcon /> wyznawcy {myDots}
+            </span>
+            <span className={[styles.chip, prize > 0 ? styles.chipOn : ''].join(' ')} title="Pod koniec Chaosu trzy najwierniej czczone bóstwa dostają +3, +2 i +1 Logos.">
+              premia z wyznawców {prize > 0 ? `+${prize}` : '0'}
+            </span>
+            <span className={[styles.chip, me && me.low_logos_streak > 0 ? styles.chipOn : ''].join(' ')} title="Premia za skromność do Rzutu Logos: kolejne rundy zakończone z 5 lub mniej Słowami.">
+              skromność +{me?.low_logos_streak ?? 0}
+            </span>
+            <span
+              className={[styles.chip, avatarState === 'free' ? styles.chipGold : '', avatarState === 'none' ? styles.chipOff : ''].join(' ')}
+              title={avatarState === 'none' ? 'Nie masz żywego awatara.' : avatarState === 'used' ? 'Darmowa akcja awatara zużyta w tej rundzie.' : 'Darmowa akcja awatara czeka: zaznacz ją w oknie akcji.'}
+            >
+              <AvatarIcon /> {avatarState === 'none' ? 'brak awatara' : avatarState === 'used' ? 'akcja awatara zużyta' : 'akcja awatara wolna'}
+            </span>
+          </div>
+        </div>
+      </section>
 
       {/* the world: the book, the Palette, the lists */}
       <section className={styles.sumBlock}>
@@ -106,116 +187,21 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
             <ListIcon /> Byty świata
           </StoneButton>
         </div>
-        <GodLegend world={world} />
       </section>
 
-      {/* the dice everyone sees */}
-      <section className={styles.sumBlock}>
-        <h4 className={styles.sumTitle}>Kości</h4>
-        <div className={styles.bbDiceGroup}>
-          <div className={[styles.bbDice, shown ? '' : styles.bbDiceIdle].join(' ')} aria-live="polite">
-            {shown && shownRoll ? (
-              <div className={styles.bbDiceInner} key={shown.id}>
-                {shownRoll.kind === 'd6' ? <Die value={shownRoll.d1} /> : <Dice2d6 d1={shownRoll.d1} d2={shownRoll.d2} showTotal={false} animateKey={shown.id} />}
-                <span className={styles.bbTotal}>
-                  <b className="engraved">{shownRoll.total}</b>
-                  <small>{shownRoll.label}</small>
-                </span>
-              </div>
-            ) : (
-              <span className={styles.bbDicePlaceholder}>? ?</span>
-            )}
-          </div>
-          <StoneButton
-            variant="marble"
-            round
-            disabled={busy}
-            onClick={() => call('log_dice_roll', { p_game_id: game.id, p_context: 'Rzut 2k6' })}
-            title="Rzuć 2k6 na oczach wszystkich. Taki rzut nie trafia do Świętej Księgi."
-            aria-label="Rzuć 2k6"
-          >
-            <DieIcon />
-            <small>2k6</small>
-          </StoneButton>
-          {rolling && me && !me.has_rolled && (
-            <StoneButton
-              variant="marble"
-              round
-              aura
-              disabled={busy}
-              onClick={() => call('roll_logos', { p_game_id: game.id })}
-              title="Rzuć 2k6 na Logos: nowe Słowa na tę rundę."
-              aria-label="Rzuć 2k6 na Logos"
-              className={styles.bbLogosBtn}
-            >
-              <DieIcon />
-              <small>Logos</small>
-            </StoneButton>
-          )}
-        </div>
-        {shown && shownRoll && <small className={styles.sumDiceWho}>{ctx.god(shown.player_id).name}: {shownRoll.label}</small>}
-      </section>
+      {/* at the very bottom: the rest */}
+      <div className={styles.sumBottom}>
+        <StoneButton
+          variant="marble"
+          block
+          disabled={busy || game.phase !== 'gods' || !me || me.is_resting || !!pending}
+          onClick={() => call('rest', { p_game_id: game.id })}
+          title="Pas: zachowujesz Logos, ale do końca rundy nie działasz."
+        >
+          <Hourglass /> Odpoczynek
+        </StoneButton>
+      </div>
 
-      {/* the turn and my Words */}
-      <section className={[styles.sumBlock, styles.sumBottom].join(' ')}>
-        <span className={styles.bbStatus}>{status}</span>
-        {lastEvent && (
-          <span key={lastRow!.id} className={['emerge-from-dark', styles.bbEvent].join(' ')} aria-live="polite" title={lastEvent}>
-            {lastEvent}
-          </span>
-        )}
-        <div className={styles.bbMe} aria-label="Twoje Słowa i premie">
-          <div className={styles.bbLogos}>
-            <b className="engraved-dark marble-text">{me?.logos ?? 0}</b>
-            <small>Logos</small>
-          </div>
-          <div className={styles.bbChips}>
-            <span className={[styles.chip, myDots > 0 ? styles.chipOn : ''].join(' ')} title="Twoi wyznawcy na mapie. Najwierniej czczone bóstwa dostają Logos pod koniec Chaosu.">
-              <TempleIcon /> wyznawcy {myDots}
-            </span>
-            {!!me && me.low_logos_streak > 0 && (
-              <span className={[styles.chip, styles.chipOn].join(' ')} title="Premia za skromność: kolejne rundy zakończone z 5 lub mniej Słowami.">
-                skromność +{me.low_logos_streak}
-              </span>
-            )}
-            <span
-              className={[styles.chip, avatarState === 'free' ? styles.chipGold : '', avatarState === 'none' ? styles.chipOff : ''].join(' ')}
-              title={avatarState === 'none' ? 'Nie masz żywego awatara.' : avatarState === 'used' ? 'Darmowa akcja awatara zużyta w tej rundzie.' : 'Darmowa akcja awatara czeka: zaznacz ją w oknie akcji.'}
-            >
-              <AvatarIcon /> {avatarState === 'none' ? 'brak awatara' : avatarState === 'used' ? 'akcja awatara zużyta' : 'akcja awatara wolna'}
-            </span>
-          </div>
-        </div>
-        <div className={styles.sumRow}>
-          <button className={styles.bbExit} onClick={() => navigate('/')} title="Wyjdź do listy światów. Gra trwa dalej." aria-label="Wyjdź do listy światów">
-            <Exit />
-          </button>
-          <StoneButton
-            variant="marble"
-            size="sm"
-            disabled={busy || game.phase !== 'gods' || !me || me.is_resting || !!pending}
-            onClick={() => call('rest', { p_game_id: game.id })}
-            title="Pas: zachowujesz Logos, ale do końca rundy nie działasz."
-          >
-            <Hourglass /> Odpoczynek
-          </StoneButton>
-          <StoneButton variant="marble" size="sm" disabled={busy || rolling || !!pending} onClick={() => setTransfer(true)}>
-            Przekaż Logos
-          </StoneButton>
-        </div>
-      </section>
-
-      {transfer && me && (
-        <TransferDialog
-          onClose={() => setTransfer(false)}
-          max={me.logos}
-          targets={players.filter((p) => p.id !== me.id).map((p) => ({ id: p.id, label: playerLabel(p, profiles) }))}
-          onSubmit={async (to, amount) => {
-            await call('transfer_logos', { p_game_id: game.id, p_to_player_id: to, p_amount: amount })
-            setTransfer(false)
-          }}
-        />
-      )}
       {palette && (
         <Modal title="Paleta świata" onClose={() => setPalette(false)} wide material="basalt">
           <PalettePage embedded />
@@ -243,7 +229,7 @@ function Hourglass() {
 
 function DieIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <rect x="3.5" y="3.5" width="17" height="17" rx="3.5" />
       <circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" stroke="none" />
       <circle cx="15.5" cy="8.5" r="1.3" fill="currentColor" stroke="none" />
@@ -267,15 +253,6 @@ function AvatarIcon() {
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="12" cy="8" r="3.5" />
       <path d="M5 22c0-4 3-6.5 7-6.5s7 2.5 7 6.5" />
-    </svg>
-  )
-}
-
-function Exit() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5" />
-      <path d="M10 8l-4 4 4 4M6 12h10" />
     </svg>
   )
 }
@@ -307,52 +284,5 @@ function ListIcon() {
       <circle cx="4" cy="12" r="1.2" fill="currentColor" stroke="none" />
       <circle cx="4" cy="18" r="1.2" fill="currentColor" stroke="none" />
     </svg>
-  )
-}
-
-function TransferDialog({
-  onClose,
-  max,
-  targets,
-  onSubmit,
-}: {
-  onClose: () => void
-  max: number
-  targets: { id: string; label: string }[]
-  onSubmit: (to: string, amount: number) => Promise<void>
-}) {
-  const [to, setTo] = useState(targets[0]?.id ?? '')
-  const [amount, setAmount] = useState(1)
-  return (
-    <Modal title="Przekazanie mocy" onClose={onClose}>
-      <div style={{ display: 'grid', gap: 14 }}>
-        <p>Możesz swobodnie oddać swój Logos innemu bóstwu. Ustawcie wokół tego krótką scenę, jeśli chcecie.</p>
-        {targets.length === 0 && <Notice>Nie ma komu przekazać mocy.</Notice>}
-        <label className={fieldClass}>
-          <span className={labelClass}>Odbiorca</span>
-          <select className={inputClass} value={to} onChange={(e) => setTo(e.target.value)}>
-            {targets.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={fieldClass}>
-          <span className={labelClass}>Ile Logos (masz {max})</span>
-          <input
-            className={inputClass}
-            type="number"
-            min={1}
-            max={max}
-            value={amount}
-            onChange={(e) => setAmount(Math.max(1, Math.min(max, Number(e.target.value) || 1)))}
-          />
-        </label>
-        <StoneButton variant="gold" disabled={!to || amount < 1 || amount > max} onClick={() => onSubmit(to, amount)}>
-          Przekaż {amount} Logos
-        </StoneButton>
-      </div>
-    </Modal>
   )
 }

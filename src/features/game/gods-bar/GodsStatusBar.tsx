@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { domainTitle, godColor } from '@/data/pantheon'
 import { followersWord } from '@/data/cities'
 import { useWorld } from '@/features/game/map/useWorld'
@@ -23,6 +24,7 @@ export function GodsStatusBar() {
   const me = useGameStore(selectMyPlayer(user.id))
   const world = useWorld()
   const [sheet, setSheet] = useState<string | null>(initialSheet)
+  const navigate = useNavigate()
 
   return (
     <header className={['basalt', styles.godsBar].join(' ')}>
@@ -54,14 +56,12 @@ export function GodsStatusBar() {
                 <span className={styles.logos}>
                   <span className={['engraved', styles.logosNum].join(' ')}>{p.logos}</span>
                   <span className={styles.logosWord}>LOGOS</span>
-                  {bonus > 0 && (
-                    <span className={styles.bonus} title={`Premia do Rzutu Logos za skromność: +${p.low_logos_streak}`}>
-                      +{bonus}
-                    </span>
-                  )}
                   <span className={styles.plaqueDots} title={`Wyznawcy na mapie: ${followersWord(dots)}`}>
                     <span className={styles.plaqueSwatch} aria-hidden />
-                    {dots}
+                    <b>{dots}</b> wyzn.
+                  </span>
+                  <span className={[styles.plaqueDots, bonus > 0 ? styles.plaqueBonusOn : ''].join(' ')} title={`Premia do Rzutu Logos za skromność: +${p.low_logos_streak}`}>
+                    rzut <b>+{bonus}</b>
                   </span>
                 </span>
               </span>
@@ -71,6 +71,12 @@ export function GodsStatusBar() {
           )
         })}
       </div>
+      <button className={styles.barExit} onClick={() => navigate('/')} title="Wyjdź do listy światów. Gra trwa dalej." aria-label="Wyjdź do listy światów">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5" />
+          <path d="M10 8l-4 4 4 4M6 12h10" />
+        </svg>
+      </button>
       {sheet && <GodSheet playerId={sheet} onClose={() => setSheet(null)} />}
     </header>
   )

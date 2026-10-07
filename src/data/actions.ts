@@ -22,7 +22,7 @@ export type ActionKey =
   | 'resurrect_avatar'
 
 export type Era = 1 | 2 | 3
-export type ActionCategoryKey = 'terraform' | 'life' | 'mortals' | 'avatar'
+export type ActionCategoryKey = 'terraform' | 'life' | 'mortals' | 'avatar' | 'words'
 
 /** the steps of a word's window, in order; 'map' hands the choice to the map */
 export type FlowStep = 'setup' | 'roll' | 'map' | 'form' | 'confirm' | 'verse' | 'declare'
@@ -80,6 +80,7 @@ export const ACTION_CATEGORIES: { key: ActionCategoryKey; name: string }[] = [
   { key: 'life', name: 'Tworzenie Życia' },
   { key: 'mortals', name: 'Śmiertelnicy' },
   { key: 'avatar', name: 'Działania Awatara' },
+  { key: 'words', name: 'Proroctwa i Słowa' },
 ]
 
 export const isSapient = (e: Entity) => e.kind === 'creature' && e.traits.some((t) => SAPIENT_TRAITS.includes(t))
@@ -189,14 +190,14 @@ export const ACTIONS: ActionDef[] = [
     key: 'migrate',
     name: 'Migracja',
     category: 'life',
-    costs: [0, 0, 0],
+    costs: [3, 1, 3],
     distance: true,
     requiresRoll: false,
     flow: ['map', 'map', 'confirm', 'verse'],
-    summary: 'Kliknij istotę, potem heks docelowy. Gatunek mnoży się na nowe pole; 1 Logos za każdy heks dystansu.',
+    summary: 'Kliknij istotę, potem heks docelowy. Gatunek mnoży się na nowe pole; do ceny dochodzi 1 Logos za każdy heks dystansu.',
     details: [
       'Kliknij heks z istotą i wybierz, którą istotę to dotyczy; potem kliknij heks, na który się rozprzestrzenia. Migracja nie opróżnia starego pola: gatunek mnoży się i żyje odtąd w obu miejscach.',
-      'Koszt to dystans: o 1 heks za 1 Logos, o 2 heksy za 2 Logos i tak dalej; mapa podświetla tylko tyle, na ile cię stać. Na docelowym heksie musi być wolne miejsce (trzy na heks), tego gatunku nie może tam jeszcze być, a Woda i Góry odpadają.',
+      'Do ceny słowa dochodzi dystans: 1 Logos za każdy heks; mapa podświetla tylko tyle, na ile cię stać. Na docelowym heksie musi być wolne miejsce (trzy na heks), tego gatunku nie może tam jeszcze być, a Woda i Góry odpadają.',
     ],
     requirement: { text: 'musi istnieć istota na mapie', check: (w) => anyCreatureOnMap(w) },
   },
@@ -238,14 +239,14 @@ export const ACTIONS: ActionDef[] = [
     key: 'exodus',
     name: 'Exodus',
     category: 'mortals',
-    costs: [0, 0, 0],
+    costs: [12, 8, 4],
     distance: true,
     requiresRoll: false,
     flow: ['map', 'form', 'map', 'confirm', 'verse'],
-    summary: 'Z miasta, w którym masz wyznawców, zabierz ich część i istotę rozumną na nowy heks. Tam powstaje twoje miasto; 1 Logos za heks.',
+    summary: 'Z miasta, w którym masz wyznawców, zabierz ich część i istotę rozumną na nowy heks. Tam powstaje twoje miasto; do ceny dochodzi 1 Logos za heks.',
     details: [
       'Kliknij miasto, w którym masz wyznawców, i wybierz, ilu wyznawców zabierasz oraz którą istotę rozumną (jeśli żyje tam kilka). Potem kliknij heks docelowy: nie Wodę i nie Góry.',
-      'Koszt to dystans: 1 Logos za każdy heks. Na nowym heksie powstaje nowe miasto z twoimi wyznawcami i znakiem zabranej istoty; dziedziczy cechy i dary macierzystego. Jeśli na celu stoi już miasto, twoi wyznawcy i istota dołączają do niego.',
+      'Do ceny słowa dochodzi dystans: 1 Logos za każdy heks. Na nowym heksie powstaje nowe miasto z twoimi wyznawcami i znakiem zabranej istoty; dziedziczy cechy i dary macierzystego. Jeśli na celu stoi już miasto, twoi wyznawcy i istota dołączają do niego.',
       'Miasto, z którego wyszli wszyscy, staje się ruiną.',
     ],
     requirement: { text: 'miasto z twoimi wyznawcami', check: (w, me) => myCities(w, me).length > 0 },
@@ -269,14 +270,14 @@ export const ACTIONS: ActionDef[] = [
     key: 'holy_war',
     name: 'Święta Wojna',
     category: 'mortals',
-    costs: [0, 0, 0],
+    costs: [8, 6, 4],
     distance: true,
     requiresRoll: false,
     contested: true,
     flow: ['map', 'form', 'map', 'form', 'declare'],
-    summary: 'Z miasta, w którym rządzisz, wyślij armię z kropek na cudze miasto. 1 Logos za heks. Obie strony rzucają 2k6 + atrybut + siły.',
+    summary: 'Z miasta, w którym rządzisz, wyślij armię wyznawców na cudze miasto. Do ceny dochodzi 1 Logos za heks. Obie strony rzucają 2k6 + atrybut + siły.',
     details: [
-      'Wybierz swoje miasto (takie, w którym masz najwięcej wyznawców) i zdecyduj, ilu swoich wyznawców zabierasz: to twoja Armia. Co najmniej jeden zostaje w domu. Wybierz cel i broniące się bóstwo. Płacisz 1 Logos za każdy heks dystansu między miastami.',
+      'Wybierz swoje miasto (takie, w którym masz najwięcej wyznawców) i zdecyduj, ilu swoich wyznawców zabierasz: to twoja Armia. Co najmniej jeden zostaje w domu. Wybierz cel i broniące się bóstwo. Do ceny słowa dochodzi 1 Logos za każdy heks dystansu między miastami.',
       'Atakujący rzuca 2k6 + Gniew + wielkość Armii. Obrońca rzuca 2k6 + wybrany atrybut (Łaska to mury, Gniew to wyjście przed mury) + liczba swoich kropek w atakowanym mieście. Różnica wyników decyduje.',
       'Wygrana o 3+: wymazujesz tylu wyznawców wroga, ilu liczy Armia; połowa z nich (w górę) staje się twoimi wyznawcami w tym mieście, Armia wraca cała. Wygrana o 1..2: to samo, lecz tracisz połowę Armii. Remis: obie strony tracą po jednym wyznawcy, Armia wraca. Przegrana o 1..2: wraca jeden, obrońca traci jednego. Przegrana o 3+: Armia ginie co do jednego, miasto nietknięte.',
     ],
@@ -352,14 +353,11 @@ export function costFor(key: ActionKey, era: Era): number {
   return ACTION_BY_KEY[key].costs[era - 1]
 }
 
-/** Actions grouped by category, each group sorted by cost in the given Era (ties keep rulebook order). */
-export function actionsByCategory(era: Era): { category: (typeof ACTION_CATEGORIES)[number]; actions: ActionDef[] }[] {
+/** Actions grouped by category, in the rulebook's order (never by price). */
+export function actionsByCategory(_era: Era): { category: (typeof ACTION_CATEGORIES)[number]; actions: ActionDef[] }[] {
   return ACTION_CATEGORIES.map((category) => ({
     category,
-    actions: ACTIONS.map((a, i) => ({ a, i }))
-      .filter((x) => x.a.category === category.key)
-      .sort((x, y) => x.a.costs[era - 1] - y.a.costs[era - 1] || x.i - y.i)
-      .map((x) => x.a),
+    actions: ACTIONS.filter((a) => a.category === category.key),
   }))
 }
 

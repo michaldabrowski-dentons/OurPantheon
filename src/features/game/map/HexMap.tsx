@@ -81,6 +81,14 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
   }
 
   const burst = useBurst(log)
+  // ruined cities keep their place: a skull, until a new city rises there
+  const ruins = world.entities
+    .filter((e) => e.kind === 'civilization' && e.status === 'destroyed')
+    .map((e) => {
+      const ru = (e.attributes as { ruin?: { q: number; r: number } }).ruin
+      return ru ? { id: e.id, name: e.name, q: ru.q, r: ru.r } : null
+    })
+    .filter((x): x is { id: string; name: string; q: number; r: number } => !!x && !world.cityAt(x.q, x.r))
 
   return (
     <div className={styles.board} onWheel={onWheel}>
@@ -114,6 +122,21 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
               <polygon key={hexKey(q, r)} className={cls} points={hexCorners(x, y, R, 0.6)} onClick={(e) => onHexClick(e, q, r)} data-q={q} data-r={r}>
                 <title>{biome ? biome.name : 'poza światem'}</title>
               </polygon>
+            )
+          })}
+
+          {/* where a city once stood */}
+          {ruins.map((ru) => {
+            const { x, y } = axialToPixel(ru.q, ru.r, R)
+            return (
+              <g key={`ruin-${ru.id}`} className={styles.layer}>
+                <text className={styles.ruin} x={x} y={y} fontSize={R * 0.5} textAnchor="middle" dominantBaseline="central" filter="url(#signShadow)">
+                  💀
+                </text>
+                <text className={styles.cityName} x={x} y={y + R * 0.42} textAnchor="middle" dominantBaseline="central" fontSize={R * 0.14}>
+                  {nameLines(ru.name)[0]}
+                </text>
+              </g>
             )
           })}
 
@@ -178,6 +201,25 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
   )
 }
 
+/** a city's name under its pyramid: at most two short lines, so it stays inside the field */
+function nameLines(name: string): string[] {
+  const words = name.trim().split(/\s+/)
+  const lines: string[] = []
+  let cur = ''
+  for (const w of words) {
+    if (!cur) cur = w
+    else if ((cur + ' ' + w).length <= 11) cur = `${cur} ${w}`
+    else {
+      lines.push(cur)
+      cur = w
+    }
+  }
+  if (cur) lines.push(cur)
+  const out = lines.slice(0, 2).map((l) => (l.length > 12 ? `${l.slice(0, 11)}…` : l))
+  if (lines.length > 2 && !out[1].endsWith('…')) out[1] = `${out[1].slice(0, 11)}…`
+  return out
+}
+
 /** the pyramid of dots in the middle of a city's field, every dot in its god's colour */
 function CityPyramid({ x, y, city, world, colorOf }: { x: number; y: number; city: string; world: WorldView; colorOf: (playerId: string) => { fill: string; stroke: string } }) {
   const followers = world.followersOf(city)
@@ -195,8 +237,12 @@ function CityPyramid({ x, y, city, world, colorOf }: { x: number; y: number; cit
   return (
     <g className={styles.dots}>
       <rect className={styles.cityPlate} x={x - plateW / 2} y={y - height / 2 - step * 0.35} width={plateW} height={height + step * 0.7} rx={4} />
-      <text className={styles.cityName} x={x} y={y + height / 2 + step * 0.35 + R * 0.19} textAnchor="middle" dominantBaseline="central" fontSize={R * 0.17}>
-        {name.length > 18 ? `${name.slice(0, 17)}…` : name}
+      <text className={styles.cityName} x={x} y={y + height / 2 + step * 0.35 + R * 0.17} textAnchor="middle" dominantBaseline="central" fontSize={R * 0.15}>
+        {nameLines(name).map((line, i) => (
+          <tspan key={i} x={x} dy={i === 0 ? 0 : R * 0.17}>
+            {line}
+          </tspan>
+        ))}
       </text>
       {rows.map((count, rowIdx) => {
         const cy = y + height / 2 - step / 2 - rowIdx * step
@@ -239,20 +285,41 @@ function useBurst(log: ActionLog[]): { id: string; q: number; r: number } | null
     if (first && Date.now() - new Date(last.created_at).getTime() > 15000) return
     const o = (last.outcome && !Array.isArray(last.outcome) ? last.outcome : {}) as Record<string, unknown>
     if (typeof o.q !== 'number' || typeof o.r !== 'number') return
-    setBurst({ id: last.id, q: o.q, r: o.r })
-    const t = window.setTimeout(() => setBurst(null), 1400)
-    return () => window.clearTimeout(t)
+    // the die tumbles in its window first (DiceOverlay); the fire falls once it has stepped aside
+    const start = window.setTimeout(() => setBurst({ id: last.id, q: o.q, r: o.r }), 3000)
+    const stop = window.setTimeout(() => setBurst(null), 6400)
+    return () => {
+      window.clearTimeout(start)
+      window.clearTimeout(stop)
+    }
   }, [log])
   return burst
 }
 
+/** the wrath of a god: a flash over the world, fire raining on the field, rings running out of it */
 function Burst({ q, r }: { q: number; r: number }) {
   const { x, y } = axialToPixel(q, r, R)
+  const sparks = Array.from({ length: 10 }, (_, i) => {
+    const a = (Math.PI * 2 * i) / 10
+    return { dx: Math.cos(a) * R * 1.6, dy: Math.sin(a) * R * 1.6, delay: 0.3 + (i % 3) * 0.12 }
+  })
   return (
     <g className={styles.burst}>
-      <circle className={styles.burstRing} cx={x} cy={y} r={R * 0.9} />
-      <circle className={[styles.burstRing, styles.burstRing2].join(' ')} cx={x} cy={y} r={R * 0.7} />
-      <text className={styles.burstSign} x={x} y={y} textAnchor="middle" dominantBaseline="central">
+      <rect className={styles.burstFlash} x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} />
+      {[0, 1, 2].map((i) => (
+        <text key={`rain-${i}`} className={styles.burstRain} style={{ animationDelay: `${i * 0.22}s` }} x={x + (i - 1) * R * 0.45} y={y - R * 2.2} fontSize={R * 0.5} textAnchor="middle" dominantBaseline="central">
+          ☄️
+        </text>
+      ))}
+      <circle className={styles.burstRing} cx={x} cy={y} r={R * 1.1} />
+      <circle className={[styles.burstRing, styles.burstRing2].join(' ')} cx={x} cy={y} r={R * 0.8} />
+      <circle className={[styles.burstRing, styles.burstRing3].join(' ')} cx={x} cy={y} r={R * 0.6} />
+      {sparks.map((sp, i) => (
+        <text key={i} className={styles.burstSpark} style={{ '--dx': `${sp.dx}px`, '--dy': `${sp.dy}px`, animationDelay: `${sp.delay}s` } as React.CSSProperties} x={x} y={y} fontSize={R * 0.34} textAnchor="middle" dominantBaseline="central">
+          🔥
+        </text>
+      ))}
+      <text className={styles.burstSign} x={x} y={y} fontSize={R * 0.9} textAnchor="middle" dominantBaseline="central">
         💥
       </text>
     </g>

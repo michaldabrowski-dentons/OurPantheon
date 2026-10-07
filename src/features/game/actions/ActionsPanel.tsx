@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { actionsByCategory, type ActionDef, type Era } from '@/data/actions'
+import { rpc } from '@/lib/supabase'
+import { TransferDialog } from '../TransferDialog'
 import { useUser } from '@/features/auth/AuthGate'
-import { useGameStore, selectMyPlayer, selectPendingContest } from '@/store/useGameStore'
+import { useGameStore, selectMyPlayer, selectPendingContest, playerLabel } from '@/store/useGameStore'
 import { actionArt } from '@/data/actionArt'
 import { useWorld } from '../map/useWorld'
 import { ActionDialog } from './ActionDialog'
@@ -15,6 +17,9 @@ export function ActionsPanel() {
   const pending = useGameStore(selectPendingContest)
   const world = useWorld()
   const [open, setOpen] = useState<ActionDef | null>(null)
+  const [transfer, setTransfer] = useState(false)
+  const players = useGameStore((s) => s.players)
+  const profiles = useGameStore((s) => s.profiles)
 
   const era = game.era as Era
   const myTurn = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting && !pending
@@ -39,6 +44,28 @@ export function ActionsPanel() {
       {groups.map(({ category, actions }) => (
         <section key={category.key} className={styles.actionsCat} aria-label={category.name}>
           <h3 className="carved-glow">{category.name}</h3>
+          {category.key === 'words' && (
+            <button
+              className={['marble', 'emerge-from-dark', styles.stone, game.phase === 'rolling' || !!pending || !me || me.logos < 1 ? styles.stoneOff : ''].join(' ')}
+              style={{ '--emerge-delay': `${60 + tile++ * 30}ms` } as CSSProperties}
+              disabled={game.phase === 'rolling' || !!pending || !me || me.logos < 1}
+              onClick={() => setTransfer(true)}
+              title="Oddaj część swoich Słów innemu bóstwu. Bez mapy, bez wersetu."
+            >
+              <span className={styles.stoneIcon}>
+                <img src="/actions/command_followers-thumb.jpg" alt="" loading="lazy" width={66} height={66} />
+              </span>
+              <span className={styles.stoneBody}>
+                <span className={styles.stoneName}>Przekaż Logos</span>
+                <span className={styles.stoneMeta}>
+                  <span className={styles.stoneReq}>dowolna liczba Słów</span>
+                </span>
+              </span>
+              <span className={styles.stoneCosts}>
+                <span className={styles.stoneCost}>?</span>
+              </span>
+            </button>
+          )}
           {actions.map((a) => {
             const cost = a.costs[era - 1]
             const affordable = !!me && me.logos >= cost + (a.distance ? 1 : 0)
@@ -99,6 +126,20 @@ export function ActionsPanel() {
       ))}
 
       {open && me && <ActionDialog action={open} me={me} onClose={() => setOpen(null)} />}
+      {transfer && me && (
+        <TransferDialog
+          onClose={() => setTransfer(false)}
+          max={me.logos}
+          targets={players.filter((p) => p.id !== me.id).map((p) => ({ id: p.id, label: playerLabel(p, profiles) }))}
+          onSubmit={async (to, amount) => {
+            try {
+              await rpc('transfer_logos', { p_game_id: game.id, p_to_player_id: to, p_amount: amount })
+            } finally {
+              setTransfer(false)
+            }
+          }}
+        />
+      )}
     </aside>
   )
 }

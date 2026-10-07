@@ -20,7 +20,7 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
 2. W **SQL Editor** uruchom po kolei pliki z `supabase/migrations/`:
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
-   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`.
+   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`, `0017_prices_and_ruins.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -98,10 +98,12 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   mają złoty obrys i jaśnieją; na lewym panelu stoi karta z pytaniem, kosztem oraz przyciskami „Zakończ akcję”
   i „Przerwij” (`src/features/game/map/`). Przy słowach płatnych dystansem świecą tylko pola, na które
   starcza Logos.
-- Ekran gry to trzy kolumny: lewy panel podsumowań (`SummaryPanel`: u góry pytanie mapy i starcie, potem
-  Święta Księga, Paleta, Byty świata i legenda bóstw z liczbą wyznawców, a na dole kości z ostatnim rzutem
-  kogokolwiek, status tury, Logos z premiami, Odpoczynek, Przekaż Logos i wyjście), kolumna akcji i mapa na
-  reszcie ekranu. Każdy rzut kośćmi na akcję (Rozwój, Kataklizm, starcia, 2k6 przy stole) otwiera u wszystkich
+- Ekran gry to trzy kolumny: lewy panel podsumowań (`SummaryPanel`, od góry: status tury i ostatnie
+  zdarzenie, pytanie mapy albo starcie, kości z ostatnim rzutem kogokolwiek i przyciski 2k6 / Logos, Logos
+  z premiami (wyznawcy, premia z wyznawców na koniec Chaosu, skromność, awatar), Święta Księga / Paleta /
+  Byty świata, a na samym dole Odpoczynek), kolumna akcji i mapa na reszcie ekranu. Przekaż Logos jest słowem
+  w kategorii „Proroctwa i Słowa”; wyjście to ikona w prawym górnym rogu. Tabliczki bóstw u góry pokazują
+  Logos, liczbę wyznawców i premię do rzutu. Każdy rzut kośćmi na akcję (Rozwój, Kataklizm, starcia, 2k6 przy stole) otwiera u wszystkich
   okno `DiceOverlay`: kości toczą się przez chwilę, dopiero potem pada wynik.
 - Cechy, specjalności, braki i uwarunkowania zniknęły: istota, cywilizacja i awatar mają tylko nazwę, znak
   i opis (opis nowego bytu to werset z księgi). Stworzenie Cywilizacji nie wymaga rzutu.
@@ -110,23 +112,25 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 
 - Kształtowanie Lądów: biom, potem do trzech sąsiadujących pól (trzeci klik kończy sam). Pola z miastem lub
   awatarem nie staną się Wodą ani Górami.
-- Kataklizm: rodzaj i pole; obrażenia k6 + Gniew (najmniej 1), każde losowo w kropkę miasta, istotę nierozumną
-  albo awatara (−1 życia); istoty rozumne giną dopiero bez miasta. Na polu wybucha animacja.
+- Kataklizm (domyślnie deszcz ognia): rodzaj i pole; obrażenia k6 + Gniew (najmniej 1), każde losowo
+  w wyznawcę miasta, istotę nierozumną albo awatara (−1 życia); istoty rozumne giną dopiero bez miasta. Najpierw
+  toczy się kość w oknie, potem na polu spada ogień (błysk, komety, pierścienie), a okno akcji wraca dopiero po
+  animacji z listą strat. Zniszczone miasto zostawia na polu czaszkę (`entities.attributes.ruin`).
 - Stworzenie Istoty / Istoty Rozumnej / Zesłanie Awatara: nazwa i emotikona, potem ląd z wolnym miejscem.
 - Zmiana Istoty: klik w jedną istotę na jednym polu; tam powstaje odmiana (nowy byt, `variant_of`).
-- Migracja: istota, potem pole docelowe; gatunek mnoży się na nowe pole; koszt to dystans w Logos.
+- Migracja (3 / 1 / 3 plus 1 za heks): istota, potem pole docelowe; gatunek mnoży się na nowe pole.
 - Stworzenie Cywilizacji: pole z istotą rozumną i nazwa; miasto rodzi się z jedną kropką twórcy.
 - Rozwój Cywilizacji: miasto, dar z listy (`GIFTS` w `src/data/cities.ts`, albo własny) i Łaska albo Mądrość
   wybierane tymi samymi dłońmi co na karcie postaci (`AttrPicker`); księga rzuca 2k6 + atrybut: 10+ to dwie
   kropki, 7..9 jedna, 6- nic (dar odnotowany jako odrzucony w `city_gifts`). Kości widać w kroku wersetu
   i na lewym panelu u wszystkich.
-- Exodus: miasto z moimi kropkami, liczba kropek i istota rozumna, pole docelowe; 1 Logos za heks; na pustym
-  polu powstaje nowe miasto (dziedziczy cechy i dary), w zajętym wyznawcy dołączają.
+- Exodus (12 / 8 / 4 plus 1 za heks): miasto z moimi wyznawcami, ilu ich zabieram i którą istotę rozumną, pole
+  docelowe; na pustym polu powstaje nowe miasto (dziedziczy dary), w zajętym wyznawcy dołączają.
 - Nawracanie i Święta Wojna to starcia (`contests`): atakujący deklaruje i płaci (`declare_contest`), księga
   rzuca za niego; tura zamiera, aż obrońca u siebie wybierze atrybut i rzuci (`answer_contest`), potem atakujący
   dopisuje werset (`commit_contest`) albo odwołuje starcie przed odpowiedzią (`cancel_contest`). Nawracanie:
   2k6 + Majestat albo Podszept po obu stronach, wygrana o 3+ przejmuje dwóch wyznawców, o 1..2 jednego. Wojna:
-  armia to moje kropki z miasta, w którym rządzę (jedna zostaje), koszt to dystans; atakujący 2k6 + Gniew +
+  armia to moi wyznawcy z miasta, w którym rządzę (jeden zostaje), koszt 8 / 6 / 4 plus 1 za heks; atakujący 2k6 + Gniew +
   armia, obrońca 2k6 + atrybut + swoje kropki w celu; skala zwycięstwa jak w briefie (pełne, pyrrusowe, remis
   bez oblężenia, odparcie, masakra).
 - Rozkaz dla Awatara może przesunąć awatara do trzech pól (1 Logos za heks); Wskrzeszenie stawia go na
@@ -178,8 +182,8 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   z rysunkiem epoki; to, którą już widziano, pamięta `localStorage` na danym urządzeniu.
 - Akcje w panelu: Terraformacja (Kształtowanie Lądów, Kataklizm, Wielki Cud), Tworzenie Życia (Stworzenie
   Istoty, Stworzenie Istoty Rozumnej, Zmiana Istoty, Migracja), Śmiertelnicy (Stworzenie Cywilizacji, Rozwój
-  Cywilizacji, Exodus, Nawracanie, Święta Wojna), Działania Awatara (Zesłanie, Rozkaz, Wskrzeszenie); w kategorii
-  od najtańszej. Akcje z warunkiem (np. „musi istnieć miasto”) są nieaktywne, póki mapa go nie spełnia.
+  Cywilizacji, Exodus, Nawracanie, Święta Wojna), Działania Awatara (Zesłanie, Rozkaz, Wskrzeszenie), Proroctwa
+  i Słowa (Przekaż Logos); zawsze w tej kolejności, nigdy wg ceny. Akcje z warunkiem (np. „musi istnieć miasto”) są nieaktywne, póki mapa go nie spełnia.
 - Werset do Świętej Księgi powstaje na końcu każdej akcji z tego, co się stało (opener, wynik z mapy, zdanie
   o cechach); gracz może go przepisać; „Zostaw jak jest” zapisuje podpowiedź. Opis nowego bytu to ten sam
   werset.

@@ -134,6 +134,7 @@ const entities = [
   entity(4, { kind: 'civilization', name: 'Stoicy Znad Rzeki', traits: ['Zachowawcza', 'Współpracująca'], specialties: ['Rolnictwo', 'Wiara/Religia'], flaws: ['Magia'], description: 'Spokojny lud manuli, który liczy pory roku po barwie wody.' }),
   entity(7, { kind: 'avatar', name: 'Posąg z Białego Kamienia', emoji: '🗿', hp: 2, conditions: ['Są nieożywionym przedmiotem, jak posąg, klejnot, góra.'], created_by_player_id: P(2) }),
   entity(8, { kind: 'avatar', name: 'Sowa o Stu Imionach', emoji: '🦉', hp: 0, conditions: ['Nie wiedzą, że są Awatarem.'], status: 'dead', created_by_player_id: P(1) }),
+  entity(10, { kind: 'civilization', name: 'Stare Brody Nad Wodą', status: 'destroyed', attributes: { ruin: { q: -1, r: 1 } }, description: 'Opustoszało po suszy.' }),
   entity(9, { kind: 'civilization', name: 'Przystań Soli', traits: ['Kupiecka'], specialties: ['Handel'], flaws: ['Ziemia'], parent_civilization_id: E(4), description: 'Wyszli z miasta Stoików, by handlować solą.', created_by_player_id: P(4) }),
 ]
 

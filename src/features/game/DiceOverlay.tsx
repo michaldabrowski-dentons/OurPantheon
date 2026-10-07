@@ -7,6 +7,8 @@ import styles from './game.module.css'
 
 const ROLLING_MS = 1600
 const LINGER_MS = 5000
+/** a cataclysm's die steps aside quickly: the fire is about to fall on the map */
+const LINGER_WRATH_MS = 1300
 
 /**
  * Every throw at the table, for everyone: the dice tumble for a moment before they settle, so the
@@ -52,7 +54,7 @@ export function DiceOverlay() {
 
   useEffect(() => {
     if (!row || !settled) return
-    const t = window.setTimeout(() => setRow(null), LINGER_MS)
+    const t = window.setTimeout(() => setRow(null), row.action_key === 'catastrophe' ? LINGER_WRATH_MS : LINGER_MS)
     return () => window.clearTimeout(t)
   }, [row, settled])
 

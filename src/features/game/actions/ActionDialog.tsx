@@ -130,6 +130,8 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
   const [row, setRow] = useState<ActionLog | null>(null)
   const [verse, setVerse] = useState('')
   const [verseEdited, setVerseEdited] = useState(false)
+  // the window steps aside while the god's wrath plays on the map
+  const [curtain, setCurtain] = useState(false)
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((s) => ({ ...s, [k]: v }))
 
@@ -404,6 +406,10 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
     try {
       const r = await rpc<ActionLog>('perform_action', { p_game_id: game.id, p_action_key: action.key, p_payload: buildPayload() })
       setRow(r)
+      if (action.key === 'catastrophe') {
+        setCurtain(true)
+        window.setTimeout(() => setCurtain(false), 6600)
+      }
       advance(stepIdx)
     } catch (err) {
       setError((err as Error).message)
@@ -508,8 +514,8 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
     </div>
   )
 
-  // the map is asking: the window steps aside
-  if (step === 'map') return null
+  // the map is asking, or the wrath is playing: the window steps aside
+  if (step === 'map' || curtain) return null
 
   // ---------- form: what the word needs before (or after) the map ----------
   if (step === 'form') {
@@ -607,6 +613,22 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
         </div>
       )}
       <Notice tone="ok">Słowo padło. {happened}</Notice>
+      {action.key === 'catastrophe' && Array.isArray(o.hits) && (
+        <ul className={styles.chosen}>
+          {(o.hits as Record<string, unknown>[]).length === 0 && <li>Nie było tam nikogo, kto by to odczuł.</li>}
+          {Object.entries((o.hits as Record<string, unknown>[]).filter((h) => h.t === 'dot').reduce<Record<string, number>>((acc, h) => ({ ...acc, [String(h.player_id)]: (acc[String(h.player_id)] ?? 0) + 1 }), {})).map(([pid, n]) => (
+            <li key={pid}>{ctx.god(pid).name}: {followersWord(n)} mniej w mieście {String(o.city_name ?? '')}</li>
+          ))}
+          {(o.hits as Record<string, unknown>[]).filter((h) => h.t === 'creature').map((h, i) => (
+            <li key={`c${i}`}>{String(h.emoji ?? '')} {String(h.name)}: {h.extinct ? 'wyginęły na zawsze' : 'przepadły z tego pola'}</li>
+          ))}
+          {(o.hits as Record<string, unknown>[]).filter((h) => h.t === 'avatar').map((h, i) => (
+            <li key={`a${i}`}>Awatar {String(h.name)}: {Number(h.hp) === 0 ? 'poległ' : `ranny, życie ${h.hp} z 3`}</li>
+          ))}
+          {o.city_destroyed ? <li>Miasto {String(o.city_name ?? '')} obróciło się w ruinę.</li> : null}
+          {Number(o.wasted) > 0 && <li>Obrażeń bez celu: {String(o.wasted)}.</li>}
+        </ul>
+      )}
       <TextArea id="verse" label="Werset do Świętej Księgi" value={verse} onChange={(e) => { setVerse(e.target.value); setVerseEdited(e.target.value.trim() !== '') }} />
       <p className={styles.draftHint}>{verseEdited ? 'Twoje słowa. Wyczyść pole, by wrócić do podpowiedzi.' : 'Podpowiedź księgi. Zmień ją, jeśli chcesz opowiedzieć to inaczej.'}</p>
       {error && <Notice tone="error">{error}</Notice>}
