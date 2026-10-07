@@ -2,13 +2,13 @@ import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
 import type {
   ActionLog, ChaosDraw, City, CityFollower, CityGift, Contest, CreationOption, CreationVote, Entity, EntityGod, EntityLink, EraVote, Game,
-  Hex, HexOccupant, PaletteEntry, Player, Profile,
+  Hex, HexOccupant, PaletteEntry, Player, Profile, Prophecy,
 } from '@/lib/types'
 
 export type RealtimeTable =
   | 'games' | 'players' | 'palette_entries' | 'entities' | 'entity_gods' | 'entity_links'
   | 'actions_log' | 'chaos_draws' | 'era_votes' | 'logos_rolls' | 'creation_options' | 'creation_votes'
-  | 'hexes' | 'hex_occupants' | 'cities' | 'city_followers' | 'city_gifts' | 'contests'
+  | 'hexes' | 'hex_occupants' | 'cities' | 'city_followers' | 'city_gifts' | 'contests' | 'prophecies'
 
 interface GameState {
   gameId: string | null
@@ -30,6 +30,7 @@ interface GameState {
   followers: CityFollower[]
   gifts: CityGift[]
   contests: Contest[]
+  prophecies: Prophecy[]
   loading: boolean
   error: string | null
   connected: boolean
@@ -60,6 +61,7 @@ const empty = {
   followers: [],
   gifts: [],
   contests: [],
+  prophecies: [],
   loading: false,
   error: null,
   connected: false,
@@ -92,7 +94,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   async load(gameId) {
     set({ loading: true, error: null, gameId })
-    const [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes, hexes, occupants, cities, followers, gifts, contests] = await Promise.all([
+    const [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes, hexes, occupants, cities, followers, gifts, contests, prophecies] = await Promise.all([
       supabase.from('games').select('*').eq('id', gameId).single(),
       supabase.from('players').select('*').eq('game_id', gameId).order('seat_order'),
       supabase.from('palette_entries').select('*').eq('game_id', gameId).order('created_at'),
@@ -110,8 +112,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       supabase.from('city_followers').select('*').eq('game_id', gameId),
       supabase.from('city_gifts').select('*').eq('game_id', gameId).order('created_at'),
       supabase.from('contests').select('*').eq('game_id', gameId).order('created_at'),
+      supabase.from('prophecies').select('*').eq('game_id', gameId).order('created_at'),
     ])
-    const firstError = [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes, hexes, occupants, cities, followers, gifts, contests].find((r) => r.error)?.error
+    const firstError = [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes, hexes, occupants, cities, followers, gifts, contests, prophecies].find((r) => r.error)?.error
     if (firstError) {
       set({ loading: false, error: firstError.message })
       return
@@ -144,6 +147,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       followers: (followers.data ?? []) as CityFollower[],
       gifts: (gifts.data ?? []) as CityGift[],
       contests: (contests.data ?? []) as Contest[],
+      prophecies: (prophecies.data ?? []) as Prophecy[],
     })
   },
 
@@ -246,6 +250,13 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ contests })
         break
       }
+      case 'prophecies': {
+        const r = (isDelete ? old : row) as Prophecy
+        const prophecies = isDelete ? remove(s.prophecies, r, byId) : upsert(s.prophecies, r, byId)
+        prophecies.sort((a, b) => a.created_at.localeCompare(b.created_at))
+        set({ prophecies })
+        break
+      }
       default:
         break
     }
@@ -293,6 +304,9 @@ export const selectEntitiesOf = (playerId: string) => (s: GameState): { entity: 
   }
   return out
 }
+
+/** a god's prophecies, the living ones first */
+export const selectPropheciesOf = (playerId: string | undefined) => (s: GameState) => s.prophecies.filter((p) => p.player_id === playerId)
 
 /** the contest still waiting for its defender, if any */
 export const selectPendingContest = (s: GameState) => s.contests.find((c) => c.status === 'pending') ?? null

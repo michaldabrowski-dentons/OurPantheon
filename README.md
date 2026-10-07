@@ -20,7 +20,8 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
 2. W **SQL Editor** uruchom po kolei pliki z `supabase/migrations/`:
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
-   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`, `0017_prices_and_ruins.sql`.
+   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`, `0017_prices_and_ruins.sql`,
+   `0018_verse_lock_avatars_prophecies.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -133,12 +134,32 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   armia to moi wyznawcy z miasta, w którym rządzę (jeden zostaje), koszt 8 / 6 / 4 plus 1 za heks; atakujący 2k6 + Gniew +
   armia, obrońca 2k6 + atrybut + swoje kropki w celu; skala zwycięstwa jak w briefie (pełne, pyrrusowe, remis
   bez oblężenia, odparcie, masakra).
-- Rozkaz dla Awatara może przesunąć awatara do trzech pól (1 Logos za heks); Wskrzeszenie stawia go na
-  wybranym polu z pełnym życiem.
+- Rozkaz dla Awatara może przesunąć awatara do trzech pól (1 Logos za heks); Wskrzeszenie (12 / 15 / 16) stawia
+  go na wybranym polu z pełnym życiem. We śnie (koniec Chaosu) każdy żywy awatar leczy jedno życie
+  (wiersz `avatars_heal`).
+- Walka Awatarów (5 / 4 / 3): mój awatar i awatar innego bóstwa na tym samym polu albo obok (dalszego trzeba
+  najpierw dogonić Rozkazem); starcie 2k6 + Gniew, Majestat albo Podszept po obu stronach (obrońca wybiera u
+  siebie). Wygrana o 3+: wróg traci 2 życia; o 1..2: wróg 1 i ja 1; remis: obaj po 1; przegrana o 1..2: ja 1;
+  o 3+: ja 2. Awatar bez życia ginie i znika z mapy. Plansza `avatar_fight.jpg`.
+- Wygrana Święta Wojna (pełna albo pyrrusowa) daje atakującemu tyle sukcesów, ilu liczyła armia; w oknie
+  wersetu rozdziela je między wyznawców miasta (jeden sukces zabija jednego, połowa zabitych w górę nawraca się),
+  rany awatara obrońcy stojącego na tym polu (jeden sukces to jedno życie) i istoty tego pola (jeden sukces usuwa
+  jedną); `commit_contest(p_contest_id, p_summary, p_allocation)`.
+- Proroctwo (10 / 5 / 3): klik w własnego awatara na mapie (przycisk „Proroctwo” w karcie pola, albo kafel);
+  treść wpisana w oknie trafia do księgi jako „Prorok X zapowiedział, że: …” i do tabeli `prophecies`
+  z nieuchronnością +1, rosnącą o 1 każdej Fazy Chaosu do +3. Przy każdym rzucie (Rozwój, Kataklizm, obrona
+  i atak w starciach) selektor „Wypełnij proroctwo” dodaje nieuchronność raz; proroctwo staje się spełnione,
+  trafia do „Spełnione Proroctwa” na karcie bóstwa, a księga notuje „Słowa proroka X stały się ciałem: …”.
 - Koniec Chaosu (`end_chaos_phase`): każde miasto zyskuje kropkę dla bóstwa, które nim rządzi (remis losowo),
   a suma kropek daje +3, +2 i +1 Logos trzem najwierniej czczonym bóstwom.
 - Każde słowo kończy się krokiem wersetu: księga układa werset z wyniku (`actions_log.outcome`,
-  `composeVerse`), gracz może go przepisać (`edit_log_summary`). Wersety nie znają słów „heks” ani „pole”
+  `composeVerse`), gracz może go przepisać (`edit_log_summary`). Zapis do księgi jest ZAMKIEM tury
+  (`games.verse_pending_by`): póki gracz nie dopisze wersetu (albo nie zostawi podpowiedzi), tura nie przechodzi
+  dalej, a Faza Chaosu nie może się zacząć; po odświeżeniu strony karta „Święta Księga czeka” na lewym panelu
+  pozwala dokończyć zapis (`release_verse` zostawia podpowiedź).
+- Każdy rzut kośćmi otwiera u wszystkich okno kości (toczenie, wynik, przy starciach obie strony: „Atakujący:
+  2k6 + Gniew = 9 | Obrońca: 2k6 + Łaska = 7”) z przyciskiem „Kontynuuj” / „Zobacz wynik”; okna z wynikiem
+  i decyzjami (werset, podział sukcesów, obrona) pokazują się dopiero po tym kliknięciu (`diceGate.ts`). Wersety nie znają słów „heks” ani „pole”
   ani cyfr: mówią o ziemiach i krainach, liczby piszą słowami. Frakcje i religie zniknęły z gry.
 - Faza Chaosu: kartę odwraca, losuje ponownie i zamyka rundę bez wyboru tylko gospodarz; po wyborze
   zdarzenia rundę może zamknąć każdy.

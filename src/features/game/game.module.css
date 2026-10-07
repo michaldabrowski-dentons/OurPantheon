@@ -146,11 +146,27 @@
   color: var(--gold-light);
   font: inherit;
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   letter-spacing: 0.1em;
-  padding: 6px 16px;
+  padding: 8px 22px;
   border-radius: 3px;
   cursor: pointer;
+  opacity: 0.25;
+  transition: opacity var(--t-glow), box-shadow var(--t-glow);
+}
+.diceCloseOn {
+  opacity: 1;
+  border-color: rgba(255, 205, 140, 0.6);
+  box-shadow: 0 0 18px rgba(255, 170, 60, 0.25);
+}
+.diceCloseOn:hover {
+  box-shadow: 0 0 26px rgba(255, 170, 60, 0.45);
+}
+.diceSides {
+  display: grid;
+  gap: 2px;
+  font-size: 0.95rem;
+  color: #e9d9b8;
 }
 
 /* ---------- Era anchor: top-left, as wide as the colonnade. A square numeral, the rest beside it. ---------- */

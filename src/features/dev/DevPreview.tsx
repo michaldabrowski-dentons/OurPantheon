@@ -1,13 +1,14 @@
 // Dev-only preview of the game screens with fake data (no Supabase needed).
 //   /preview?screen=game|chaos|rolling|lobby|room|palette|creation|login
 //   &domain=0 (room: no domain yet), &sheet=p2 (game: that god's sheet open), &turn=me (game: my turn, 40 Logos)
-//   &contest=defender|attacker|resolved (game: a contest in that state)
+//   &contest=defender|attacker|resolved|duel|war (game: a contest in that state; duel = I defend my avatar, war = I split the successes)
+//   &lock=me (game: the book waits for my verse)
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { AuthContext } from '@/features/auth/AuthGate'
 import { useGameStore } from '@/store/useGameStore'
-import type { ActionLog, ActionPayload, BiomeKey, City, CityFollower, CityGift, Contest, Entity, Game, Hex, HexOccupant, HexRef, Player } from '@/lib/types'
+import type { ActionLog, ActionPayload, BiomeKey, City, CityFollower, CityGift, Contest, Entity, Game, Hex, HexOccupant, HexRef, Player, Prophecy } from '@/lib/types'
 import { generatePreviewMap, hexDistance, decorFor } from '@/lib/hex'
 import { buildWorld } from '@/lib/world'
 import { GamePage } from '@/features/game/GamePage'
@@ -33,6 +34,7 @@ const game = (over: Partial<Game>): Game => ({
   era_started_round: 1,
   phase: 'gods',
   current_turn_player_id: P(2),
+  verse_pending_by: null,
   settings: {},
   created_at: '',
   updated_at: '',
@@ -134,6 +136,7 @@ const entities = [
   entity(4, { kind: 'civilization', name: 'Stoicy Znad Rzeki', traits: ['Zachowawcza', 'Współpracująca'], specialties: ['Rolnictwo', 'Wiara/Religia'], flaws: ['Magia'], description: 'Spokojny lud manuli, który liczy pory roku po barwie wody.' }),
   entity(7, { kind: 'avatar', name: 'Posąg z Białego Kamienia', emoji: '🗿', hp: 2, conditions: ['Są nieożywionym przedmiotem, jak posąg, klejnot, góra.'], created_by_player_id: P(2) }),
   entity(8, { kind: 'avatar', name: 'Sowa o Stu Imionach', emoji: '🦉', hp: 0, conditions: ['Nie wiedzą, że są Awatarem.'], status: 'dead', created_by_player_id: P(1) }),
+  entity(11, { kind: 'avatar', name: 'Pani Brodów', emoji: '🦸‍♀️', hp: 3, created_by_player_id: P(1) }),
   entity(10, { kind: 'civilization', name: 'Stare Brody Nad Wodą', status: 'destroyed', attributes: { ruin: { q: -1, r: 1 } }, description: 'Opustoszało po suszy.' }),
   entity(9, { kind: 'civilization', name: 'Przystań Soli', traits: ['Kupiecka'], specialties: ['Handel'], flaws: ['Ziemia'], parent_civilization_id: E(4), description: 'Wyszli z miasta Stoików, by handlować solą.', created_by_player_id: P(4) }),
 ]
@@ -142,6 +145,7 @@ const entityGods = [
   { entity_id: E(7), player_id: P(2), game_id: G, role: 'creator' as const },
   { entity_id: E(7), player_id: P(4), game_id: G, role: 'co_creator' as const },
   { entity_id: E(8), player_id: P(1), game_id: G, role: 'creator' as const },
+  { entity_id: E(11), player_id: P(1), game_id: G, role: 'creator' as const },
   { entity_id: E(4), player_id: P(1), game_id: G, role: 'creator' as const },
   { entity_id: E(9), player_id: P(4), game_id: G, role: 'creator' as const },
 ]
@@ -168,6 +172,7 @@ const occupants: HexOccupant[] = [
   { id: 'o4', game_id: G, q: -1, r: 0, slot: 2, entity_id: E(2), created_at: '' },
   { id: 'o5', game_id: G, q: 0, r: -1, slot: 1, entity_id: E(7), created_at: '' },
   { id: 'o6', game_id: G, q: 1, r: -1, slot: 0, entity_id: E(1), created_at: '' },
+  { id: 'o7', game_id: G, q: 1, r: -1, slot: 1, entity_id: E(11), created_at: '' },
 ]
 const cities: City[] = [
   { entity_id: E(4), game_id: G, q: 0, r: 0 },
@@ -178,6 +183,11 @@ const followers: CityFollower[] = [
   { game_id: G, city_id: E(4), player_id: P(2), dots: 2 },
   { game_id: G, city_id: E(9), player_id: P(4), dots: 3 },
   { game_id: G, city_id: E(9), player_id: P(1), dots: 1 },
+]
+const prophecies: Prophecy[] = [
+  { id: 'pr1', game_id: G, player_id: P(1), avatar_id: E(11), text: 'Rzeka wystąpi z brzegów i obmyje stare grzechy', hold: 2, status: 'active', created_round: 2, fulfilled_round: null, created_at: '2026-01-09T11:00:00' },
+  { id: 'pr2', game_id: G, player_id: P(1), avatar_id: E(11), text: 'Z soli wyrośnie miasto', hold: 1, status: 'fulfilled', created_round: 1, fulfilled_round: 2, created_at: '2026-01-09T10:30:00' },
+  { id: 'pr3', game_id: G, player_id: P(2), avatar_id: E(7), text: 'Każdy dług zostanie policzony', hold: 1, status: 'active', created_round: 3, fulfilled_round: null, created_at: '2026-01-10T09:00:00' },
 ]
 const gifts: CityGift[] = [
   { id: 'g1', game_id: G, city_id: E(4), player_id: P(1), text: 'Ogień', accepted: true, dots_gained: 1, round_number: 2, created_at: '' },
@@ -202,6 +212,7 @@ const log: ActionLog[] = [
   row('l2', { player_id: P(2), action_key: 'shape_land', logos_delta: -2, outcome: { biome: 'zima', hexes: [{ q: 0, r: -1, from: 'trawa' }] }, created_at: '2026-01-10T10:01:00' }),
   row('l2b', { player_id: P(2), action_key: 'develop_civilization', logos_delta: -12, entity_id: E(4), outcome: { city_id: E(4), city_name: 'Stoicy Znad Rzeki', d1: 2, d2: 3, attr: 'wisdom', score: 2, total: 7, tier: 'mixed', gained: 1, added: 1, wasted: 0, gift: 'Rachunek długu', level: 6 }, created_at: '2026-01-10T10:01:30' }),
   row('l3b', { player_id: P(2), action_key: 'great_miracle', is_avatar_free_action: true, summary: 'Cały kontynent unosi się nad morzem.', created_at: '2026-01-10T10:02:30' }),
+  row('lc2', { player_id: P(1), action_key: 'holy_war', entity_id: E(9), roll: { d1: 4, d2: 5, att: { d1: 4, d2: 5, modifier: 2, total: 11, attr: 'wrath' }, def: { d1: 2, d2: 3, modifier: 3, total: 8, attr: 'grace' } }, outcome: { kind: 'holy_war', diff: 3, army: 2, removed: 0, converted: 0, attacker_lost: 0, defender_lost: 0, returned: 2, successes: 2, pending: true, target_city_id: E(9), target_name: 'Przystań Soli', attacker_id: P(1), defender_id: P(4), attacker_total: 11, defender_total: 8, defender_dots: 3 }, created_at: '2026-01-10T10:02:50' }),
   row('l4', { player_id: P(3), action_key: 'rest', summary: 'Bezimienny Wiatr odpoczywa. Zachowuje swoje Słowa i milczy do końca rundy.', created_at: '2026-01-10T10:03:00' }),
 ]
 
@@ -215,13 +226,15 @@ const profiles = {
 const contestFor = (state: string): Contest[] => {
   if (!state) return []
   const base: Contest = {
-    id: 'c1', game_id: G, round_number: 3, era: 1, kind: 'convert', attacker_id: P(1), defender_id: P(2), target_city_id: E(4), source_city_id: null, army: null, cost: 6,
+    id: 'c1', game_id: G, round_number: 3, era: 1, kind: 'convert', attacker_id: P(1), defender_id: P(2), target_city_id: E(4), source_city_id: null, attacker_avatar_id: null, defender_avatar_id: null, army: null, cost: 6,
     attacker_attr: 'majesty', attacker_d1: 4, attacker_d2: 5, attacker_mod: 0, attacker_total: 9,
     defender_attr: null, defender_d1: null, defender_d2: null, defender_mod: null, defender_total: null,
     status: 'pending', outcome: null, log_id: null, created_at: '2026-01-10T10:05:00', resolved_at: null,
   }
   if (state === 'defender') return [{ ...base, attacker_id: P(2), defender_id: P(1), attacker_attr: 'whisper', attacker_mod: 1, attacker_total: 10 }]
   if (state === 'attacker') return [{ ...base, kind: 'holy_war', source_city_id: E(9), army: 2, cost: 1, attacker_attr: 'wrath', attacker_mod: 1, attacker_total: 10, target_city_id: E(4) }]
+  if (state === 'duel') return [{ ...base, kind: 'avatar_duel', attacker_id: P(2), defender_id: P(1), target_city_id: null, attacker_avatar_id: E(7), defender_avatar_id: E(11), cost: 5, attacker_attr: 'whisper', attacker_mod: 1, attacker_total: 10 }]
+  if (state === 'war') return [{ ...base, kind: 'holy_war', status: 'resolved', attacker_id: P(1), defender_id: P(4), source_city_id: E(4), target_city_id: E(9), army: 2, cost: 1, attacker_attr: 'wrath', attacker_mod: 2, attacker_total: 11, defender_attr: 'grace', defender_d1: 2, defender_d2: 3, defender_mod: 3, defender_total: 8, outcome: { kind: 'holy_war', diff: 3, army: 2, removed: 0, converted: 0, attacker_lost: 0, defender_lost: 0, returned: 2, successes: 2, pending: true, target_city_id: E(9), target_name: 'Przystań Soli', attacker_id: P(1), defender_id: P(4), attacker_total: 11, defender_total: 8, defender_dots: 3 }, log_id: 'lc2' }]
   return [{ ...base, status: 'resolved', defender_attr: 'whisper', defender_d1: 2, defender_d2: 3, defender_mod: 1, defender_total: 6, outcome: { kind: 'convert', diff: 3, converted: 2, target_city_id: E(4), target_name: 'Stoicy Znad Rzeki', attacker_id: P(1), defender_id: P(2), attacker_total: 9, defender_total: 6, defender_dots: 2 }, log_id: 'lc1' }]
 }
 
@@ -257,6 +270,25 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     return rem
   }
   const pay = (n: number) => useGameStore.setState((st) => ({ players: st.players.map((p) => (p.id === me.id ? { ...p, logos: p.logos - n } : p)) }))
+  const lock = (who: string | null) => useGameStore.setState((st) => ({ game: st.game ? { ...st.game, verse_pending_by: who } : st.game }))
+  const spendProphecy = (id: unknown): number => {
+    if (!id) return 0
+    const pr = useGameStore.getState().prophecies.find((p) => p.id === id && p.status === 'active')
+    if (!pr) return 0
+    useGameStore.setState((st) => ({ prophecies: st.prophecies.map((p) => (p.id === pr.id ? { ...p, status: 'fulfilled', fulfilled_round: g.round_number } : p)) }))
+    const av = world.entityById(pr.avatar_id)
+    add({ player_id: pr.player_id, action_key: 'prophecy_fulfilled', outcome: { prophecy_id: pr.id, text: pr.text, hold: pr.hold, avatar_name: av?.name ?? '', emoji: av?.emoji ?? '' } })
+    return pr.hold
+  }
+  const wound = (id: string, dmg: number) => {
+    const st = useGameStore.getState()
+    const e = st.entities.find((x) => x.id === id)
+    if (!e || dmg <= 0) return { hp: e?.hp ?? 0, dead: false }
+    const hp = Math.max(0, (e.hp ?? 0) - dmg)
+    const dead = hp === 0
+    useGameStore.setState({ entities: st.entities.map((x) => (x.id === id ? { ...x, hp, status: dead ? 'dead' : x.status } : x)), occupants: dead ? st.occupants.filter((o) => o.entity_id !== id) : st.occupants })
+    return { hp, dead }
+  }
 
   if (fn === 'log_dice_roll') {
     const mod = Number(args.p_modifier ?? 0)
@@ -275,6 +307,11 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
   }
   if (fn === 'edit_log_summary') {
     useGameStore.setState((st) => ({ log: st.log.map((l) => (l.id === args.p_log_id ? { ...l, summary: String(args.p_summary ?? '') } : l)) }))
+    lock(null)
+    return null
+  }
+  if (fn === 'release_verse') {
+    lock(null)
     return null
   }
   if (fn === 'edit_entity') {
@@ -285,16 +322,23 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
   if (fn === 'declare_contest') {
     const p = (args.p_payload ?? {}) as Record<string, unknown>
     const kind = String(args.p_kind)
+    const duel = kind === 'avatar_duel'
+    const pmod = spendProphecy(p.prophecy_id)
+    const defenderId = duel ? s.entityGods.find((eg) => eg.entity_id === p.defender_avatar_id && eg.role === 'creator')?.player_id ?? P(2) : String(p.defender_id)
+    const mod = (kind === 'holy_war' ? Number(p.army) : 1) + pmod
     const c: Contest = {
       id: nextId('contest'), game_id: G, round_number: g.round_number, era: g.era, kind: kind as Contest['kind'], attacker_id: me.id,
-      defender_id: String(p.defender_id), target_city_id: String(kind === 'convert' ? p.city_id : p.target_city_id), source_city_id: kind === 'holy_war' ? String(p.source_city_id) : null,
-      army: kind === 'holy_war' ? Number(p.army) : null, cost: kind === 'convert' ? 6 : 1, attacker_attr: kind === 'convert' ? (p.attr as Contest['attacker_attr']) : 'wrath',
-      attacker_d1: 4, attacker_d2: 5, attacker_mod: kind === 'holy_war' ? Number(p.army) : 1, attacker_total: 9 + (kind === 'holy_war' ? Number(p.army) : 1),
+      defender_id: defenderId, target_city_id: duel ? null : String(kind === 'convert' ? p.city_id : p.target_city_id), source_city_id: kind === 'holy_war' ? String(p.source_city_id) : null,
+      attacker_avatar_id: duel ? String(p.attacker_avatar_id) : null, defender_avatar_id: duel ? String(p.defender_avatar_id) : null,
+      army: kind === 'holy_war' ? Number(p.army) : null, cost: kind === 'convert' ? 6 : duel ? 5 : 1, attacker_attr: kind === 'holy_war' ? 'wrath' : (p.attr as Contest['attacker_attr']),
+      attacker_d1: 4, attacker_d2: 5, attacker_mod: mod, attacker_total: 9 + mod,
       defender_attr: null, defender_d1: null, defender_d2: null, defender_mod: null, defender_total: null, status: 'pending', outcome: null, log_id: null, created_at: new Date().toISOString(), resolved_at: null,
     }
     pay(c.cost)
     if (kind === 'holy_war') removeDots(c.source_city_id!, me.id, c.army!)
-    add({ action_key: 'contest_declared', logos_delta: -c.cost, entity_id: c.target_city_id, roll: { d1: 4, d2: 5, modifier: c.attacker_mod, total: c.attacker_total, attr: c.attacker_attr }, outcome: { kind, contest_id: c.id, defender_id: c.defender_id, target_name: world.entityById(c.target_city_id)?.name ?? '', army: c.army } })
+    const attAv = world.entityById(c.attacker_avatar_id)
+    const defAv = world.entityById(c.defender_avatar_id)
+    add({ action_key: 'contest_declared', logos_delta: -c.cost, entity_id: c.target_city_id ?? c.attacker_avatar_id, roll: { d1: 4, d2: 5, modifier: c.attacker_mod, total: c.attacker_total, attr: c.attacker_attr }, outcome: { kind, contest_id: c.id, defender_id: c.defender_id, target_name: world.entityById(c.target_city_id)?.name ?? '', army: c.army, attacker_avatar: attAv?.name, attacker_emoji: attAv?.emoji, defender_avatar: defAv?.name, defender_emoji: defAv?.emoji } })
     useGameStore.setState((st) => ({ contests: [...st.contests, c] }))
     return c
   }
@@ -306,33 +350,64 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       return null
     }
     if (fn === 'commit_contest') {
-      useGameStore.setState((st) => ({ contests: st.contests.map((x) => (x.id === c.id ? { ...x, status: 'committed' } : x)), log: st.log.map((l) => (l.id === c.log_id ? { ...l, summary: String(args.p_summary ?? '') } : l)) }))
+      const oc = { ...((c.outcome ?? {}) as Record<string, unknown>) }
+      const tid = c.target_city_id
+      if (c.kind === 'holy_war' && oc.pending === true && tid) {
+        const alloc = (args.p_allocation ?? {}) as { dots?: number; avatar?: number; creatures?: string[] }
+        const successes = Number(oc.successes ?? 0)
+        const city = world.cityOf(tid)
+        const removed = removeDots(tid, c.defender_id, Math.min(alloc.dots ?? successes, successes))
+        const converted = addDots(tid, c.attacker_id, Math.ceil(removed / 2))
+        const defAv = city ? world.avatarsOf(c.defender_id).find((a) => a.occupant && a.occupant.q === city.q && a.occupant.r === city.r)?.entity : undefined
+        const w = defAv ? wound(defAv.id, Math.min(alloc.avatar ?? 0, successes - removed)) : { hp: 0, dead: false }
+        const killed: Record<string, unknown>[] = []
+        for (const oid of alloc.creatures ?? []) {
+          const occ = useGameStore.getState().occupants.find((o) => o.id === oid)
+          const e = occ ? world.entityById(occ.entity_id) : undefined
+          if (!occ || !e) continue
+          useGameStore.setState((st) => ({ occupants: st.occupants.filter((o) => o.id !== oid) }))
+          killed.push({ entity_id: e.id, name: e.name, emoji: e.emoji })
+        }
+        Object.assign(oc, { pending: false, removed, converted, defender_lost: removed, avatar_wounds: defAv ? Math.min(alloc.avatar ?? 0, successes - removed) : 0, avatar_name: defAv?.name ?? '', avatar_dead: w.dead, creatures_killed: killed, target_destroyed: world.cityDots(tid) - removed + converted <= 0 })
+      }
+      useGameStore.setState((st) => ({ contests: st.contests.map((x) => (x.id === c.id ? { ...x, status: 'committed', outcome: oc } : x)), log: st.log.map((l) => (l.id === c.log_id ? { ...l, summary: String(args.p_summary ?? ''), outcome: oc } : l)) }))
+      lock(null)
       return null
     }
     const d1 = 3, d2 = 2
-    const mod = (c.kind === 'holy_war' ? world.dotsOf(c.target_city_id, c.defender_id) : 0) + 1
+    const tid = c.target_city_id ?? ''
+    const mod = (c.kind === 'holy_war' && tid ? world.dotsOf(tid, c.defender_id) : 0) + 1 + spendProphecy(args.p_prophecy_id)
     const total = d1 + d2 + mod
     const diff = c.attacker_total - total
-    const outcome: Record<string, unknown> = { kind: c.kind, diff, target_city_id: c.target_city_id, target_name: world.entityById(c.target_city_id)?.name ?? '', attacker_id: c.attacker_id, defender_id: c.defender_id, attacker_total: c.attacker_total, defender_total: total }
-    if (c.kind === 'convert') {
+    const outcome: Record<string, unknown> = { kind: c.kind, diff, target_city_id: c.target_city_id, target_name: world.entityById(tid)?.name ?? '', attacker_id: c.attacker_id, defender_id: c.defender_id, attacker_total: c.attacker_total, defender_total: total }
+    if (c.kind === 'avatar_duel') {
+      const aLoss = diff >= 3 ? 0 : diff >= 1 ? 1 : diff === 0 ? 1 : diff >= -2 ? 1 : 2
+      const dLoss = diff >= 3 ? 2 : diff >= 1 ? 1 : diff === 0 ? 1 : 0
+      const attAv = world.entityById(c.attacker_avatar_id)
+      const defAv = world.entityById(c.defender_avatar_id)
+      const a = wound(c.attacker_avatar_id!, aLoss)
+      const d = wound(c.defender_avatar_id!, dLoss)
+      Object.assign(outcome, { attacker_avatar: attAv?.name, attacker_emoji: attAv?.emoji, defender_avatar: defAv?.name, defender_emoji: defAv?.emoji, attacker_loss: aLoss, defender_loss: dLoss, attacker_hp: a.hp, defender_hp: d.hp, attacker_dead: a.dead, defender_dead: d.dead })
+    } else if (c.kind === 'convert') {
       const k = diff >= 3 ? 2 : diff >= 1 ? 1 : 0
-      const conv = removeDots(c.target_city_id, c.defender_id, k)
-      addDots(c.target_city_id, c.attacker_id, conv)
+      const conv = removeDots(tid, c.defender_id, k)
+      addDots(tid, c.attacker_id, conv)
       outcome.converted = conv
     } else {
       const army = c.army ?? 0
-      let removed = 0, converted = 0, attLost = 0, defLost = 0, returned = 0
-      if (diff >= 3) { removed = removeDots(c.target_city_id, c.defender_id, army); converted = addDots(c.target_city_id, c.attacker_id, Math.ceil(removed / 2)); returned = army }
-      else if (diff >= 1) { removed = removeDots(c.target_city_id, c.defender_id, army); converted = addDots(c.target_city_id, c.attacker_id, Math.ceil(removed / 2)); attLost = Math.ceil(army / 2); returned = army - attLost }
-      else if (diff === 0) { defLost = removeDots(c.target_city_id, c.defender_id, 1); attLost = 1; returned = army - 1 }
-      else if (diff >= -2) { defLost = removeDots(c.target_city_id, c.defender_id, 1); attLost = army - 1; returned = 1 }
+      let attLost = 0, defLost = 0, returned = 0
+      if (diff >= 3) { returned = army }
+      else if (diff >= 1) { attLost = Math.ceil(army / 2); returned = army - attLost }
+      else if (diff === 0) { defLost = removeDots(tid, c.defender_id, 1); attLost = 1; returned = army - 1 }
+      else if (diff >= -2) { defLost = removeDots(tid, c.defender_id, 1); attLost = army - 1; returned = 1 }
       else { attLost = army }
       if (returned > 0 && c.source_city_id) addDots(c.source_city_id, c.attacker_id, returned)
-      Object.assign(outcome, { army, removed, converted, attacker_lost: attLost, defender_lost: removed + defLost, returned })
+      Object.assign(outcome, { army, removed: 0, converted: 0, attacker_lost: attLost, defender_lost: defLost, returned, successes: diff >= 1 ? army : 0, pending: diff >= 1, defender_dots: world.dotsOf(tid, c.defender_id) })
     }
-    const lr = add({ player_id: c.attacker_id, action_key: c.kind, entity_id: c.target_city_id, roll: { d1: c.attacker_d1, d2: c.attacker_d2, att: { d1: c.attacker_d1, d2: c.attacker_d2, modifier: c.attacker_mod, total: c.attacker_total, attr: c.attacker_attr }, def: { d1, d2, modifier: mod, total, attr: args.p_attr as Contest['attacker_attr'] } }, outcome })
+    const lr = add({ player_id: c.attacker_id, action_key: c.kind, entity_id: c.target_city_id ?? c.attacker_avatar_id, roll: { d1: c.attacker_d1, d2: c.attacker_d2, att: { d1: c.attacker_d1, d2: c.attacker_d2, modifier: c.attacker_mod, total: c.attacker_total, attr: c.attacker_attr }, def: { d1, d2, modifier: mod, total, attr: args.p_attr as Contest['attacker_attr'] } }, outcome })
     const done: Contest = { ...c, defender_attr: args.p_attr as Contest['defender_attr'], defender_d1: d1, defender_d2: d2, defender_mod: mod, defender_total: total, status: 'resolved', outcome, log_id: lr.id, resolved_at: new Date().toISOString() }
     useGameStore.setState((st) => ({ contests: st.contests.map((x) => (x.id === c.id ? done : x)) }))
+    lock(c.attacker_id)
     return done
   }
   if (fn !== 'perform_action') return null
@@ -340,7 +415,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
   const key = String(args.p_action_key)
   const p = (args.p_payload ?? {}) as ActionPayload
   const free = !!p.use_avatar_action
-  const costs: Record<string, number> = { shape_land: 2, catastrophe: 10, great_miracle: 15, create_creature: 10, create_sapient: 15, change_creature: 5, migrate: 0, create_civilization: 22, develop_civilization: 12, exodus: 0, create_avatar: 10, command_avatar: 2, resurrect_avatar: 12 }
+  const costs: Record<string, number> = { shape_land: 2, catastrophe: 10, great_miracle: 15, create_creature: 10, create_sapient: 15, change_creature: 5, migrate: 0, create_civilization: 22, develop_civilization: 12, exodus: 0, create_avatar: 10, command_avatar: 2, resurrect_avatar: 12, prophecy: 10 }
   let cost = costs[key] ?? 0
   let entity_id: string | null = null
   let outcome: Record<string, unknown> = {}
@@ -367,7 +442,8 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       const city = world.cityAt(at.q, at.r)
       const cityEnt = city ? world.entityById(city.entity_id) : undefined
       const d6 = 4
-      const damage = Math.max(1, d6 - 1)
+      const pm = spendProphecy(p.prophecy_id)
+      const damage = Math.max(1, d6 - 1 + pm)
       const hits: Record<string, unknown>[] = []
       for (let i = 0; i < damage; i++) {
         const st = useGameStore.getState()
@@ -384,7 +460,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
           hits.push({ t: 'creature', entity_id: occ.entity_id, name: st.entities.find((e) => e.id === occ.entity_id)?.name, extinct: false })
         }
       }
-      outcome = { type: p.type, q: at.q, r: at.r, d6, wrath: -1, damage, hits, city_id: city?.entity_id ?? null, city_name: cityEnt?.name ?? null, city_destroyed: false, wasted: damage - hits.length }
+      outcome = { type: p.type, q: at.q, r: at.r, d6, wrath: -1, damage, hits, prophecy: pm ? { hold: pm } : undefined, city_id: city?.entity_id ?? null, city_name: cityEnt?.name ?? null, city_destroyed: false, wasted: damage - hits.length }
       entity_id = city?.entity_id ?? null
       break
     }
@@ -425,13 +501,14 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     case 'develop_civilization': {
       const cityId = String(p.city_id)
       const score = me.attr_primary === p.attr ? 2 : 1
-      const total = 4 + 4 + score + (free ? -2 : 0)
+      const pm = spendProphecy(p.prophecy_id)
+      const total = 4 + 4 + score + (free ? -2 : 0) + pm
       const tier = total >= 10 ? 'strong' : total >= 7 ? 'mixed' : 'weak'
       const gained = tier === 'strong' ? 2 : tier === 'mixed' ? 1 : 0
       const added = addDots(cityId, me.id, gained)
       useGameStore.setState((st) => ({ gifts: [...st.gifts, { id: nextId('gift'), game_id: G, city_id: cityId, player_id: me.id, text: String(p.gift), accepted: gained > 0, dots_gained: added, round_number: g.round_number, created_at: new Date().toISOString() }] }))
       entity_id = cityId
-      outcome = { city_id: cityId, city_name: world.entityById(cityId)?.name, d1: 4, d2: 4, attr: p.attr, score, avatar: free, total, tier, gained, added, wasted: gained - added, gift: p.gift, level: world.cityDots(cityId) + added }
+      outcome = { city_id: cityId, city_name: world.entityById(cityId)?.name, d1: 4, d2: 4, attr: p.attr, score, avatar: free, total, tier, gained, added, wasted: gained - added, gift: p.gift, level: world.cityDots(cityId) + added, prophecy: pm ? { hold: pm } : undefined }
       break
     }
     case 'exodus': {
@@ -467,6 +544,14 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       outcome = { avatar_id: p.avatar_id, name: world.entityById(p.avatar_id)?.name, from: occ ? { q: occ.q, r: occ.r } : undefined, to: p.to, distance: dist }
       break
     }
+    case 'prophecy': {
+      const av = world.entityById(p.avatar_id)
+      const pr: Prophecy = { id: nextId('pr'), game_id: G, player_id: me.id, avatar_id: String(p.avatar_id), text: String(p.text ?? ''), hold: 1, status: 'active', created_round: g.round_number, fulfilled_round: null, created_at: new Date().toISOString() }
+      useGameStore.setState((st) => ({ prophecies: [...st.prophecies, pr] }))
+      entity_id = String(p.avatar_id)
+      outcome = { avatar_id: p.avatar_id, avatar_name: av?.name, emoji: av?.emoji, text: p.text }
+      break
+    }
     case 'resurrect_avatar': {
       const id = String(p.entity?.id)
       useGameStore.setState((st) => ({ entities: st.entities.map((e) => (e.id === id ? { ...e, status: 'active', hp: 3, conditions: p.entity?.conditions ?? e.conditions } : e)) }))
@@ -480,6 +565,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
   }
   if (free) cost = 0
   pay(cost)
+  lock(me.id)
   return add({ action_key: key, logos_delta: -cost, entity_id, is_avatar_free_action: free, summary: p.summary ?? '', outcome })
 }
 
@@ -501,7 +587,7 @@ export function DevPreview() {
         { id: 'pa4', game_id: G, player_id: P(4), column: 'no' as const, text: 'magia bez ceny', created_at: '' },
       ],
       creationOptions: [] as typeof creationOptions, creationVotes: [] as typeof creationVotes,
-      hexes: previewHexes(), occupants, cities, followers, gifts, contests: contestFor(params.get('contest') ?? ''),
+      hexes: previewHexes(), occupants, cities, followers, gifts, contests: contestFor(params.get('contest') ?? ''), prophecies,
       connected: true, loading: false, error: null,
     }
     switch (screen) {
@@ -552,7 +638,7 @@ export function DevPreview() {
       default:
         useGameStore.setState({
           ...base,
-          game: game(params.get('turn') === 'me' ? { current_turn_player_id: P(1) } : {}),
+          game: game({ ...(params.get('turn') === 'me' ? { current_turn_player_id: P(1) } : {}), ...(params.get('lock') === 'me' ? { current_turn_player_id: P(1), verse_pending_by: P(1) } : {}) }),
           players: params.get('turn') === 'me' ? players.map((p, i) => (i === 0 ? { ...p, logos: 40 } : p)) : players,
           log: params.get('contest') === 'resolved' ? [...log, row('lc1', { player_id: P(1), action_key: 'convert', entity_id: E(4), roll: { d1: 4, d2: 5, att: { d1: 4, d2: 5, modifier: 0, total: 9, attr: 'majesty' }, def: { d1: 2, d2: 3, modifier: 1, total: 6, attr: 'whisper' } }, outcome: { kind: 'convert', diff: 3, converted: 2, target_city_id: E(4), target_name: 'Stoicy Znad Rzeki', attacker_id: P(1), defender_id: P(2), attacker_total: 9, defender_total: 6, defender_dots: 2 }, created_at: '2026-01-10T10:06:00' })] : log,
         })

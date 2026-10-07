@@ -5,7 +5,7 @@ import { useGameStore, type RealtimeTable } from '@/store/useGameStore'
 
 const GAME_TABLES: RealtimeTable[] = [
   'players', 'palette_entries', 'entities', 'entity_gods', 'entity_links', 'actions_log', 'chaos_draws', 'era_votes',
-  'creation_options', 'creation_votes', 'hexes', 'hex_occupants', 'cities', 'city_followers', 'city_gifts', 'contests',
+  'creation_options', 'creation_votes', 'hexes', 'hex_occupants', 'cities', 'city_followers', 'city_gifts', 'contests', 'prophecies',
 ]
 
 /** Loads a game into the store and keeps it in sync via Supabase Realtime. */

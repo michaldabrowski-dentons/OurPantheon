@@ -5,7 +5,7 @@ const ART_FILE: Partial<Record<ActionKey, string>> = {
   develop_civilization: 'change_civilization',
   exodus: 'command_followers',
   convert: 'create_orthodoxy',
-  holy_war: 'change_faction',
+  avatar_duel: 'avatar_fight',
 }
 
 /** Painted plates for the words, in public/actions: 512px squares and 160px thumbnails. */

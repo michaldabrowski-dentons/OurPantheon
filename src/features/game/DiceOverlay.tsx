@@ -3,21 +3,25 @@ import type { ActionLog } from '@/lib/types'
 import { isWatchedRoll, rollOf } from '@/data/dice'
 import { useGameStore, playerLabel } from '@/store/useGameStore'
 import { Die } from '@/components/ui/Primitives'
+import { useDiceGate } from './diceGate'
 import styles from './game.module.css'
 
 const ROLLING_MS = 1600
-const LINGER_MS = 5000
-/** a cataclysm's die steps aside quickly: the fire is about to fall on the map */
-const LINGER_WRATH_MS = 1300
+
+/** rows after which a window with the outcome and its decisions follows */
+const RESULT_FOLLOWS = new Set(['convert', 'holy_war', 'avatar_duel', 'develop_civilization', 'catastrophe'])
 
 /**
  * Every throw at the table, for everyone: the dice tumble for a moment before they settle, so the
- * result is a moment and not a number. Opens on a new roll row (whoever threw), closes by itself.
+ * result is a moment and not a number. Opens on a new roll row (whoever threw) and stays until the
+ * table clicks on; the windows with the consequences wait for that click.
  */
 export function DiceOverlay() {
   const log = useGameStore((s) => s.log)
   const players = useGameStore((s) => s.players)
   const profiles = useGameStore((s) => s.profiles)
+  const show = useDiceGate((s) => s.show)
+  const dismiss = useDiceGate((s) => s.dismiss)
   const lastSeen = useRef<string | null | undefined>(undefined)
   const [row, setRow] = useState<ActionLog | null>(null)
   const [settled, setSettled] = useState(false)
@@ -36,7 +40,8 @@ export function DiceOverlay() {
     if (Date.now() - new Date(latest.created_at).getTime() > 20000) return
     setRow(latest)
     setSettled(false)
-  }, [latest])
+    show(latest.id)
+  }, [latest, show])
 
   // the tumble: random faces until the dice settle
   useEffect(() => {
@@ -52,19 +57,17 @@ export function DiceOverlay() {
     }
   }, [row, settled])
 
-  useEffect(() => {
-    if (!row || !settled) return
-    const t = window.setTimeout(() => setRow(null), row.action_key === 'catastrophe' ? LINGER_WRATH_MS : LINGER_MS)
-    return () => window.clearTimeout(t)
-  }, [row, settled])
-
   if (!row) return null
   const roll = rollOf(row)
   if (!roll) return null
   const who = playerLabel(players.find((p) => p.id === row.player_id), profiles)
+  const close = () => {
+    dismiss(row.id)
+    setRow(null)
+  }
 
   return (
-    <div className={styles.diceVeil} onClick={() => settled && setRow(null)} role="status" aria-live="assertive">
+    <div className={styles.diceVeil} role="dialog" aria-label="Rzut kośćmi" aria-live="assertive">
       <div className={['basalt', 'emerge-from-dark', styles.diceCard].join(' ')} key={row.id}>
         <span className={styles.diceWho}>{who} rzuca kośćmi</span>
         <span className={styles.diceWhat}>{roll.label}</span>
@@ -80,13 +83,17 @@ export function DiceOverlay() {
         </div>
         <span className={[styles.diceResult, settled ? styles.diceResultOn : ''].join(' ')}>
           <b className="engraved-dark marble-text">{settled ? roll.total : '?'}</b>
+          {settled && roll.sides && (
+            <span className={styles.diceSides}>
+              <span>{roll.sides.attacker}</span>
+              <span>{roll.sides.defender}</span>
+            </span>
+          )}
           {settled && roll.verdict && <small>{roll.verdict}</small>}
         </span>
-        {settled && (
-          <button type="button" className={styles.diceClose} onClick={() => setRow(null)}>
-            Zamknij
-          </button>
-        )}
+        <button type="button" className={[styles.diceClose, settled ? styles.diceCloseOn : ''].join(' ')} disabled={!settled} onClick={close}>
+          {RESULT_FOLLOWS.has(row.action_key) ? 'Zobacz wynik' : 'Kontynuuj'}
+        </button>
       </div>
     </div>
   )

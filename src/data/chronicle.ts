@@ -208,6 +208,16 @@ const OPENERS: Record<ActionKey, Opener[]> = {
     (G, p, n) => `I ${p('rzek')} ${G} do awatara ${n}: powstań. I powstał.`,
     (G, p, n) => `${cap(p(SIEGNAL))} ${G} w śmierć i ${p('wyprowadzi')} z niej awatara ${n}.`,
   ],
+  avatar_duel: [
+    (G, p, n) => `${cap(p('posła'))} ${G} awatara ${n} do walki.`,
+    (G, p, n) => `I ${p('rzek')} ${G} do awatara ${n}: uderz. I uderzył.`,
+    (G, p, n) => `${cap(p('rozgniewa'))} się ${G} i ${p('posła')} awatara ${n} przeciw cudzemu.`,
+  ],
+  prophecy: [
+    (G, p, n) => `${cap(p('przemówi'))} ${G} ustami awatara ${n}.`,
+    (G, p, n) => `I ${p('otworzy')} ${G} usta swojego awatara ${n}, by mówił o tym, co nadejdzie.`,
+    (G, p, n) => `${cap(p('zesła'))} ${G} widzenie na awatara ${n}.`,
+  ],
 }
 
 const TIER_LINES = {
@@ -337,11 +347,17 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       const attLost = num(o, 'attacker_lost')
       const defLost = num(o, 'defender_lost')
       parts.push(`Armia liczyła ${followersInWords(army)}, a bronił miasta ${def}.`)
-      if (diff >= 3) parts.push(`Zwyciężyła armia w pełni: padło ${followersInWords(removed)} obrońców${converted ? `, a ${followersInWords(converted)} spośród jeńców ${converted === 1 ? 'uwierzył' : 'uwierzyło'} w ${G}` : ''}. I wróciła armia cała.`)
-      else if (diff >= 1) parts.push(`Przełamano mury, lecz walka była krwawa: padło ${followersInWords(removed)} obrońców${converted ? `, ${followersInWords(converted)} ${converted === 1 ? 'uwierzył' : 'uwierzyło'} w ${G}` : ''}, a armia straciła ${followersInWords(attLost)}.`)
+      const fell = removed === 0 ? 'nikt z obrońców nie padł' : removed === 1 ? 'padł jeden wyznawca obrońców' : `padło ${followersInWords(removed)} obrońców`
+      if (o.pending) parts.push(`Zwyciężyła armia${diff >= 3 ? ' w pełni' : ', choć krwawo'}, a gdzie spadną jej ciosy, rozstrzyga jeszcze ${G}.`)
+      else if (diff >= 3) parts.push(`Zwyciężyła armia w pełni: ${fell}${converted ? `, a ${followersInWords(converted)} spośród jeńców ${converted === 1 ? 'uwierzył' : 'uwierzyło'} w ${G}` : ''}. I wróciła armia cała.`)
+      else if (diff >= 1) parts.push(`Przełamano mury, lecz walka była krwawa: ${fell}${converted ? `, ${followersInWords(converted)} ${converted === 1 ? 'uwierzył' : 'uwierzyło'} w ${G}` : ''}, a armia straciła ${followersInWords(attLost)}.`)
       else if (diff === 0) parts.push('Nikt nie zwyciężył: obie strony straciły po jednym, i wróciła armia do domu.')
       else if (diff >= -2) parts.push(`Załamał się atak na murach: z całej armii wrócił jeden, a obrońcy stracili ${followersInWords(defLost)}.`)
       else parts.push('Masakra: cała armia legła pod murami i nikt nie wrócił do domu, a miasto zostało nietknięte.')
+      const wounds = num(o, 'avatar_wounds')
+      if (wounds > 0) parts.push(o.avatar_dead ? `Dosięgła armia awatara ${str(o, 'avatar_name')}, i padł.` : `Dosięgła armia awatara ${str(o, 'avatar_name')} i zadała mu rany.`)
+      const killed = (Array.isArray(o.creatures_killed) ? o.creatures_killed : []) as O[]
+      if (killed.length) parts.push(`Wycięto też ${joinAnd(killed.map((k) => `${str(k, 'emoji') ? `${str(k, 'emoji')} ` : ''}${str(k, 'name')}`))}.`)
       if (o.target_destroyed) parts.push(`I nie zostało z miasta ${str(o, 'target_name')} nic prócz ruin.`)
       if (o.source_destroyed) parts.push('A miasto, z którego wyszła armia, opustoszało.')
       break
@@ -355,6 +371,29 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
     case 'resurrect_avatar':
       parts.push(pick(id + 'o', [`${cap(p(WZIAL))} ${G} awatara z objęć śmierci i ${p('postawi')} go na nowo w świecie.`, 'I stanął awatar znów na ziemi, z pełnym tchnieniem.']))
       break
+    case 'prophecy': {
+      const av = `${str(o, 'emoji') ? `${str(o, 'emoji')} ` : ''}${str(o, 'avatar_name')}`
+      const text = stripPeriod(str(o, 'text'))
+      if (text) parts.push(`Prorok ${av} zapowiedział, że: ${lowerFirst(text)}.`)
+      break
+    }
+    case 'avatar_duel': {
+      const a = `${str(o, 'attacker_emoji') ? `${str(o, 'attacker_emoji')} ` : ''}${str(o, 'attacker_avatar')}`
+      const d = `${str(o, 'defender_emoji') ? `${str(o, 'defender_emoji')} ` : ''}${str(o, 'defender_avatar')}`
+      const diff = num(o, 'diff')
+      const aLoss = num(o, 'attacker_loss')
+      const dLoss = num(o, 'defender_loss')
+      parts.push(`Stanął ${a} przeciw ${d}.`)
+      if (diff >= 3) parts.push(`Zdominował go: ${d} ${dLoss === 1 ? 'odniósł ranę' : 'odniósł ciężkie rany'}, a ${a} wyszedł bez szwanku.`)
+      else if (diff >= 1) parts.push(`Walka była krwawa: ${d} odniósł ranę, lecz i ${a} krwawił.`)
+      else if (diff === 0) parts.push('Nikt nie zwyciężył: obaj odnieśli ciężkie rany.')
+      else if (diff >= -2) parts.push(`${cap(d)} odparł cios i ranił ${a}.`)
+      else parts.push(`${cap(d)} zmiażdżył napastnika: ${a} ledwie uszedł z życiem.`)
+      if (o.defender_dead) parts.push(`I padł ${d}, i nie było go więcej na ziemi.`)
+      if (o.attacker_dead) parts.push(`I padł ${a}, i nie było go więcej na ziemi.`)
+      void aLoss
+      break
+    }
     default:
       break
   }
@@ -383,6 +422,10 @@ function openerName(l: ActionLog, ent: Entity | undefined): string {
       return str(o, 'target_name') || ent?.name || 'bez imienia'
     case 'migrate':
       return str(o, 'name') || ent?.name || 'bez imienia'
+    case 'prophecy':
+      return str(o, 'avatar_name') || ent?.name || 'bez imienia'
+    case 'avatar_duel':
+      return str(o, 'attacker_avatar') || ent?.name || 'bez imienia'
     default:
       return ent?.name ?? 'bez imienia'
   }
@@ -442,6 +485,17 @@ export function chronicleVerse(l: ActionLog, ctx: VerseContext): string {
       return pick(l.id, [`Zawiedli wyznawcy, a ${G} ${p(PONIOSL)} stratę.`, `Nie usłuchali wyznawcy, i ${p('utraci')} ${G} część swej mocy.`])
     case 'contest_declared':
       return ''
+    case 'prophecy_fulfilled': {
+      const o = (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as O
+      const av = `${str(o, 'emoji') ? `${str(o, 'emoji')} ` : ''}${str(o, 'avatar_name')}`
+      return `Słowa proroka ${av} stały się ciałem: ${lowerFirst(stripPeriod(str(o, 'text')))}.`
+    }
+    case 'avatars_heal': {
+      const rows = (Array.isArray(l.outcome) ? l.outcome : []) as O[]
+      if (rows.length === 0) return ''
+      const names = rows.map((r) => `${str(r, 'emoji') ? `${str(r, 'emoji')} ` : ''}${str(r, 'name')}`)
+      return pick(l.id, [`We śnie zabliźniły się rany: ${joinAnd(names)}.`, `I odpoczęły awatary, a ich rany się zamknęły: ${joinAnd(names)}.`])
+    }
     case 'contest_cancelled':
       return pick(l.id, [`${cap(p('cofn'))} ${G} swoje słowo, i nie doszło do starcia.`.replace(cap(p('cofn')), cap(god.gender === 'f' ? 'cofnęła' : god.gender === 'n' ? 'cofnęło' : 'cofnął')), `Lecz ${G} ${p('odwoła')} starcie, nim padły kości.`])
     case 'city_destroyed': {
@@ -530,9 +584,9 @@ export interface Chapter {
   verses: Verse[]
 }
 
-const CHAOS_KEYS = new Set(['chaos_reveal', 'chaos_choice', 'chaos_answer', 'chaos_notes', 'cities_grow', 'dots_reward', 'round_end'])
+const CHAOS_KEYS = new Set(['chaos_reveal', 'chaos_choice', 'chaos_answer', 'chaos_notes', 'cities_grow', 'avatars_heal', 'dots_reward', 'round_end'])
 /** rows that belong to the turn of the god who acted just before them */
-const FOLLOW_UP_KEYS = new Set(['dice', 'followers_gain', 'followers_loss', 'entity_edit', 'city_destroyed'])
+const FOLLOW_UP_KEYS = new Set(['dice', 'followers_gain', 'followers_loss', 'entity_edit', 'city_destroyed', 'prophecy_fulfilled'])
 
 /**
  * A verse is a turn, so its number means "the n-th thing that happened this round".

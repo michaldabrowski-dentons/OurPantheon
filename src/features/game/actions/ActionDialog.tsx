@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { rpc } from '@/lib/supabase'
 import type { ActionLog, ActionPayload, AttrKey, BiomeKey, Entity, EntityKind, HexRef, Player } from '@/lib/types'
 import type { MapPick, WorldView } from '@/lib/world'
@@ -9,16 +9,19 @@ import { BIOMES, BIOME_BY_KEY, CATASTROPHE_TYPES } from '@/data/biomes'
 import { AVATAR_EMOJI, CREATURE_EMOJI, SAPIENT_EMOJI } from '@/data/emoji'
 import { ATTRIBUTE_BY_KEY, scoreText, scoresFor } from '@/data/pantheon'
 import { composeVerse } from '@/data/chronicle'
+import { isWatchedRoll } from '@/data/dice'
 import { draftDeedSummary } from '@/data/draft'
 import { describeEvent } from '@/data/tableEvents'
 import { GIFTS, followersWord } from '@/data/cities'
-import { useGameStore, playerLabel, godLabel } from '@/store/useGameStore'
+import { useGameStore, playerLabel, godLabel, selectPropheciesOf } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { Modal, TextField, TextArea, Notice, Dice2d6, Die, FrescoFrame, inputClass, labelClass, fieldClass } from '@/components/ui/Primitives'
 import { actionArt } from '@/data/actionArt'
 import { EmojiPicker } from '@/components/ui/EmojiPicker'
 import { ActionIcon } from '@/components/ui/ActionIcons'
 import { AttrPicker } from '@/features/pantheon/AttrPicker'
+import { ProphecyPicker } from '@/features/pantheon/ProphecyPicker'
+import { useDiceWait, useVerseDialogFlag } from '../diceGate'
 import { useMapMode, type MapMode } from '../map/mapMode'
 import { useWorld } from '../map/useWorld'
 import styles from './actions.module.css'
@@ -51,6 +54,12 @@ interface FormState {
   moveAvatar: boolean
   summary: string
   deadAvatarId: string
+  /** a prophecy spent on this roll */
+  prophecyId: string | null
+  /** avatar duel: the enemy's avatar */
+  enemyAvatarId: string
+  /** prophecy: what is foretold */
+  text: string
 }
 
 const initial = (useAvatar: boolean): FormState => ({
@@ -78,18 +87,23 @@ const initial = (useAvatar: boolean): FormState => ({
   moveAvatar: false,
   summary: '',
   deadAvatarId: '',
+  prophecyId: null,
+  enemyAvatarId: '',
+  text: '',
 })
 
 const avatarAt = (w: WorldView, q: number, r: number) => w.occupantsAt(q, r).some((o) => w.entityById(o.entity_id)?.kind === 'avatar')
 
-export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: Player; onClose: () => void }) {
+export function ActionDialog({ action, me, onClose, preset }: { action: ActionDef; me: Player; onClose: () => void; preset?: { avatarId?: string } }) {
   const game = useGameStore((s) => s.game)!
   const entities = useGameStore((s) => s.entities)
   const players = useGameStore((s) => s.players)
   const profiles = useGameStore((s) => s.profiles)
   const log = useGameStore((s) => s.log)
+  const prophecies = useGameStore(selectPropheciesOf(me.id))
   const world = useWorld()
   const setMode = useMapMode((s) => s.setMode)
+  useVerseDialogFlag()
 
   const era = game.era as Era
   const baseCost = costFor(action.key, era)
@@ -115,11 +129,14 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
           : null
 
   const flow = action.flow
-  const [stepIdx, setStepIdx] = useState(0)
+  // a prophecy opened from the avatar on the map skips the question which avatar speaks
+  const [stepIdx, setStepIdx] = useState(action.key === 'prophecy' && preset?.avatarId ? 1 : 0)
   const step: FlowStep = flow[stepIdx]
   const [f, setF] = useState<FormState>(() => {
     const s = initial(avatarFree && !avatarBlocked && me.logos < baseCost)
     if (action.key === 'command_avatar') s.avatarId = myAvatars[0]?.entity.id ?? ''
+    if (action.key === 'prophecy' && preset?.avatarId) s.avatarId = preset.avatarId
+    if (action.key === 'avatar_duel') s.attr = 'wrath'
     if (action.key === 'resurrect_avatar') s.deadAvatarId = entities.find((e) => e.kind === 'avatar' && e.status !== 'active')?.id ?? ''
     if (action.key === 'convert') s.attr = 'majesty'
     return s
@@ -130,8 +147,18 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
   const [row, setRow] = useState<ActionLog | null>(null)
   const [verse, setVerse] = useState('')
   const [verseEdited, setVerseEdited] = useState(false)
-  // the window steps aside while the god's wrath plays on the map
+  // the verse step waits until the table has seen the dice; a cataclysm then plays on the map
+  const waitingDice = useDiceWait(row && isWatchedRoll(row) ? row.id : null)
   const [curtain, setCurtain] = useState(false)
+  const wasWaiting = useRef(false)
+  useEffect(() => {
+    const fell = wasWaiting.current && !waitingDice && action.key === 'catastrophe'
+    wasWaiting.current = waitingDice
+    if (!fell) return
+    setCurtain(true)
+    const t = window.setTimeout(() => setCurtain(false), 3600)
+    return () => window.clearTimeout(t)
+  }, [waitingDice, action.key])
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((s) => ({ ...s, [k]: v }))
 
@@ -256,6 +283,40 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
           valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && c.entity_id !== f.cityId && w.followersOf(c.entity_id).some((x) => x.player_id !== me.id) && reach(srcCity, q, r) },
           costFor: (sel) => (srcCity && sel[0] ? hexDistance(srcCity, sel[0]) : null),
         }
+      case 'avatar_duel': {
+        const myIds = new Set(myAvatars.map((a) => a.entity.id))
+        if (mapOrdinal === 0) {
+          return {
+            kind: 'occupant',
+            title: 'Walka Awatarów',
+            instruction: 'Kliknij swojego awatara, który rusza do walki.',
+            valid: (q, r, w) => w.occupantsAt(q, r).some((o) => myIds.has(o.entity_id)),
+            validOccupant: (o) => myIds.has(o.entity_id),
+          }
+        }
+        const mineOcc = f.avatarId ? world.occupantsOf(f.avatarId)[0] : undefined
+        const enemy = (o: { entity_id: string }, w: WorldView) => {
+          const e = w.entityById(o.entity_id)
+          return !!e && e.kind === 'avatar' && e.status === 'active' && !myIds.has(e.id)
+        }
+        return {
+          kind: 'occupant',
+          title: 'Walka Awatarów',
+          instruction: 'Kliknij awatara innego bóstwa na tym samym heksie albo obok. Dalszego trzeba najpierw dogonić Rozkazem dla Awatara.',
+          valid: (q, r, w) => !!mineOcc && hexDistance(mineOcc, { q, r }) <= 1 && w.occupantsAt(q, r).some((o) => enemy(o, w)),
+          validOccupant: (o, w) => enemy(o, w),
+        }
+      }
+      case 'prophecy': {
+        const myIds = new Set(myAvatars.map((a) => a.entity.id))
+        return {
+          kind: 'occupant',
+          title: 'Proroctwo',
+          instruction: 'Kliknij swojego awatara, który przemówi.',
+          valid: (q, r, w) => w.occupantsAt(q, r).some((o) => myIds.has(o.entity_id)),
+          validOccupant: (o) => myIds.has(o.entity_id),
+        }
+      }
       case 'command_avatar':
         return {
           kind: 'hex',
@@ -314,6 +375,20 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
             n.dots = Math.max(1, Math.min(n.dots, world.dotsOf(p.cityId ?? '', me.id)))
           } else n.target = { q: p.q, r: p.r }
           break
+        case 'avatar_duel': {
+          const occ = world.occupantsAt(p.q, p.r).find((o) => o.id === p.occupantId)
+          if (mapOrdinal === 0) n.avatarId = occ?.entity_id ?? ''
+          else {
+            n.enemyAvatarId = occ?.entity_id ?? ''
+            n.defenderId = players.find((pl) => world.avatarsOf(pl.id).some((a) => a.entity.id === n.enemyAvatarId))?.id ?? ''
+          }
+          break
+        }
+        case 'prophecy': {
+          const occ = world.occupantsAt(p.q, p.r).find((o) => o.id === p.occupantId)
+          n.avatarId = occ?.entity_id ?? ''
+          break
+        }
         case 'holy_war':
           if (mapOrdinal === 0) {
             n.cityId = p.cityId ?? ''
@@ -359,7 +434,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
       case 'shape_land':
         return { ...base, biome: f.biome, hexes: f.hexes }
       case 'catastrophe':
-        return { ...base, type: f.catastrophe.trim(), q: t.q, r: t.r }
+        return { ...base, type: f.catastrophe.trim(), q: t.q, r: t.r, prophecy_id: f.prophecyId ?? undefined }
       case 'great_miracle':
         return base
       case 'create_creature':
@@ -377,7 +452,9 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
       case 'create_civilization':
         return { ...base, entity: { op: 'create', name: f.name, co_god_ids: f.co_god_ids }, q: t.q, r: t.r, species_id: f.speciesId }
       case 'develop_civilization':
-        return { ...base, city_id: f.cityId, attr: f.attr, gift: giftText }
+        return { ...base, city_id: f.cityId, attr: f.attr, gift: giftText, prophecy_id: f.prophecyId ?? undefined }
+      case 'prophecy':
+        return { ...base, avatar_id: f.avatarId, text: f.text.trim() }
       case 'exodus':
         return { ...base, city_id: f.cityId, dots: f.dots, species_id: f.speciesId, to: f.target ?? undefined, name: f.name.trim(), description: '' }
       case 'command_avatar':
@@ -406,10 +483,6 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
     try {
       const r = await rpc<ActionLog>('perform_action', { p_game_id: game.id, p_action_key: action.key, p_payload: buildPayload() })
       setRow(r)
-      if (action.key === 'catastrophe') {
-        setCurtain(true)
-        window.setTimeout(() => setCurtain(false), 6600)
-      }
       advance(stepIdx)
     } catch (err) {
       setError((err as Error).message)
@@ -423,8 +496,10 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
     setError(null)
     try {
       const payload = action.key === 'convert'
-        ? { city_id: f.cityId, defender_id: f.defenderId, attr: f.attr }
-        : { source_city_id: f.cityId, army: f.army, target_city_id: f.targetCityId, defender_id: f.defenderId }
+        ? { city_id: f.cityId, defender_id: f.defenderId, attr: f.attr, prophecy_id: f.prophecyId }
+        : action.key === 'avatar_duel'
+          ? { attacker_avatar_id: f.avatarId, defender_avatar_id: f.enemyAvatarId, attr: f.attr, prophecy_id: f.prophecyId }
+          : { source_city_id: f.cityId, army: f.army, target_city_id: f.targetCityId, defender_id: f.defenderId, prophecy_id: f.prophecyId }
       await rpc('declare_contest', { p_game_id: game.id, p_kind: action.key, p_payload: payload })
       onClose()
     } catch (err) {
@@ -515,7 +590,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
   )
 
   // the map is asking, or the wrath is playing: the window steps aside
-  if (step === 'map' || curtain) return null
+  if (step === 'map' || curtain || (step === 'verse' && waitingDice)) return null
 
   // ---------- form: what the word needs before (or after) the map ----------
   if (step === 'form') {
@@ -548,6 +623,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
           ))}
         </ul>
         {distance > 0 && <p className={styles.hint}>Dystans: {distance} {distance === 1 ? 'heks' : 'heksów'}, czyli {distance} Logos{baseCost ? ` doliczone do ${baseCost}` : ''}.</p>}
+        {(action.key === 'develop_civilization' || action.key === 'catastrophe') && <ProphecyPicker prophecies={prophecies} value={f.prophecyId} onChange={(v) => set('prophecyId', v)} disabled={busy} />}
         {error && <Notice tone="error">{error}</Notice>}
         {footer(
           <StoneButton variant="gold" size="lg" disabled={busy || !canPay} title={!canPay ? 'Za mało Logos. Zaznacz darmową akcję awatara albo odstąp.' : undefined} onClick={submit}>
@@ -574,6 +650,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
         <Notice>
           Kości rzuca księga od razu. Potem {godLabel(def)} wybiera obronę i rzuca u siebie; twoja tura czeka na odpowiedź. Logos płacisz teraz.
         </Notice>
+        <ProphecyPicker prophecies={prophecies} value={f.prophecyId} onChange={(v) => set('prophecyId', v)} disabled={busy} />
         {error && <Notice tone="error">{error}</Notice>}
         {footer(
           <StoneButton variant="gold" size="lg" disabled={busy || !canPay || !f.defenderId} onClick={declare}>
@@ -597,7 +674,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
           <Dice2d6 d1={Number(o.d1)} d2={Number(o.d2)} showTotal={false} animateKey={liveRow?.id} />
           <span className={styles.rollTotal}>
             <b className="engraved">{Number(o.total)}</b>
-            <small>{Number(o.d1)} + {Number(o.d2)} {Number(o.score) < 0 ? '−' : '+'} {Math.abs(Number(o.score))} ({ATTRIBUTE_BY_KEY[String(o.attr) as AttrKey]?.name ?? ''}){o.avatar ? ' − 2' : ''}</small>
+            <small>{Number(o.d1)} + {Number(o.d2)} {Number(o.score) < 0 ? '−' : '+'} {Math.abs(Number(o.score))} ({ATTRIBUTE_BY_KEY[String(o.attr) as AttrKey]?.name ?? ''}){o.avatar ? ' − 2' : ''}{o.prophecy ? ` + ${Number((o.prophecy as Record<string, unknown>).hold ?? 0)} (proroctwo)` : ''}</small>
           </span>
           <span className={styles.hint}>{o.tier === 'strong' ? '10+: dwóch wyznawców' : o.tier === 'mixed' ? '7..9: jeden wyznawca' : '6-: dar odrzucony'}</span>
         </div>
@@ -607,7 +684,7 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
           <Die value={Number(o.d6)} />
           <span className={styles.rollTotal}>
             <b className="engraved">{Number(o.damage)}</b>
-            <small>{Number(o.d6)} {Number(o.wrath) < 0 ? '−' : '+'} {Math.abs(Number(o.wrath))} (Gniew), najmniej 1</small>
+            <small>{Number(o.d6)} {Number(o.wrath) < 0 ? '−' : '+'} {Math.abs(Number(o.wrath))} (Gniew){o.prophecy ? ` + ${Number((o.prophecy as Record<string, unknown>).hold ?? 0)} (proroctwo)` : ''}, najmniej 1</small>
           </span>
           <span className={styles.hint}>obrażeń</span>
         </div>
@@ -863,6 +940,35 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
           ),
         }
       }
+      case 'avatar_duel': {
+        const mine = world.entityById(f.avatarId)
+        const enemy = world.entityById(f.enemyAvatarId)
+        return {
+          ready: !!f.avatarId && !!f.enemyAvatarId && !!f.defenderId,
+          fields: (
+            <div className={styles.fields}>
+              <p className={styles.hint}>
+                {mine?.emoji ?? ''} {mine?.name ?? 'Twój awatar'} (życie {mine?.hp ?? 0} z 3) przeciw {enemy?.emoji ?? ''} {enemy?.name ?? 'awatarowi'} (życie {enemy?.hp ?? 0} z 3), którym włada {godLabel(players.find((pl) => pl.id === f.defenderId))}.
+              </p>
+              <AttrPicker label="Czym walczysz" options={['wrath', 'majesty', 'whisper']} value={f.attr} scores={scores} onChange={(v) => set('attr', v)} />
+              <p className={styles.hint}>Gniew to siła, Majestat to boska aura, Podszept to skrytobójstwo. Obrońca też wybiera. Wygrana o 3+ rani wroga dwa razy, o 1..2 rani obu, remis rani obu, przegrana rani ciebie.</p>
+            </div>
+          ),
+        }
+      }
+      case 'prophecy': {
+        const av = world.entityById(f.avatarId)
+        return {
+          ready: f.text.trim().length > 0 && !!f.avatarId,
+          fields: (
+            <div className={styles.fields}>
+              <p className={styles.hint}>Prorok {av?.emoji ?? ''} {av?.name ?? ''} zapowiada, że:</p>
+              <TextArea id="prophecy_text" label="Treść proroctwa" placeholder="Co nadejdzie. Jednym tchem, jak wyrocznia." value={f.text} onChange={(e) => set('text', e.target.value)} rows={4} maxLength={400} />
+              <p className={styles.hint}>Nieuchronność zaczyna od +1 i rośnie o 1 każdej Fazy Chaosu, aż do +3. Przy rzucie wybierzesz „Wypełnij proroctwo” i dodasz ją raz.</p>
+            </div>
+          ),
+        }
+      }
       case 'command_avatar':
         return {
           ready: !!f.avatarId,
@@ -940,6 +1046,10 @@ export function ActionDialog({ action, me, onClose }: { action: ActionDef; me: P
         return [`Awatar: ${world.entityById(f.avatarId)?.name ?? ''}`, f.summary.trim() ? `Rozkaz: ${f.summary.trim()}` : 'Rozkaz opowiesz w wersecie.', f.moveAvatar && f.target ? `Przejście na ${at}` : 'Bez przejścia']
       case 'resurrect_avatar':
         return [`Awatar: ${entities.find((e) => e.id === f.deadAvatarId)?.name ?? ''}`, `Wraca na ${at}, z pełnym życiem`]
+      case 'avatar_duel':
+        return [`${world.entityById(f.avatarId)?.emoji ?? ''} ${world.entityById(f.avatarId)?.name ?? ''} przeciw ${world.entityById(f.enemyAvatarId)?.emoji ?? ''} ${world.entityById(f.enemyAvatarId)?.name ?? ''}`, `Broni: ${godLabel(players.find((p) => p.id === f.defenderId))}`, `Rzut: 2k6 + ${ATTRIBUTE_BY_KEY[f.attr].name} (${scoreText(scores[f.attr])})${f.prophecyId ? ' + proroctwo' : ''}`]
+      case 'prophecy':
+        return [`Prorok: ${world.entityById(f.avatarId)?.emoji ?? ''} ${world.entityById(f.avatarId)?.name ?? ''}`, `Zapowiada, że: ${f.text.trim()}`]
       default:
         return []
     }

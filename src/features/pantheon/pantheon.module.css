@@ -651,3 +651,48 @@
   background: linear-gradient(180deg, rgba(247, 222, 143, 0.6), rgba(217, 165, 69, 0.35));
   color: var(--ink);
 }
+
+/* ---------- prophecies: spent on a roll, kept on the sheet ---------- */
+.prophecyPick {
+  display: grid;
+  gap: 6px;
+}
+.prophecyRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 3px;
+  background: rgba(255, 250, 235, 0.55);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+.prophecyRow input {
+  accent-color: var(--gold-inlay);
+}
+.prophecyOn {
+  background: linear-gradient(180deg, rgba(247, 222, 143, 0.6), rgba(217, 165, 69, 0.35));
+}
+.prophecyText {
+  flex: 1;
+  font-style: italic;
+}
+.prophecyHold {
+  font-family: var(--font-display);
+  color: var(--gold-dark);
+}
+.prophecies {
+  display: grid;
+  gap: 6px;
+}
+.prophecyLine {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-style: italic;
+  line-height: 1.4;
+}
+.prophecyDone {
+  opacity: 0.6;
+  text-decoration: line-through;
+}

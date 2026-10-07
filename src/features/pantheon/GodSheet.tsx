@@ -4,7 +4,7 @@ import { rpc } from '@/lib/supabase'
 import type { Entity, EntityKind, GodGender } from '@/lib/types'
 import { DOMAIN_BY_KEY, domainTitle } from '@/data/pantheon'
 import { useUser } from '@/features/auth/AuthGate'
-import { useGameStore, godLabel, selectEntitiesOf } from '@/store/useGameStore'
+import { useGameStore, godLabel, selectEntitiesOf, selectPropheciesOf } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { Modal, TextField, TextArea, Notice } from '@/components/ui/Primitives'
 import { GenderPicker, GenderSign } from '@/features/lobby/GenderPicker'
@@ -24,6 +24,14 @@ export function GodSheet({ playerId, onClose }: { playerId: string; onClose: () 
   const { user } = useUser()
   const player = useGameStore((s) => s.players.find((p) => p.id === playerId) ?? null)
   const works = useGameStore(selectEntitiesOf(playerId))
+  const prophecies = useGameStore(selectPropheciesOf(playerId))
+  const entities = useGameStore((s) => s.entities)
+  const avatarName = (id: string | null) => {
+    const a = id ? entities.find((e) => e.id === id) : undefined
+    return a ? `${a.emoji ? `${a.emoji} ` : ''}${a.name}` : 'awatar'
+  }
+  const active = prophecies.filter((p) => p.status === 'active')
+  const fulfilled = prophecies.filter((p) => p.status === 'fulfilled')
   const [editing, setEditing] = useState(false)
   if (!player) return null
   const mine = player.user_id === user.id
@@ -73,6 +81,37 @@ export function GodSheet({ playerId, onClose }: { playerId: string; onClose: () 
             )}
           </div>
         </div>
+
+        {(active.length > 0 || fulfilled.length > 0) && (
+          <div className={styles.works}>
+            <p className={styles.sectionTitle}>Proroctwa</p>
+            {active.length === 0 && <p className={styles.worksEmpty}>Żadne proroctwo nie czeka na spełnienie.</p>}
+            <div className={styles.prophecies}>
+              {active.map((p) => (
+                <div key={p.id} className={styles.prophecyLine}>
+                  <b className={styles.prophecyHold} title="Nieuchronność: tyle doda się do rzutu">+{p.hold}</b>
+                  <span>
+                    {avatarName(p.avatar_id)}: {p.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {fulfilled.length > 0 && (
+              <>
+                <p className={styles.sectionTitle}>Spełnione Proroctwa</p>
+                <div className={styles.prophecies}>
+                  {fulfilled.map((p) => (
+                    <div key={p.id} className={[styles.prophecyLine, styles.prophecyDone].join(' ')}>
+                      <span>
+                        {avatarName(p.avatar_id)}: {p.text}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <div className={styles.works}>
           <p className={styles.sectionTitle}>Dzieła bóstwa</p>

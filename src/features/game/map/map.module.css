@@ -631,3 +631,48 @@
   justify-content: flex-end;
   flex-wrap: wrap;
 }
+
+/* ---------- a won war: where the successes land ---------- */
+.alloc {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+}
+.allocHead {
+  margin: 0;
+  font-style: italic;
+}
+.allocList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.allocItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  background: rgba(255, 250, 235, 0.55);
+  cursor: pointer;
+}
+.allocOn {
+  background: linear-gradient(180deg, rgba(247, 222, 143, 0.6), rgba(217, 165, 69, 0.35));
+}
+.allocOff {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.popupAct {
+  margin-left: auto;
+  border: 1px solid rgba(120, 90, 30, 0.35);
+  background: linear-gradient(180deg, rgba(247, 222, 143, 0.7), rgba(217, 165, 69, 0.45));
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}

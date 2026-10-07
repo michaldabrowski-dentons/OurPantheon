@@ -30,6 +30,8 @@ export interface Game {
   era_started_round: number
   phase: GamePhase
   current_turn_player_id: string | null
+  /** the god that still owes the book a verse; the turn and the Chaos wait for it */
+  verse_pending_by: string | null
   settings: Record<string, unknown>
   created_at: string
   updated_at: string
@@ -170,7 +172,21 @@ export interface CityGift {
   created_at: string
 }
 
-export type ContestKind = 'convert' | 'holy_war'
+/** a word of an avatar about what is to come; its hold (+1..+3) adds to one roll, once */
+export interface Prophecy {
+  id: string
+  game_id: string
+  player_id: string
+  avatar_id: string | null
+  text: string
+  hold: number
+  status: 'active' | 'fulfilled'
+  created_round: number
+  fulfilled_round: number | null
+  created_at: string
+}
+
+export type ContestKind = 'convert' | 'holy_war' | 'avatar_duel'
 export type ContestStatus = 'pending' | 'resolved' | 'committed' | 'cancelled'
 
 /** Nawracanie or Święta Wojna waiting for (or settled by) the defender's roll */
@@ -182,8 +198,10 @@ export interface Contest {
   kind: ContestKind
   attacker_id: string
   defender_id: string
-  target_city_id: string
+  target_city_id: string | null
   source_city_id: string | null
+  attacker_avatar_id: string | null
+  defender_avatar_id: string | null
   army: number | null
   cost: number
   attacker_attr: AttrKey
@@ -364,6 +382,10 @@ export interface ActionPayload {
   dots?: number
   name?: string
   description?: string
-  /** command_avatar */
+  /** command_avatar, prophecy */
   avatar_id?: string
+  /** prophecy: what is foretold */
+  text?: string
+  /** a prophecy spent on this roll */
+  prophecy_id?: string
 }

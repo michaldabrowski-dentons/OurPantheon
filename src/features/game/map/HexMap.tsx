@@ -7,6 +7,7 @@ import { PYRAMID, cityLevel } from '@/data/cities'
 import { godColor } from '@/data/pantheon'
 import { useGameStore } from '@/store/useGameStore'
 import { canPick, useMapMode } from './mapMode'
+import { useDiceGate } from '../diceGate'
 import styles from './map.module.css'
 
 const R = 40
@@ -272,10 +273,13 @@ function HpBar({ x, y, hp }: { x: number; y: number; hp: number }) {
   )
 }
 
-/** the newest catastrophe, played once on its field */
+/** the newest catastrophe, played once on its field, after the die's window has been dismissed */
 function useBurst(log: ActionLog[]): { id: string; q: number; r: number } | null {
   const seen = useRef<string | null>(null)
+  const [queued, setQueued] = useState<{ id: string; q: number; r: number; at: number; tick: number } | null>(null)
   const [burst, setBurst] = useState<{ id: string; q: number; r: number } | null>(null)
+  const open = useDiceGate((s) => s.open)
+  const dismissed = useDiceGate((s) => s.dismissed)
   useEffect(() => {
     const last = [...log].reverse().find((l) => l.action_key === 'catastrophe')
     if (!last || seen.current === last.id) return
@@ -285,15 +289,24 @@ function useBurst(log: ActionLog[]): { id: string; q: number; r: number } | null
     if (first && Date.now() - new Date(last.created_at).getTime() > 15000) return
     const o = (last.outcome && !Array.isArray(last.outcome) ? last.outcome : {}) as Record<string, unknown>
     if (typeof o.q !== 'number' || typeof o.r !== 'number') return
-    const at = { id: last.id, q: o.q, r: o.r }
-    // the die tumbles in its window first (DiceOverlay); the fire falls once it has stepped aside
-    const start = window.setTimeout(() => setBurst(at), 3000)
-    const stop = window.setTimeout(() => setBurst(null), 6400)
-    return () => {
-      window.clearTimeout(start)
-      window.clearTimeout(stop)
-    }
+    setQueued({ id: last.id, q: o.q, r: o.r, at: Date.now(), tick: 0 })
   }, [log])
+  // the die tumbles in its window first (DiceOverlay); the fire falls once the table has clicked on
+  useEffect(() => {
+    if (!queued) return
+    const ready = dismissed === queued.id || (open !== queued.id && Date.now() - queued.at > 5000)
+    if (!ready) {
+      const t = window.setTimeout(() => setQueued((q) => (q ? { ...q, tick: q.tick + 1 } : q)), 500)
+      return () => window.clearTimeout(t)
+    }
+    setBurst({ id: queued.id, q: queued.q, r: queued.r })
+    setQueued(null)
+  }, [queued, open, dismissed])
+  useEffect(() => {
+    if (!burst) return
+    const stop = window.setTimeout(() => setBurst(null), 3400)
+    return () => window.clearTimeout(stop)
+  }, [burst])
   return burst
 }
 

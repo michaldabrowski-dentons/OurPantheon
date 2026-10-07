@@ -46,18 +46,24 @@ export function describeEvent(l: ActionLog, ctx: EventContext): string {
       const o = (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as Record<string, unknown>
       const def = ctx.god(typeof o.defender_id === 'string' ? o.defender_id : null).name
       const began = gender === 'm' ? 'zaczął' : gender === 'f' ? 'zaczęła' : 'zaczęło'
-      const what = o.kind === 'holy_war' ? `${p('wyruszy')} na świętą wojnę` : `${began} nawracać`
-      return `${G} ${what} przeciw ${def}${typeof o.target_name === 'string' ? ` w mieście ${o.target_name}` : ''}. Czekamy na obronę.`
+      const what = o.kind === 'holy_war' ? `${p('wyruszy')} na świętą wojnę` : o.kind === 'avatar_duel' ? `${p('posła')} awatara do walki` : `${began} nawracać`
+      const where = o.kind === 'avatar_duel' ? (typeof o.defender_avatar === 'string' ? ` (${o.defender_avatar})` : '') : typeof o.target_name === 'string' && o.target_name ? ` w mieście ${o.target_name}` : ''
+      return `${G} ${what} przeciw ${def}${where}. Czekamy na obronę.`
     }
     case 'contest_cancelled':
       return `${G} ${p('odwoła')} starcie.`
     case 'convert':
-    case 'holy_war': {
+    case 'holy_war':
+    case 'avatar_duel': {
       const att = r?.att
       const def = r?.def
       const dice = att && def ? `: ${att.total} przeciw ${def.total}` : ''
-      return `${l.action_key === 'holy_war' ? 'Święta Wojna' : 'Nawracanie'} rozstrzygnięte${dice}.`
+      return `${l.action_key === 'holy_war' ? 'Święta Wojna' : l.action_key === 'avatar_duel' ? 'Walka Awatarów' : 'Nawracanie'} rozstrzygnięte${dice}.`
     }
+    case 'prophecy_fulfilled':
+      return `${G} ${p('wypełni')} proroctwo.`
+    case 'avatars_heal':
+      return 'Awatary zabliźniły rany we śnie.'
     case 'city_destroyed':
       return `Miasto ${ctx.entity(l.entity_id)?.name ?? 'bez imienia'} obróciło się w ruinę.`
     case 'cities_grow':

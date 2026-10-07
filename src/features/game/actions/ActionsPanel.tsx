@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { actionsByCategory, type ActionDef, type Era } from '@/data/actions'
+import { ACTION_BY_KEY, actionsByCategory, type ActionDef, type Era } from '@/data/actions'
 import { rpc } from '@/lib/supabase'
 import { TransferDialog } from '../TransferDialog'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, selectMyPlayer, selectPendingContest, playerLabel } from '@/store/useGameStore'
 import { actionArt } from '@/data/actionArt'
 import { useWorld } from '../map/useWorld'
+import { useMapMode } from '../map/mapMode'
 import { ActionDialog } from './ActionDialog'
 import styles from '../game.module.css'
 
@@ -17,28 +18,43 @@ export function ActionsPanel() {
   const pending = useGameStore(selectPendingContest)
   const world = useWorld()
   const [open, setOpen] = useState<ActionDef | null>(null)
+  const [preset, setPreset] = useState<{ avatarId?: string } | undefined>(undefined)
+  const requested = useMapMode((s) => s.requested)
+  const request = useMapMode((s) => s.request)
   const [transfer, setTransfer] = useState(false)
   const players = useGameStore((s) => s.players)
   const profiles = useGameStore((s) => s.profiles)
 
   const era = game.era as Era
-  const myTurn = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting && !pending
+  const versePending = !!game.verse_pending_by
+  const myTurn = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting && !pending && !versePending
   // a living avatar with its free action still unspent opens every word, whatever the Words in hand
   const avatarFree = !!me && !me.avatar_action_used && world.avatarsOf(me.id).length > 0
   const groups = useMemo(() => actionsByCategory(era), [era])
 
   // the window of a word closes by itself when the Gods phase ends or the turn moves on:
   // nothing in it could be paid for any more, and the Chaos curtain must not hang behind it
+  // (the book's lock is mine while the window's last step is open, so it must not close it)
+  const turnLive = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting && !pending
   useEffect(() => {
-    if (open && !myTurn) setOpen(null)
-  }, [open, myTurn])
+    if (open && !turnLive) setOpen(null)
+  }, [open, turnLive])
+
+  // the map asked for a word (a click on my avatar): open it with that avatar already chosen
+  useEffect(() => {
+    if (!requested) return
+    request(null)
+    if (!myTurn) return
+    setPreset({ avatarId: requested.avatarId })
+    setOpen(ACTION_BY_KEY[requested.key])
+  }, [requested, request, myTurn])
 
   let tile = 0
 
   return (
     <aside className={styles.actions}>
       <p className={styles.actionsHint}>
-        {pending ? 'Trwa starcie. Słowa czekają na odpowiedź obrońcy.' : myTurn ? 'Twoja tura. Wybierz słowo i wskaż na mapie, co czynisz.' : 'W każdej kategorii od najtańszego słowa do najdroższego.'}
+        {pending ? 'Trwa starcie. Słowa czekają na odpowiedź obrońcy.' : versePending ? 'Święta Księga czeka na werset. Dopiero potem padnie następne słowo.' : myTurn ? 'Twoja tura. Wybierz słowo i wskaż na mapie, co czynisz.' : 'W każdej kategorii od najtańszego słowa do najdroższego.'}
       </p>
 
       {groups.map(({ category, actions }) => (
@@ -125,7 +141,7 @@ export function ActionsPanel() {
         </section>
       ))}
 
-      {open && me && <ActionDialog action={open} me={me} onClose={() => setOpen(null)} />}
+      {open && me && <ActionDialog action={open} me={me} preset={preset} onClose={() => { setOpen(null); setPreset(undefined) }} />}
       {transfer && me && (
         <TransferDialog
           onClose={() => setTransfer(false)}

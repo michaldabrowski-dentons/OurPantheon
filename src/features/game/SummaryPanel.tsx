@@ -9,7 +9,7 @@ import { Modal, Dice2d6, Die } from '@/components/ui/Primitives'
 import { PalettePage } from '@/features/palette/PalettePage'
 import { AltarGrid } from './altar/AltarGrid'
 import { useWorld } from './map/useWorld'
-import { MapInstructionCard, ContestBanner } from './map/MapCards'
+import { MapInstructionCard, ContestBanner, VerseLockCard } from './map/MapCards'
 import styles from './game.module.css'
 
 /** the Logos the faithful will pay at the end of Chaos, by the god's place among the pantheon */
@@ -49,7 +49,8 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
   }
 
   const rolling = game.phase === 'rolling'
-  const myTurn = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting && !pending
+  const versePending = !!game.verse_pending_by
+  const myTurn = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting && !pending && !versePending
   const myDots = me ? world.totalDots(me.id) : 0
   // my place among the gods by followers, and what it will pay at the end of Chaos
   const totals = players.map((p) => world.totalDots(p.id)).filter((n) => n > 0)
@@ -85,7 +86,11 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
       ? 'Faza Chaosu'
       : pending
         ? 'Trwa starcie'
-        : myTurn
+        : versePending
+          ? game.verse_pending_by === me?.id
+            ? 'Święta Księga czeka na twój werset.'
+            : 'Księga czeka na werset.'
+          : myTurn
           ? 'Twoja tura. Świat czeka.'
           : me?.is_resting
             ? 'Odpoczywasz do końca rundy.'
@@ -106,6 +111,7 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
       {/* what the map or a contest asks of me right now */}
       <MapInstructionCard world={world} />
       <ContestBanner onError={onError} />
+      <VerseLockCard onError={onError} />
 
       {/* the dice everyone sees, and the two throws */}
       <section className={styles.sumBlock}>

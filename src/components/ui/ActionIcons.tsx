@@ -124,6 +124,22 @@ const SHAPES: Record<ActionKey, ReactNode> = {
       <circle cx="12" cy="4" r="1.6" />
     </>
   ),
+  // two blades crossed over a halo
+  avatar_duel: (
+    <>
+      <circle cx="12" cy="5" r="2.2" />
+      <path d="M5 21 15 9M19 21 9 9" />
+      <path d="M4 17l4 4M20 17l-4 4" />
+    </>
+  ),
+  // an eye over a flame: what is to come
+  prophecy: (
+    <>
+      <path d="M3 10s3.5-5 9-5 9 5 9 5-3.5 5-9 5-9-5-9-5z" />
+      <circle cx="12" cy="10" r="2.2" />
+      <path d="M12 16c-2 2-2 4 0 5 2-1 2-3 0-5z" />
+    </>
+  ),
   // an ankh
   resurrect_avatar: (
     <>

@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql', '0015_fix_biome_draw.sql', '0016_colors_and_tiles.sql', '0017_prices_and_ruins.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql', '0015_fix_biome_draw.sql', '0016_colors_and_tiles.sql', '0017_prices_and_ruins.sql', '0018_verse_lock_avatars_prophecies.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -44,7 +44,13 @@ const A = '11111111-1111-1111-1111-111111111111'
 const B = '22222222-2222-2222-2222-222222222222'
 await db.exec(`insert into auth.users (id, email) values ('${A}', 'alfa@example.com'), ('${B}', 'beta@example.com')`)
 const as = (uid) => db.query(`select set_config('app.uid', $1, false)`, [uid])
-const q = async (sql, params = []) => (await db.query(sql, params)).rows
+let gameId = null
+const q = async (sql, params = []) => {
+  const rows = (await db.query(sql, params)).rows
+  // a word waits for its verse (games.verse_pending_by); the harness releases it at once unless told otherwise
+  if (gameId && /perform_action\(/.test(sql) && !/-- keep lock/.test(sql)) await db.query('select release_verse($1)', [gameId])
+  return rows
+}
 const rpcErr = async (sql, params = []) => {
   try {
     await db.query(sql, params)
@@ -61,6 +67,7 @@ const profiles = await q('select * from profiles order by display_name')
 ok(profiles.length === 2 && profiles[0].display_name === 'alfa', 'signup trigger created profiles')
 await db.query(`select set_display_name('Michał')`)
 const [game] = await q(`select * from create_game('Ziemie za Mgłą', 'Ta Pod Rzeką', 'fresco-06')`)
+gameId = game.id
 ok(/^[A-Z2-9]{6}$/.test(game.code), `game code ${game.code}`)
 await as(B)
 ok((await rpcErr(`select join_game('ZZZZZZ')`)) !== null, 'joining a bad code fails')
@@ -183,6 +190,7 @@ while (true) {
   const cur = (await q('select logos from players where user_id = $1 and game_id = $2', [turnUid, game.id]))[0].logos
   if (cur < 2) break
   await db.query(`select perform_action($1, 'shape_land', '{"biome":"pustynia","hexes":[{"q":-1,"r":0}]}')`, [game.id])
+  await db.query('select release_verse($1)', [game.id])
   spent += 2
   const gg = (await q('select * from games where id = $1', [game.id]))[0]
   const now = cur - 2
@@ -202,6 +210,32 @@ ok((await q('select count(*)::int as n from actions_log where action_key = $1', 
 ok(before - spent === (await q('select logos from players where user_id = $1 and game_id = $2', [turnUid, game.id]))[0].logos, 'logos deducted exactly')
 await db.query(`update hexes set biome = 'trawa' where game_id = $1 and q = -1 and r = 0`, [game.id])
 
+console.log('\n# the turn waits for the book')
+{
+  await as(turnUid)
+  await db.query('update players set logos = 60 where user_id = $1 and game_id = $2', [turnUid, game.id])
+  await db.query('select recompute_turn($1)', [game.id])
+  const locked = (await q(`select * from perform_action($1, 'shape_land', '{"biome":"zima","hexes":[{"q":-1,"r":1}]}') -- keep lock`, [game.id]))[0]
+  const gl = (await q('select verse_pending_by, phase from games where id = $1', [game.id]))[0]
+  const meP = (await q('select id from players where user_id = $1 and game_id = $2', [turnUid, game.id]))[0]
+  ok(gl.verse_pending_by === meP.id, 'after a word the game waits for its verse')
+  ok((await rpcErr(`select perform_action($1, 'shape_land', '{"biome":"zima","hexes":[{"q":-1,"r":1}]}')`, [game.id])) !== null, 'no second word before the verse')
+  await db.query('update players set logos = 0 where game_id = $1', [game.id])
+  await db.query('select recompute_turn($1)', [game.id])
+  ok((await q('select phase from games where id = $1', [game.id]))[0].phase === 'gods', 'Chaos does not begin while a verse is pending, even with no Logos left')
+  await as(otherUid)
+  ok((await rpcErr(`select release_verse($1)`, [game.id])) === (otherUid === A ? null : 'Werset dopisuje bóstwo, które przemówiło.'), 'only the god who spoke (or the host) may let the turn go')
+  await as(turnUid)
+  await db.query(`select edit_log_summary($1, 'I nastała zima na zachodzie.')`, [locked.id])
+  ok((await q('select verse_pending_by from games where id = $1', [game.id]))[0].verse_pending_by === null, 'writing the verse frees the turn')
+  ok((await q('select phase from games where id = $1', [game.id]))[0].phase === 'chaos', 'and only then the Chaos may begin')
+  // back to the Gods phase for the rest of the play
+  await db.query(`update games set phase = 'gods' where id = $1`, [game.id])
+  await db.query('update players set logos = 20 where game_id = $1', [game.id])
+  await db.query('select recompute_turn($1)', [game.id])
+  await db.query(`update hexes set biome = 'trawa' where game_id = $1 and q = -1 and r = 1`, [game.id])
+}
+
 console.log('\n# shaping the land')
 g = (await q('select * from games where id = $1', [game.id]))[0]
 const actor = (await q('select * from players where id = $1', [g.current_turn_player_id]))[0]
@@ -210,6 +244,7 @@ await as(actor.user_id)
 // test-only: give the actor plenty of Logos before each purchase so the turn stays put
 const topUp = async () => {
   await db.query('update players set logos = 60 where id = $1', [actor.id])
+  await db.query('select release_verse($1)', [game.id])
   await db.query(`select recompute_turn($1)`, [game.id])
 }
 await topUp()
@@ -425,19 +460,96 @@ const warDone = (await q(`select * from answer_contest($1, 'grace')`, [war2.id])
   const o = warDone.outcome
   const diff = warDone.attacker_total - warDone.defender_total
   ok(warDone.defender_mod === (await q(`select attr_score(p, 'grace') as s from players p where id = $1`, [otherP.id]))[0].s + 2, 'defender modifier is the attribute plus the defending dots')
+  ok((await q('select verse_pending_by from games where id = $1', [game.id]))[0].verse_pending_by === actor.id, 'after the answer the attacker owes the verse')
+  if (diff >= 1) {
+    ok(o.pending === true && o.successes === 4 && (await q('select player_dots($1, $2) as d', [newCity.id, otherP.id]))[0].d === 2, 'a won war keeps its successes for the attacker to place')
+  } else {
+    ok(o.pending === false, 'a lost war is settled at once')
+  }
+  await as(actor.user_id)
+  await db.query(`select commit_contest($1, 'I była wojna.', null)`, [war2.id])
   let removed = 0, converted = 0, returned = 0, defLost = 0
   if (diff >= 3) { removed = 2; converted = 1; returned = 4 }
   else if (diff >= 1) { removed = 2; converted = 1; returned = 2 }
   else if (diff === 0) { defLost = 1; returned = 3 }
   else if (diff >= -2) { defLost = 1; returned = 1 }
-  ok(o.diff === diff && o.removed === removed && o.converted === converted && o.returned === returned, `war resolved (${diff}): removed ${o.removed}, converted ${o.converted}, returned ${o.returned}`)
+  const oc = (await q('select outcome from contests where id = $1', [war2.id]))[0].outcome
+  ok(oc.removed === removed && oc.converted === converted && oc.returned === returned, `war settled (${diff}): removed ${oc.removed}, converted ${oc.converted}, returned ${oc.returned}`)
   ok((await q('select player_dots($1, $2) as d', [newCity.id, otherP.id]))[0].d === 2 - removed - defLost, 'the defender lost what the table says')
   ok((await q('select player_dots($1, $2) as d', [newCity.id, actor.id]))[0].d === converted, 'converted captives pray to the attacker')
   ok((await q('select player_dots($1, $2) as d', [civ.entity_id, actor.id]))[0].d === 1 + returned, 'survivors came home')
-  ok(o.target_destroyed === (2 - removed - defLost + converted === 0), 'a city emptied by war is a ruin')
+  ok(oc.target_destroyed === (2 - removed - defLost + converted === 0), 'a city emptied by war is a ruin')
+  ok((await q('select verse_pending_by from games where id = $1', [game.id]))[0].verse_pending_by === null, 'the commit frees the turn')
 }
-await as(actor.user_id)
-await db.query(`select commit_contest($1, 'I była wojna.')`, [war2.id])
+
+console.log('\n# a war hunts an avatar')
+{
+  // the defender's avatar stands in the attacked city; a won war may strike it
+  await db.query('delete from city_followers where city_id = $1', [newCity.id])
+  await db.query(`update entities set status = 'active' where id = $1`, [newCity.id])
+  await db.query(`insert into cities (entity_id, game_id, q, r) values ($1, $2, 1, -1) on conflict do nothing`, [newCity.id, game.id])
+  await db.query('insert into city_followers (game_id, city_id, player_id, dots) values ($1, $2, $3, 5), ($1, $2, $4, 1), ($1, $5, $4, 3) on conflict (city_id, player_id) do update set dots = excluded.dots', [game.id, civ.entity_id, actor.id, otherP.id, newCity.id])
+  const [enemyAv] = await q(`insert into entities (game_id, kind, name, emoji, hp, created_by_player_id) values ($1, 'avatar', 'Cień Rachunku', '🧛‍♂️', 3, $2) returning id`, [game.id, otherP.id])
+  await db.query(`insert into entity_gods (entity_id, player_id, game_id, role) values ($1, $2, $3, 'creator')`, [enemyAv.id, otherP.id, game.id])
+  await db.query(`insert into hex_occupants (game_id, q, r, slot, entity_id) values ($1, 1, -1, hex_free_slot($1, 1, -1), $2)`, [game.id, enemyAv.id])
+  await topUp()
+  await db.query('update players set logos = 60 where id = $1', [actor.id])
+  await db.query('update games set current_turn_player_id = $2 where id = $1', [game.id, actor.id])
+  const hunt = (await q(`select * from declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: civ.entity_id, army: 4, target_city_id: newCity.id, defender_id: otherP.id })]))[0]
+  // test-only: make the attack a sure win so the blows can be placed
+  await db.query('update contests set attacker_total = 30 where id = $1', [hunt.id])
+  await as(otherP.user_id)
+  const huntDone = (await q(`select * from answer_contest($1, 'grace')`, [hunt.id]))[0]
+  ok(huntDone.outcome.pending === true && huntDone.outcome.successes === 4, 'four successes wait to be placed')
+  await as(actor.user_id)
+  ok((await rpcErr(`select commit_contest($1, 'x', $2::jsonb)`, [hunt.id, J({ dots: 1, avatar: 2 })])) === null, 'one blow on the dots, two on the avatar')
+  ok((await q('select hp from entities where id = $1', [enemyAv.id]))[0].hp === 1, 'the enemy avatar lost two of three')
+  ok((await q('select player_dots($1, $2) as d', [newCity.id, otherP.id]))[0].d === 2, 'one follower of the defender fell')
+  ok((await q('select outcome from contests where id = $1', [hunt.id]))[0].outcome.avatar_wounds === 2, 'the wounds are written down')
+  await db.query('update entities set hp = 3 where id = $1', [enemyAv.id])
+
+  console.log('\n# avatars fight')
+  // my avatar next to the enemy's: (0,-1) touches (1,-1)
+  ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1 and q = 0 and r = -1', [av.entity_id]))[0].n === 1, 'my avatar stands next door')
+  await topUp()
+  ok((await rpcErr(`select declare_contest($1, 'avatar_duel', $2::jsonb)`, [game.id, J({ attacker_avatar_id: av.entity_id, defender_avatar_id: enemyAv.id, attr: 'grace' })])) !== null, 'a duel is Gniew, Majestat or Podszept')
+  const duel = (await q(`select * from declare_contest($1, 'avatar_duel', $2::jsonb)`, [game.id, J({ attacker_avatar_id: av.entity_id, defender_avatar_id: enemyAv.id, attr: 'wrath' })]))[0]
+  ok(duel.kind === 'avatar_duel' && duel.defender_id === otherP.id && duel.cost === 5 && duel.target_city_id === null, 'duel declared against the avatar\'s god, 5 Logos in era I')
+  await as(otherP.user_id)
+  const duelDone = (await q(`select * from answer_contest($1, 'majesty')`, [duel.id]))[0]
+  {
+    const diff = duelDone.attacker_total - duelDone.defender_total
+    const o = duelDone.outcome
+    let a = 0, d = 0
+    if (diff >= 3) d = 2
+    else if (diff >= 1) { d = 1; a = 1 }
+    else if (diff === 0) { d = 1; a = 1 }
+    else if (diff >= -2) a = 1
+    else a = 2
+    ok(o.attacker_loss === a && o.defender_loss === d, `duel (${diff}): attacker −${o.attacker_loss}, defender −${o.defender_loss}`)
+    ok((await q('select hp from entities where id = $1', [av.entity_id]))[0].hp === 3 - a && (await q('select hp from entities where id = $1', [enemyAv.id]))[0].hp === 3 - d, 'life taken as the table says')
+  }
+  await as(actor.user_id)
+  await db.query(`select commit_contest($1, 'Starli się.', null)`, [duel.id])
+  await db.query('update entities set hp = 3 where id in ($1, $2)', [av.entity_id, enemyAv.id])
+
+  console.log('\n# prophecies')
+  await topUp()
+  ok((await rpcErr(`select perform_action($1, 'prophecy', $2::jsonb)`, [game.id, J({ avatar_id: av.entity_id, text: '  ' })])) !== null, 'a prophecy needs words')
+  const proph = (await q(`select * from perform_action($1, 'prophecy', $2::jsonb)`, [game.id, J({ avatar_id: av.entity_id, text: 'Wielka fala zmyje niewiernych.' })]))[0]
+  const pr = (await q('select * from prophecies where game_id = $1 order by created_at', [game.id]))
+  ok(proph.logos_delta === -10 && pr.length === 1 && pr[0].hold === 1 && pr[0].status === 'active', 'a prophecy is spoken for 10 Logos, with a hold of one')
+  await topUp()
+  await db.query('update prophecies set hold = 3 where id = $1', [pr[0].id])
+  const devP = (await q(`select * from perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'grace', gift: 'Prawo', prophecy_id: pr[0].id })]))[0]
+  ok(devP.outcome.prophecy === 3 && devP.outcome.total === devP.outcome.d1 + devP.outcome.d2 + devP.outcome.score + 3, 'the prophecy adds its hold to the roll')
+  ok((await q('select status from prophecies where id = $1', [pr[0].id]))[0].status === 'fulfilled', 'and is fulfilled')
+  ok((await q(`select count(*)::int as n from actions_log where action_key = 'prophecy_fulfilled' and game_id = $1`, [game.id]))[0].n === 1, 'the book tells that the words became flesh')
+  await topUp()
+  ok((await rpcErr(`select perform_action($1, 'catastrophe', $2::jsonb)`, [game.id, J({ type: 'Deszcz ognia', q: 0, r: 3, prophecy_id: pr[0].id })])) !== null, 'a fulfilled prophecy cannot be used again')
+  await topUp()
+  await q(`select * from perform_action($1, 'prophecy', $2::jsonb)`, [game.id, J({ avatar_id: av.entity_id, text: 'Zgasną gwiazdy.' })])
+}
 
 console.log('\n# rest -> chaos')
 const dice = await q(`select * from log_dice_roll($1, 'test')`, [game.id])
@@ -489,7 +601,11 @@ await db.query(`insert into cities (entity_id, game_id, q, r) values ($1, $3, 0,
 await db.query('insert into city_followers (game_id, city_id, player_id, dots) values ($1, $2, $3, 5), ($1, $2, $4, 2), ($1, $5, $4, 2)', [game.id, civ.entity_id, actor.id, otherP.id, newCity.id])
 await db.query('update players set logos = 3 where id = $1', [otherP.id])
 await db.query('update players set logos = 20 where id = $1', [actor.id])
+await db.query('update entities set hp = 1 where id = $1', [av.entity_id])
 await db.query(`select end_chaos_phase($1)`, [game.id])
+ok((await q('select hp from entities where id = $1', [av.entity_id]))[0].hp === 2, 'a sleeping avatar heals one life')
+ok((await q(`select hold from prophecies where game_id = $1 and status = 'active'`, [game.id]))[0].hold === 2, 'an active prophecy ripens to two')
+ok((await q(`select count(*)::int as n from actions_log where action_key = 'avatars_heal'`))[0].n === 1, 'the healing is a book row')
 g = (await q('select * from games where id = $1', [game.id]))[0]
 players = await q('select * from players where game_id = $1 order by seat_order', [game.id])
 ok(g.round_number === 2 && g.phase === 'rolling', 'round 2, rolling')
@@ -555,7 +671,7 @@ ok((await q('select * from hexes'))[0] === undefined, 'outsider sees no map')
 await as(A)
 ok((await q('select * from games')).length === 1, 'member sees their game')
 ok((await q('select * from entities')).length === entityCount, `member sees all ${entityCount} entities`)
-ok((await q('select * from hexes')).length === hexCount && (await q('select * from city_followers')).length > 0 && (await q('select * from contests')).length === 3, 'member sees the map, the dots and the contests')
+ok((await q('select * from hexes')).length === hexCount && (await q('select * from city_followers')).length > 0 && (await q('select * from contests')).length === 5, 'member sees the map, the dots and the contests')
 ok((await q('select * from creation_options')).length === 1, 'member sees creation options')
 const pal = await rpcErr(`insert into palette_entries (game_id, player_id, "column", text) values ($1, $2, 'no', 'x')`, [game.id, players[1].id])
 ok(pal !== null, 'cannot insert palette entry as another player')

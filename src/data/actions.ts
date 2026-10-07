@@ -20,6 +20,8 @@ export type ActionKey =
   | 'create_avatar'
   | 'command_avatar'
   | 'resurrect_avatar'
+  | 'avatar_duel'
+  | 'prophecy'
 
 export type Era = 1 | 2 | 3
 export type ActionCategoryKey = 'terraform' | 'life' | 'mortals' | 'avatar' | 'words'
@@ -321,7 +323,7 @@ export const ACTIONS: ActionDef[] = [
     key: 'resurrect_avatar',
     name: 'Wskrzeszenie Awatara',
     category: 'avatar',
-    costs: [12, 15, 25],
+    costs: [12, 15, 16],
     requiresRoll: false,
     entityKind: 'avatar',
     entityOp: 'update',
@@ -333,7 +335,51 @@ export const ACTIONS: ActionDef[] = [
     ],
     requirement: { text: 'musi umrzeć awatar', check: (w) => w.entities.some((e) => e.kind === 'avatar' && e.status === 'dead') },
   },
+  {
+    key: 'avatar_duel',
+    name: 'Walka Awatarów',
+    category: 'avatar',
+    costs: [5, 4, 3],
+    requiresRoll: false,
+    contested: true,
+    flow: ['map', 'map', 'form', 'declare'],
+    summary: 'Twój awatar staje przeciw awatarowi innego bóstwa na tym samym lub sąsiednim heksie. Rzut sporny: 2k6 + Gniew, Majestat albo Podszept.',
+    details: [
+      'Kliknij swojego awatara, potem awatara przeciwnika stojącego na tym samym heksie albo obok. Jeśli jest dalej, najpierw każ awatarowi podejść (Rozkaz dla Awatara).',
+      'Wybierz, czym walczysz: Gniew to brutalne starcie siłowe, Majestat to pojedynek boskiej aury, Podszept to skrytobójstwo i mroczna magia. Obrońca też wybiera atrybut. Obaj rzucają 2k6 + atrybut.',
+      'Wygrana o 3+: awatar wroga traci 2 życia, twój bez szwanku. Wygrana o 1..2: wróg traci 1, ty też 1. Remis: obaj tracą po 1. Przegrana o 1..2: ty tracisz 1. Przegrana o 3+: ty tracisz 2. Awatar bez życia ginie i znika z mapy.',
+    ],
+    requirement: { text: 'twój awatar obok cudzego', check: (w, me) => duelPossible(w, me) },
+  },
+  {
+    key: 'prophecy',
+    name: 'Proroctwo',
+    category: 'avatar',
+    costs: [10, 5, 3],
+    requiresRoll: false,
+    entityOp: 'update',
+    flow: ['map', 'form', 'confirm', 'verse'],
+    summary: 'Kliknij swojego awatara i zapisz, co zapowiada. Proroctwo dojrzewa co Chaos (+1 do +3) i raz dodaje się do rzutu.',
+    details: [
+      'Awatar przemawia o tym, co nadejdzie. Kliknij swojego awatara na mapie i wpisz treść proroctwa własnymi słowami. Księga zapamięta: „Prorok X zapowiedział, że: …”.',
+      'Proroctwo ma nieuchronność: +1 w chwili wypowiedzenia, potem każda Faza Chaosu dodaje +1, aż do +3.',
+      'Przy rzucie (Rozwój, Kataklizm, Nawracanie, Święta Wojna, Walka Awatarów, także w obronie) możesz wypełnić jedno proroctwo: jego nieuchronność dodaje się do rzutu, a ono trafia do spełnionych na karcie bóstwa.',
+    ],
+    requirement: { text: 'musi istnieć twój żywy awatar na mapie', check: (w, me) => !!me && w.avatarsOf(me.id).some((a) => !!a.occupant) },
+  },
 ]
+
+/** my avatar on the map with an enemy avatar on the same field or next to it */
+function duelPossible(w: WorldView, me: Player | null): boolean {
+  if (!me) return false
+  const mine = w.avatarsOf(me.id).filter((a) => a.occupant)
+  if (mine.length === 0) return false
+  const enemies = w.entities.filter((e) => e.kind === 'avatar' && e.status === 'active' && !w.avatarsOf(me.id).some((a) => a.entity.id === e.id))
+  return enemies.some((e) => {
+    const occ = w.occupantsOf(e.id)[0]
+    return !!occ && mine.some((a) => Math.max(Math.abs(a.occupant!.q - occ.q), Math.abs(a.occupant!.r - occ.r), Math.abs(a.occupant!.q + a.occupant!.r - occ.q - occ.r)) <= 1)
+  })
+}
 
 export const ACTION_BY_KEY: Record<ActionKey, ActionDef> = Object.fromEntries(
   ACTIONS.map((a) => [a.key, a]),
@@ -408,6 +454,8 @@ export const LOG_LABELS: Record<string, string> = {
   dots_reward: 'Dary wyznawców',
   contest_declared: 'Starcie',
   contest_cancelled: 'Starcie odwołane',
+  prophecy_fulfilled: 'Proroctwo spełnione',
+  avatars_heal: 'Awatary leczą rany',
   round_end: 'Koniec rundy',
   era_advance: 'Nowa Era',
   game_start: 'Początek',

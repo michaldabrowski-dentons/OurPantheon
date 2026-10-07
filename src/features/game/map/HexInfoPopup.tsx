@@ -1,10 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { Entity } from '@/lib/types'
 import type { WorldView } from '@/lib/world'
 import { BIOME_BY_KEY } from '@/data/biomes'
 import { cityLevelLabel, followersWord } from '@/data/cities'
 import { godColor } from '@/data/pantheon'
-import { useGameStore, godLabel } from '@/store/useGameStore'
+import { useGameStore, godLabel, selectMyPlayer, selectPendingContest } from '@/store/useGameStore'
+import { useUser } from '@/features/auth/AuthGate'
+import { useMapMode } from './mapMode'
 import { godPortraitSrc } from '@/features/pantheon/GodPortrait'
 import type { Inspect } from './HexMap'
 import styles from './map.module.css'
@@ -12,6 +14,14 @@ import styles from './map.module.css'
 /** The card of a field, hung beside the mouse: one flat slab, the city's name as its title when there is one. */
 export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect; world: WorldView; onClose: () => void; onOpenEntity: (e: Entity) => void }) {
   const players = useGameStore((s) => s.players)
+  const { user } = useUser()
+  const me = useGameStore(selectMyPlayer(user.id))
+  const game = useGameStore((s) => s.game)
+  const pending = useGameStore(selectPendingContest)
+  const request = useMapMode((s) => s.request)
+  const mapMode = useMapMode((s) => s.mode)
+  const myTurn = !!game && !!me && game.phase === 'gods' && game.current_turn_player_id === me.id && !me.is_resting && !pending && !game.verse_pending_by && !mapMode
+  const myAvatarIds = new Set(me ? world.avatarsOf(me.id).map((a) => a.entity.id) : [])
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ left: at.x + 14, top: at.y + 14 })
 
@@ -113,19 +123,28 @@ export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect
       {avatars.length > 0 && (
         <div className={styles.popupSection}>
           <h5>Awatary</h5>
-          {avatars.map((e) => <Row key={e.id} e={e} onOpen={onOpenEntity} extra={`życie ${e.hp ?? 0} z 3`} />)}
+          {avatars.map((e) => (
+            <Row key={e.id} e={e} onOpen={onOpenEntity} extra={`życie ${e.hp ?? 0} z 3`}>
+              {myAvatarIds.has(e.id) && myTurn && (
+                <button type="button" className={styles.popupAct} title="Awatar przemawia o tym, co nadejdzie" onClick={() => { request({ key: 'prophecy', avatarId: e.id }); onClose() }}>
+                  Proroctwo
+                </button>
+              )}
+            </Row>
+          ))}
         </div>
       )}
     </div>
   )
 }
 
-function Row({ e, onOpen, extra }: { e: Entity; onOpen: (e: Entity) => void; extra?: string }) {
+function Row({ e, onOpen, extra, children }: { e: Entity; onOpen: (e: Entity) => void; extra?: string; children?: ReactNode }) {
   return (
     <div className={styles.popupRow}>
       <span className={styles.popupEmoji} aria-hidden>{e.emoji ?? '●'}</span>
       <button type="button" onClick={() => onOpen(e)}>{e.name}</button>
       {extra && <small style={{ color: 'var(--ink-soft)' }}>{extra}</small>}
+      {children}
     </div>
   )
 }

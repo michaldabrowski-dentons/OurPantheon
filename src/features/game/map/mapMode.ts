@@ -26,9 +26,17 @@ export interface MapMode {
   onCancel: () => void
 }
 
+/** the map asks for a word to open (a click on my avatar opens a prophecy) */
+export interface ActionRequest {
+  key: 'prophecy' | 'avatar_duel'
+  avatarId: string
+}
+
 interface MapModeState {
   mode: MapMode | null
   selection: MapPick[]
+  requested: ActionRequest | null
+  request: (r: ActionRequest | null) => void
   setMode: (mode: MapMode | null) => void
   /** a click on the map; single-pick modes finish at once */
   pick: (p: MapPick) => void
@@ -42,6 +50,8 @@ const same = (a: MapPick, b: MapPick) => a.q === b.q && a.r === b.r
 export const useMapMode = create<MapModeState>((set, get) => ({
   mode: null,
   selection: [],
+  requested: null,
+  request: (requested) => set({ requested }),
   setMode: (mode) => set({ mode, selection: [] }),
   pick: (p) => {
     const { mode, selection } = get()
