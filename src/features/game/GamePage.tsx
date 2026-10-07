@@ -8,7 +8,7 @@ import { Notice } from '@/components/ui/Primitives'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { GodsStatusBar } from './gods-bar/GodsStatusBar'
 import { EraAnchor } from './EraAnchor'
-import { BottomBar } from './BottomBar'
+import { SummaryPanel } from './SummaryPanel'
 import { LatestVerse } from './LatestVerse'
 import { EraOverture, useEraOverture } from './EraOverture'
 import { ActionsPanel } from './actions/ActionsPanel'
@@ -57,10 +57,9 @@ function useTurnGuard(game: Game) {
 
 /**
  * The temple, as a strict grid:
- *   era    | gods
- *   actions| altar
- *   actions| bottom
- * The colonnade of actions runs the full height on the left; the bottom bar sits under the altar only.
+ *   era     | gods    | gods
+ *   summary | actions | altar
+ * The summary slab and the colonnade of actions run the full height on the left; the map takes the rest.
  */
 export function GamePage() {
   const game = useGameStore((s) => s.game)!
@@ -75,9 +74,10 @@ export function GamePage() {
     <div className={styles.layout}>
       <EraAnchor onError={setError} />
       <GodsStatusBar />
+      <SummaryPanel onError={setError} chronicleOpen={chronicle} onChronicle={() => setChronicle((v) => !v)} />
       <ActionsPanel />
       <main className={styles.altar}>
-        <LatestVerse chronicleOpen={chronicle} onChronicle={() => setChronicle((v) => !v)} />
+        <LatestVerse />
         {error && (
           <div className={styles.altarBanner} style={{ padding: 0 }}>
             <Notice tone="error">{error}</Notice>
@@ -86,7 +86,6 @@ export function GamePage() {
         )}
         <MapStage onError={setError} />
       </main>
-      <BottomBar onError={setError} />
 
       {game.phase === 'chaos' && !overture && <ChaosOverlay onError={setError} />}
       {game.status === 'playing' && <ContestOverlay />}

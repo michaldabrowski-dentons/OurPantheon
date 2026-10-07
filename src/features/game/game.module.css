@@ -1,36 +1,83 @@
-/* The temple as a strict grid. The colonnade of actions runs the full height on the left;
-   the Era anchor sits above it, exactly as wide; gods above the altar; the bottom bar under the altar only. */
+/* The temple as a strict grid. The summary slab and the colonnade of actions run the full height on
+   the left; the Era anchor sits above the summary, exactly as wide; the gods above the rest; the map
+   takes everything else. */
 .layout {
-  --colonnade: 360px;
+  --summary: 300px;
+  --colonnade: 320px;
   height: 100vh;
   display: grid;
-  grid-template-columns: var(--colonnade) minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: var(--summary) var(--colonnade) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
-    'era gods'
-    'actions altar'
-    'actions bottom';
+    'era gods gods'
+    'summary actions altar';
   overflow: hidden;
 }
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .layout {
     height: auto;
     min-height: 100vh;
     overflow: visible;
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto 1fr auto;
+    grid-template-rows: auto auto auto auto auto;
     grid-template-areas:
       'era'
       'gods'
-      'actions'
       'altar'
-      'bottom';
+      'summary'
+      'actions';
   }
+}
+
+/* ---------- the summary slab ---------- */
+.summary {
+  grid-area: summary;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 12px 12px 18px;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid rgba(255, 205, 140, 0.07);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.9);
+}
+.sumBlock {
+  display: grid;
+  gap: 10px;
+  padding: 12px 12px 14px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(255, 205, 140, 0.04), rgba(0, 0, 0, 0.3));
+  box-shadow: inset 0 1px 0 rgba(255, 225, 170, 0.08), inset 0 -2px 4px rgba(0, 0, 0, 0.5);
+}
+.sumTitle {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--marble-vein);
+}
+.sumRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sumRow > button {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.sumDiceWho {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: #cfc3ad;
+}
+.summary .bbExit {
+  justify-self: start;
 }
 
 /* ---------- Era anchor: top-left, as wide as the colonnade. A square numeral, the rest beside it. ---------- */
 .eraAnchor {
   grid-area: era;
+  width: var(--summary);
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -78,7 +125,6 @@
 
 /* ---------- The quote above the altar: the last verse of the book ---------- */
 .quoteBand {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 18px;
@@ -114,32 +160,12 @@
   flex: 0 0 auto;
 }
 
-/* ---------- Bottom bar: under the altar only ---------- */
-.bottomBar {
-  grid-area: bottom;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
-  align-items: center;
-  gap: 14px;
-  padding: 12px var(--gutter);
-  min-height: 108px;
-  border-top: 1px solid rgba(255, 205, 140, 0.16);
-  box-shadow:
-    0 -1px 0 rgba(0, 0, 0, 0.9),
-    0 -14px 30px rgba(0, 0, 0, 0.7);
-  z-index: 6;
-}
-@media (max-width: 900px) {
-  .bottomBar {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-}
 /* what I hold: my Words large, my bonuses and my avatar's free action as small carved chips */
 .bbMe {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  justify-content: center;
   padding: 6px 12px 6px 10px;
   border-radius: 6px;
   background: linear-gradient(180deg, rgba(255, 205, 140, 0.05), rgba(0, 0, 0, 0.35));
@@ -201,14 +227,15 @@
 /* what just happened at the table, under the status */
 .bbEvent {
   max-width: 100%;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   font-style: italic;
   color: #cfc3ad;
   text-align: center;
   line-height: 1.3;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 /* the turn's status: carved letters catching the torch, soft glow in the dark */
 .bbStatus {
@@ -248,6 +275,7 @@
 .bbDiceGroup {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
 }
 .bbWords {
@@ -259,12 +287,6 @@
   font-size: 0.8rem;
   padding: 0.55em 1.1em;
   justify-content: flex-start;
-}
-@media (max-width: 1240px) {
-  .bottomBar {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-auto-rows: auto;
-  }
 }
 .bbLogosBtn {
   box-shadow:
@@ -873,11 +895,16 @@
   grid-area: altar;
   position: relative;
   min-height: 0;
-  overflow: auto;
-  padding: 18px 22px 24px;
+  overflow: hidden;
+  padding: 10px 14px 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
+}
+@media (max-width: 1100px) {
+  .altar {
+    min-height: 70vh;
+  }
 }
 /* the lists of things, in their window: the old four columns */
 .altarLists {

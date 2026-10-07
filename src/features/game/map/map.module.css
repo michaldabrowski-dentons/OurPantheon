@@ -1,15 +1,9 @@
 /* ---------- The map: a hexagon of fields in the dark, lit from the torch ---------- */
 .stage {
   display: flex;
-  gap: 18px;
   align-items: stretch;
   min-height: 0;
   flex: 1;
-}
-@media (max-width: 1100px) {
-  .stage {
-    flex-direction: column;
-  }
 }
 
 .board {
@@ -28,15 +22,15 @@
 .svg {
   width: 100%;
   height: 100%;
-  max-height: calc(100vh - 230px);
   display: block;
   overflow: visible;
 }
+.layer {
+  pointer-events: none;
+}
 
-/* the field: the only element that hears the mouse */
+/* the field: the only element that hears the mouse; its stroke is its own fill, so no seams show */
 .hex {
-  stroke: rgba(0, 0, 0, 0.45);
-  stroke-width: 1.2;
   stroke-linejoin: round;
   cursor: pointer;
   transition: filter var(--t-glow), stroke var(--t-glow), stroke-width var(--t-glow);
@@ -84,11 +78,13 @@
 .decorUnderCity {
   opacity: 0.35;
 }
-.sign {
-  font-size: 15px;
+.sign text {
+  paint-order: stroke;
 }
-.signAvatar {
-  font-size: 16px;
+.signPlate {
+  fill: rgba(10, 8, 7, 0.55);
+  stroke: rgba(255, 225, 170, 0.22);
+  stroke-width: 0.8;
 }
 .dot {
   stroke-width: 1;
@@ -100,9 +96,10 @@
   opacity: 0.9;
 }
 .cityPlate {
-  fill: rgba(16, 13, 12, 0.55);
-  stroke: rgba(255, 216, 120, 0.35);
-  stroke-width: 0.6;
+  fill: rgba(10, 8, 7, 0.62);
+  stroke: rgba(255, 216, 120, 0.45);
+  stroke-width: 0.8;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.8));
 }
 .hpBack {
   fill: rgba(0, 0, 0, 0.6);
@@ -209,11 +206,27 @@
   align-items: center;
   gap: 10px;
 }
-.popupHead h4 {
+.popupHead h4,
+.popupTitleBtn {
   font-family: var(--font-display);
   font-size: 1rem;
+  font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--ink);
+}
+.popupTitleBtn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline dotted;
+  text-underline-offset: 4px;
+}
+.popupDesc {
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--ink-soft);
 }
 .popupBiome {
   font-size: 1.6rem;
@@ -224,6 +237,7 @@
   font-size: 0.78rem;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .popupClose {
   border: 0;
@@ -332,21 +346,7 @@
   gap: 4px;
 }
 
-/* ---------- the rail beside the map ---------- */
-.rail {
-  width: 250px;
-  flex: none;
-  display: grid;
-  gap: 14px;
-  align-content: start;
-  min-height: 0;
-  overflow: auto;
-}
-@media (max-width: 1100px) {
-  .rail {
-    width: auto;
-  }
-}
+/* ---------- the cards on the summary slab ---------- */
 .railPanel {
   display: grid;
   gap: 10px;
@@ -360,15 +360,20 @@
   text-transform: uppercase;
   color: var(--ink-soft);
 }
+.legend {
+  display: grid;
+  gap: 6px;
+}
 .legendRow {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 0.9rem;
+  color: #e9d9b8;
 }
 .legendRow b {
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   letter-spacing: 0.03em;
   flex: 1;
   overflow: hidden;
@@ -377,7 +382,7 @@
 }
 .legendDots {
   font-variant-numeric: tabular-nums;
-  color: var(--ink-soft);
+  color: var(--marble-vein);
   font-size: 0.85rem;
 }
 .instruction {

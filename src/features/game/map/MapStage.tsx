@@ -4,11 +4,10 @@ import { useMapMode } from './mapMode'
 import { useWorld } from './useWorld'
 import { HexMap, type Inspect } from './HexMap'
 import { HexInfoPopup } from './HexInfoPopup'
-import { MapSideRail } from './MapSideRail'
 import { EntityDetail } from '../altar/EntityDetail'
 import styles from './map.module.css'
 
-/** The altar: the map with its rail, the field's card, and the detail of a thing opened from it. */
+/** The altar: the map, the field's card, and the detail of a thing opened from it. */
 export function MapStage({ onError }: { onError: (m: string | null) => void }) {
   const world = useWorld()
   const mode = useMapMode((s) => s.mode)
@@ -25,7 +24,6 @@ export function MapStage({ onError }: { onError: (m: string | null) => void }) {
   return (
     <div className={styles.stage}>
       <HexMap world={world} inspected={inspected} onInspect={setInspected} />
-      <MapSideRail world={world} onError={onError} />
       {inspected && <HexInfoPopup at={inspected} world={world} onClose={() => setInspected(null)} onOpenEntity={(e) => setOpenEntity(e)} />}
       {live && <EntityDetail entity={live} onClose={() => setOpenEntity(null)} onError={onError} />}
     </div>

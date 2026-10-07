@@ -6,7 +6,7 @@ import { DOMAIN_BY_KEY, domainTitle } from '@/data/pantheon'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, godLabel, selectEntitiesOf } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
-import { Modal, TextField, TextArea, Notice, Tag } from '@/components/ui/Primitives'
+import { Modal, TextField, TextArea, Notice } from '@/components/ui/Primitives'
 import { GenderPicker, GenderSign } from '@/features/lobby/GenderPicker'
 import { kindLabel } from '@/features/game/actions/ActionDialog'
 import { GodPortrait } from './GodPortrait'
@@ -105,9 +105,6 @@ function WorkRow({ entity, co }: { entity: Entity; co: boolean }) {
         {co ? ' · współtwórca' : ''}
         {entity.status === 'dead' ? (entity.kind === 'avatar' ? ' · poległ' : ' · wymarły') : entity.status === 'destroyed' ? ' · ruina' : ''}
       </small>
-      {entity.traits.slice(0, 3).map((t) => (
-        <Tag key={t}>{t}</Tag>
-      ))}
     </div>
   )
 }

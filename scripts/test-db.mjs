@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -124,18 +124,11 @@ ok((await rpcErr(`select start_game($1, '[]'::jsonb)`, [game.id])) !== null, 'ca
 
 console.log('\n# the map')
 ok((await q('select count(*)::int as n from hexes where game_id = $1', [game.id]))[0].n === 91, '91 hexes drawn when the game starts')
-{
-  const ring = (await q(`select count(*) filter (where biome = 'woda')::int as w, count(*)::int as n from hexes where game_id = $1 and hex_distance(0, 0, q, r) >= 4`, [game.id]))[0]
-  ok(ring.w >= ring.n * 0.6, `outer rings are mostly water (${ring.w} of ${ring.n})`)
-  const land = (await q(`select count(*)::int as n from hexes where game_id = $1 and hex_distance(0, 0, q, r) < 4 and biome <> 'woda'`, [game.id]))[0].n
-  ok(land === 37, `a continent in the middle (${land} land hexes within distance 3)`)
-  const decor = (await q(`select count(*)::int as n from hexes where game_id = $1 and biome in ('puszcza', 'dzungla', 'gory') and jsonb_array_length(decor) = 0`, [game.id]))[0].n
-  ok(decor === 0, 'forests, jungles and mountains carry decorations')
-  ok((await q(`select hex_distance(0, 0, 3, -1) as a, hex_distance(2, -2, 0, 0) as b, hex_distance(1, 0, 1, -1) as c`))[0].a === 3, 'hex distance in axial coordinates')
-}
+ok((await q(`select count(*)::int as n from hexes where game_id = $1 and biome <> 'woda'`, [game.id]))[0].n === 0, 'the world begins as an ocean')
+ok((await q(`select hex_distance(0, 0, 3, -1) as a, hex_distance(2, -2, 0, 0) as b, hex_distance(1, 0, 1, -1) as c`))[0].a === 3, 'hex distance in axial coordinates')
 // a deterministic neighbourhood for the checks below
 await db.query(`update hexes set biome = 'trawa', decor = '[]' where game_id = $1 and (q, r) in ((0, 0), (1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1))`, [game.id])
-await db.query(`update hexes set biome = 'woda', decor = '[]' where game_id = $1 and (q, r) in ((2, -2))`, [game.id])
+await db.query(`update hexes set biome = 'trawa', decor = '[]' where game_id = $1 and (q, r) in ((0, 3))`, [game.id])
 await db.query(`update hexes set biome = 'gory' where game_id = $1 and (q, r) in ((0, 2))`, [game.id])
 
 console.log('\n# round 1: logos rolls')
@@ -224,6 +217,7 @@ ok((await rpcErr(`select perform_action($1, 'shape_land', $2::jsonb)`, [game.id,
 const shaped = (await q(`select * from perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'puszcza', hexes: [{ q: 1, r: -1 }, { q: 1, r: 0 }, { q: 0, r: 0 }] })]))[0]
 ok(shaped.logos_delta === -2 && shaped.outcome.hexes.length === 3 && shaped.outcome.hexes[1].from === 'trawa', 'three touching hexes reshaped, the old biomes remembered')
 ok((await q(`select count(*)::int as n from hexes where game_id = $1 and biome = 'puszcza' and (q, r) in ((1, -1), (1, 0), (0, 0))`, [game.id]))[0].n === 3, 'the map changed')
+ok((await q(`select count(*)::int as n from hexes where game_id = $1 and biome = 'puszcza' and jsonb_array_length(decor) = 0`, [game.id]))[0].n === 0, 'a raised forest carries decorations')
 await db.query(`update hexes set biome = 'trawa', decor = '[]' where game_id = $1 and (q, r) in ((0, 0), (1, 0), (1, -1))`, [game.id])
 
 console.log('\n# life on the map')
@@ -240,16 +234,19 @@ const third = (await q(`select * from perform_action($1, 'create_creature', $2::
 ok(third.outcome.slot === 2, 'third slot filled on request')
 await topUp()
 ok((await rpcErr(`select perform_action($1, 'create_creature', $2::jsonb)`, [game.id, J({ entity: { name: 'Czwarte', traits: [] }, emoji: '🐸', q: 0, r: 0 })])) !== null, 'a full hex takes nobody else')
-const octopus = (await q(`select * from perform_action($1, 'create_creature', $2::jsonb)`, [game.id, J({ entity: { name: 'Ośmiornice', traits: ['Wodne'] }, emoji: '🐙', q: 2, r: -2 })]))[0]
-ok(octopus.outcome.biome === 'woda', 'creatures may live on water')
+ok((await rpcErr(`select perform_action($1, 'create_creature', $2::jsonb)`, [game.id, J({ entity: { name: 'Ośmiornice', traits: ['Wodne'] }, emoji: '🐙', q: 2, r: -2 })])) !== null, 'nothing lives on water')
+ok((await rpcErr(`select perform_action($1, 'create_creature', $2::jsonb)`, [game.id, J({ entity: { name: 'Kozice', traits: [] }, emoji: '🐐', q: 0, r: 2 })])) !== null, 'nothing lives in the mountains')
+const octopus = (await q(`select * from perform_action($1, 'create_creature', $2::jsonb)`, [game.id, J({ entity: { name: 'Ośmiornice', traits: ['Wodne'] }, emoji: '🐙', q: 0, r: 3 })]))[0]
+ok(octopus.outcome.biome === 'trawa', 'creatures settle on land')
 await topUp()
 ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: 0, r: 0 } })])) !== null, 'migration needs a different hex')
-const mig = (await q(`select * from perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: 2, r: -2 } })]))[0]
-ok(mig.logos_delta === -2 && mig.outcome.distance === 2, 'migration costs its distance (2 hexes, 2 Logos)')
+ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: 2, r: -2 } })])) !== null, 'no migration onto water')
+const mig = (await q(`select * from perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: -1, r: 1 } })]))[0]
+ok(mig.logos_delta === -1 && mig.outcome.distance === 1, 'migration costs its distance (1 hex, 1 Logos)')
 ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1', [sapient.entity_id]))[0].n === 2, 'the species now lives on two hexes')
-ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: 2, r: -2 } })])) !== null, 'cannot migrate where the species already lives')
+ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: -1, r: 1 } })])) !== null, 'cannot migrate where the species already lives')
 await topUp()
-const owlOcc = (await q('select * from hex_occupants where entity_id = $1 and q = 2 and r = -2', [sapient.entity_id]))[0]
+const owlOcc = (await q('select * from hex_occupants where entity_id = $1 and q = -1 and r = 1', [sapient.entity_id]))[0]
 const variant = (await q(`select * from perform_action($1, 'change_creature', $2::jsonb)`, [game.id, J({ occupant_id: owlOcc.id, entity: { name: 'Sowy Morskie', traits: ['Rozumne', 'Nocne', 'Wodne'] }, emoji: '🦆' })]))[0]
 ok(variant.logos_delta === -5 && variant.entity_id !== sapient.entity_id, 'a variant is a new creature')
 ok((await q('select entity_id from hex_occupants where id = $1', [owlOcc.id]))[0].entity_id === variant.entity_id, 'only that hex changed')
@@ -320,10 +317,8 @@ await db.query('insert into city_followers (game_id, city_id, player_id, dots) v
 console.log('\n# avatars on the map')
 await topUp()
 ok((await rpcErr(`select perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, J({ use_avatar_action: true, entity: { name: 'x', conditions: ['a'] }, emoji: '🗿', q: 0, r: -1 })])) !== null, 'free avatar action refused without an avatar')
-ok((await rpcErr(`select perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, J({ entity: { name: 'Bez uwarunkowań' }, emoji: '🗿', q: 0, r: -1 })])) !== null, 'an avatar without conditions is refused')
-ok((await rpcErr(`select perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, J({ entity: { name: 'Za dużo', conditions: ['a', 'b', 'c', 'd'] }, emoji: '🗿', q: 0, r: -1 })])) !== null, 'an avatar with four conditions is refused')
 ok((await rpcErr(`select perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, J({ entity: { name: 'Na wodzie', conditions: ['a'] }, emoji: '🗿', q: 2, r: -2 })])) !== null, 'an avatar does not stand on water')
-const av = (await q(`select * from perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, J({ entity: { name: 'Posąg', conditions: ['Są nieożywionym przedmiotem.'] }, emoji: '🗿', q: 0, r: -1 })]))[0]
+const av = (await q(`select * from perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, J({ entity: { name: 'Posąg' }, emoji: '🗿', q: 0, r: -1 })]))[0]
 ok(av.entity_id !== null && (await q('select hp from entities where id = $1', [av.entity_id]))[0].hp === 3, 'avatar created with 3 HP')
 await topUp()
 ok((await rpcErr(`select perform_action($1, 'command_avatar', $2::jsonb)`, [game.id, J({ avatar_id: av.entity_id, to: { q: -1, r: 4 } })])) !== null, 'an avatar walks three hexes at most')
@@ -338,7 +333,7 @@ ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1',
 ok((await q(`select count(*)::int as n from actions_log where action_key = 'entity_edit' and entity_id = $1 and summary like 'I spłonął awatar%Wielkim Cudzie%'`, [av.entity_id]))[0].n === 1, 'the destruction is a Chronicle line, told in the past')
 ok((await rpcErr(`select perform_action($1, 'great_miracle', $2::jsonb)`, [game.id, J({ use_avatar_action: true })])) !== null, 'second free avatar action in a round refused')
 await topUp()
-const res = (await q(`select * from perform_action($1, 'resurrect_avatar', $2::jsonb)`, [game.id, J({ entity: { op: 'update', id: av.entity_id, conditions: ['Są śmiertelne.'] }, q: 0, r: -1 })]))[0]
+const res = (await q(`select * from perform_action($1, 'resurrect_avatar', $2::jsonb)`, [game.id, J({ entity: { op: 'update', id: av.entity_id, description: 'Wrócił bez twarzy.' }, q: 0, r: -1 })]))[0]
 ok(res.logos_delta === -12 && (await q('select status, hp from entities where id = $1', [av.entity_id]))[0].hp === 3, 'resurrected with 3 HP')
 ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1 and q = 0 and r = -1', [av.entity_id]))[0].n === 1, 'the avatar returns to a chosen hex')
 await db.query('update players set avatar_action_used = false where id = $1', [actor.id])

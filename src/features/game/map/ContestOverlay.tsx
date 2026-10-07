@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { rpc } from '@/lib/supabase'
 import type { AttrKey, Contest } from '@/lib/types'
-import { ATTRIBUTES, attributeArt, scoreText, scoresFor } from '@/data/pantheon'
+import { ATTRIBUTES, scoresFor } from '@/data/pantheon'
+import { AttrPicker } from '@/features/pantheon/AttrPicker'
 import { followersWord } from '@/data/cities'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, godLabel, selectMyPlayer, selectPendingContest } from '@/store/useGameStore'
@@ -66,18 +67,7 @@ export function ContestOverlay() {
             <p className={styles.verdict}>
               {war ? 'Wybierz, czym bronisz: Łaska to tarcze i mury, Gniew to wyjście przed mury. Potem rzuć 2k6.' : 'Wybierz Majestat albo Podszept i rzuć 2k6. Wygrana atakującego o 3 lub więcej zabiera dwóch wyznawców, o 1 lub 2 jednego.'}
             </p>
-            <div className={styles.attrGrid}>
-              {options.map((k) => {
-                const a = ATTRIBUTES.find((x) => x.key === k)!
-                return (
-                  <button key={k} type="button" className={[styles.attrBtn, attr === k ? styles.attrOn : ''].join(' ')} onClick={() => setAttr(k)} disabled={busy}>
-                    <img src={attributeArt(k, 'thumb')} alt="" />
-                    <b>{a.name}</b>
-                    <small>{scoreText(scores[k])}</small>
-                  </button>
-                )
-              })}
-            </div>
+            <AttrPicker label="Czym bronisz" options={options} value={attr} scores={scores} onChange={setAttr} disabled={busy} />
             {error && <Notice tone="error">{error}</Notice>}
             <div className={styles.footer}>
               <StoneButton variant="gold" size="lg" disabled={!attr || busy} onClick={roll}>

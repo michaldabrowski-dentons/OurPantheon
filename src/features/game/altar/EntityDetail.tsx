@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { rpc } from '@/lib/supabase'
-import type { Entity, EntityKind } from '@/lib/types'
-import { AVATAR_CONDITIONS, CIV_FLAWS, CIV_SPECIALTIES, CIV_TRAITS, CREATURE_TRAITS, SAPIENT_TRAITS } from '@/data/traits'
+import type { Entity } from '@/lib/types'
+import { SAPIENT_TRAITS } from '@/data/traits'
 import { BIOME_BY_KEY } from '@/data/biomes'
 import { cityLevelLabel, followersWord } from '@/data/cities'
 import { godColor } from '@/data/pantheon'
@@ -9,7 +9,6 @@ import { godPortraitSrc } from '@/features/pantheon/GodPortrait'
 import { useGameStore, godLabel } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { Modal, Tag, TextField, TextArea, Notice, Toggle, ConfirmDialog } from '@/components/ui/Primitives'
-import { TraitPicker } from '@/components/ui/TraitPicker'
 import { kindLabel } from '../actions/ActionDialog'
 import { useWorld } from '../map/useWorld'
 import styles from '../game.module.css'
@@ -19,19 +18,11 @@ import mapStyles from '../map/map.module.css'
 interface EditForm {
   name: string
   description: string
-  traits: string[]
-  specialties: string[]
-  flaws: string[]
-  conditions: string[]
 }
 
 const fromEntity = (e: Entity): EditForm => ({
   name: e.name,
   description: e.description,
-  traits: e.traits,
-  specialties: e.specialties,
-  flaws: e.flaws,
-  conditions: e.conditions,
 })
 
 export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onClose: () => void; onError: (m: string | null) => void }) {
@@ -84,15 +75,7 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
   }
 
   async function save() {
-    const p: Record<string, unknown> = {
-      name: form.name,
-      description: form.description,
-      traits: form.traits,
-      specialties: form.specialties,
-      flaws: form.flaws,
-      conditions: form.conditions,
-    }
-    if (await patch(p)) setEditing(false)
+    if (await patch({ name: form.name, description: form.description })) setEditing(false)
   }
 
   async function toggleSapient(on: boolean) {
@@ -164,7 +147,7 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
         )}
 
         {editing ? (
-          <EntityEditor kind={entity.kind} form={form} set={set} />
+          <EntityEditor form={form} set={set} />
         ) : (
           <>
             {(places.length > 0 || city) && (
@@ -246,11 +229,6 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
               </div>
             )}
 
-            <TraitBlock title="Cechy" items={entity.traits} />
-            <TraitBlock title="Specjalności" items={entity.specialties} tone="lapis" />
-            <TraitBlock title="Braki" items={entity.flaws} tone="flaw" />
-            <TraitBlock title="Uwarunkowania" items={entity.conditions} />
-
             <div className={styles.section}>
               <h4 className="engraved">Opis</h4>
               <p style={{ whiteSpace: 'pre-wrap' }}>{entity.description || 'Jeszcze bez opisu.'}</p>
@@ -291,43 +269,14 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
   )
 }
 
-/** Everything about the entity, editable; the kind itself changes through the switch above. */
-function EntityEditor({ kind, form, set }: { kind: EntityKind; form: EditForm; set: <K extends keyof EditForm>(k: K, v: EditForm[K]) => void }) {
+/** The name and the description, editable; the kind itself changes through the switch above. */
+function EntityEditor({ form, set }: { form: EditForm; set: <K extends keyof EditForm>(k: K, v: EditForm[K]) => void }) {
   return (
     <div className={formStyles.fields}>
       <div className={formStyles.nameRow}>
         <TextField id="e_name" label="Nazwa" value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={80} />
       </div>
-
       <TextArea id="e_desc" label="Opis" value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="Krótko, dwa lub trzy zdania." />
-
-      {kind === 'creature' && <TraitPicker label="Cechy" options={CREATURE_TRAITS} value={form.traits} onChange={(v) => set('traits', v)} />}
-
-      {kind === 'civilization' && (
-        <>
-          <TraitPicker label="Cechy" options={CIV_TRAITS} value={form.traits} onChange={(v) => set('traits', v)} />
-          <TraitPicker label="Specjalności" options={CIV_SPECIALTIES} value={form.specialties} onChange={(v) => set('specialties', v)} tone="lapis" />
-          <TraitPicker label="Braki" options={CIV_FLAWS} value={form.flaws} onChange={(v) => set('flaws', v)} tone="flaw" />
-        </>
-      )}
-
-      {kind === 'avatar' && <TraitPicker label="Uwarunkowania" options={AVATAR_CONDITIONS} value={form.conditions} onChange={(v) => set('conditions', v)} max={3} />}
-    </div>
-  )
-}
-
-function TraitBlock({ title, items, tone }: { title: string; items: string[]; tone?: 'flaw' | 'lapis' }) {
-  if (items.length === 0) return null
-  return (
-    <div className={styles.section}>
-      <h4 className="engraved">{title}</h4>
-      <div className={styles.detailActions}>
-        {items.map((t) => (
-          <Tag key={t} tone={tone}>
-            {t}
-          </Tag>
-        ))}
-      </div>
     </div>
   )
 }

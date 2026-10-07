@@ -20,7 +20,7 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
 2. W **SQL Editor** uruchom po kolei pliki z `supabase/migrations/`:
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
-   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`.
+   `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -74,12 +74,12 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 
 ## Mapa
 
-- Wielki heksagon o promieniu 5 (91 pól, heksy wierzchołkiem do góry, współrzędne osiowe q, r, środek 0,0),
-  losowany przy starcie gry (`generate_map`): w środku kontynent (trawa, puszcza, wzgórza, góry, dżungla,
-  pustynia, sawanna, bagno), na dwóch zewnętrznych pierścieniach przeważa woda. Jedenaście biomów
-  (`src/data/biomes.ts`); puszcza, dżungla i góry noszą losowe emotikony jako dekorację.
-- Woda i Góry są zablokowane: nie powstanie tam miasto, nie dojdzie Exodus, nie stanie awatar. Istoty mogą
-  tam żyć.
+- Wielki heksagon o promieniu 5 (91 pól, heksy wierzchołkiem do góry, współrzędne osiowe q, r, środek 0,0).
+  Świat zaczyna się jako ocean (`generate_map` z migracji 0013): ląd wznoszą bóstwa Kształtowaniem Lądów.
+  Jedenaście biomów (`src/data/biomes.ts`); puszcza, dżungla i góry noszą losowe emotikony jako dekorację.
+  Pola stykają się bez widocznych krawędzi; znaki istot i piramidy kropek leżą na ciemnych płytkach z cieniem.
+- Woda i Góry są zablokowane: nie powstanie tam miasto, nie dojdzie Exodus, nie stanie awatar ani istota
+  (także przez Migrację).
 - Każde pole ma trzy miejsca w rogach (`hex_occupants`): istoty, istoty rozumne i awatary stoją tam jako
   emotikony (`entities.emoji`, unikalne w grze; pule w `src/data/emoji.ts`). Awatar ma 3 punkty życia
   (`entities.hp`).
@@ -88,10 +88,17 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   to liczba kropek (1 Koczowisko … 10 Wielkie imperium, `src/data/cities.ts`); dziesięć to sufit. Miasto bez
   kropek obraca się w ruinę (`destroy_city_if_empty`). Rządzi nim bóstwo z największą liczbą kropek.
 - Mysz słyszą tylko wielokąty pól; emotikony i kropki mają `pointer-events: none`. Klik poza akcją otwiera
-  kartę pola przy myszce (biom, dostępność, współrzędne, istoty, awatary, karta miasta z rozkładem wyznawców,
-  darami i cechami). W trakcie akcji dozwolone pola mają złoty obrys i jaśnieją; obok mapy stoi karta
-  z pytaniem, kosztem oraz przyciskami „Zakończ akcję” i „Przerwij” (`src/features/game/map/`).
-- Dawne listy bytów (istoty rozumne, istoty, cywilizacje, awatary) otwiera przycisk „Byty świata”.
+  kartę pola przy myszce, jedną płaską płytę: tytułem jest nazwa miasta (albo biom), pod nim poziom, dostępność,
+  wyznawcy z portretem rządzącego, dary, opis, istoty rozumne, istoty, awatary. W trakcie akcji dozwolone pola
+  mają złoty obrys i jaśnieją; na lewym panelu stoi karta z pytaniem, kosztem oraz przyciskami „Zakończ akcję”
+  i „Przerwij” (`src/features/game/map/`). Przy słowach płatnych dystansem świecą tylko pola, na które
+  starcza Logos.
+- Ekran gry to trzy kolumny: lewy panel podsumowań (`SummaryPanel`: pytanie mapy i starcie, status tury
+  i Logos z premiami, Odpoczynek i Przekaż Logos, kości widoczne dla wszystkich z ostatnim rzutem kogokolwiek,
+  Święta Księga, Paleta, Byty świata, legenda bóstw z liczbą wyznawców, wyjście), kolumna akcji i mapa na
+  reszcie ekranu. Dawne listy bytów otwiera „Byty świata”.
+- Cechy, specjalności, braki i uwarunkowania zniknęły: istota, cywilizacja i awatar mają tylko nazwę, znak
+  i opis (opis nowego bytu to werset z księgi). Stworzenie Cywilizacji nie wymaga rzutu.
 
 ## Słowa na mapie
 
@@ -99,13 +106,14 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   awatarem nie staną się Wodą ani Górami.
 - Kataklizm: rodzaj i pole; obrażenia k6 + Gniew (najmniej 1), każde losowo w kropkę miasta, istotę nierozumną
   albo awatara (−1 życia); istoty rozumne giną dopiero bez miasta. Na polu wybucha animacja.
-- Stworzenie Istoty / Istoty Rozumnej / Zesłanie Awatara: nazwa, cechy, emotikona, potem pole z wolnym miejscem.
+- Stworzenie Istoty / Istoty Rozumnej / Zesłanie Awatara: nazwa i emotikona, potem ląd z wolnym miejscem.
 - Zmiana Istoty: klik w jedną istotę na jednym polu; tam powstaje odmiana (nowy byt, `variant_of`).
 - Migracja: istota, potem pole docelowe; gatunek mnoży się na nowe pole; koszt to dystans w Logos.
-- Stworzenie Cywilizacji: pole z istotą rozumną, rzut 2k6 jak dotąd (jedyny rzut z „Rzuć ponownie”), cechy;
-  miasto rodzi się z jedną kropką twórcy.
-- Rozwój Cywilizacji: miasto, dar (tekst) i Łaska albo Mądrość; księga rzuca 2k6 + atrybut: 10+ to dwie kropki,
-  7..9 jedna, 6- nic (dar odnotowany jako odrzucony w `city_gifts`).
+- Stworzenie Cywilizacji: pole z istotą rozumną i nazwa; miasto rodzi się z jedną kropką twórcy.
+- Rozwój Cywilizacji: miasto, dar z listy (`GIFTS` w `src/data/cities.ts`, albo własny) i Łaska albo Mądrość
+  wybierane tymi samymi dłońmi co na karcie postaci (`AttrPicker`); księga rzuca 2k6 + atrybut: 10+ to dwie
+  kropki, 7..9 jedna, 6- nic (dar odnotowany jako odrzucony w `city_gifts`). Kości widać w kroku wersetu
+  i na lewym panelu u wszystkich.
 - Exodus: miasto z moimi kropkami, liczba kropek i istota rozumna, pole docelowe; 1 Logos za heks; na pustym
   polu powstaje nowe miasto (dziedziczy cechy i dary), w zajętym wyznawcy dołączają.
 - Nawracanie i Święta Wojna to starcia (`contests`): atakujący deklaruje i płaci (`declare_contest`), księga
@@ -120,7 +128,10 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 - Koniec Chaosu (`end_chaos_phase`): każde miasto zyskuje kropkę dla bóstwa, które nim rządzi (remis losowo),
   a suma kropek daje +3, +2 i +1 Logos trzem najwierniej czczonym bóstwom.
 - Każde słowo kończy się krokiem wersetu: księga układa werset z wyniku (`actions_log.outcome`,
-  `composeVerse`), gracz może go przepisać (`edit_log_summary`). Frakcje i religie zniknęły z gry.
+  `composeVerse`), gracz może go przepisać (`edit_log_summary`). Wersety nie znają słów „heks” ani „pole”
+  ani cyfr: mówią o ziemiach i krainach, liczby piszą słowami. Frakcje i religie zniknęły z gry.
+- Faza Chaosu: kartę odwraca, losuje ponownie i zamyka rundę bez wyboru tylko gospodarz; po wyborze
+  zdarzenia rundę może zamknąć każdy.
 
 ## Zasady wdrożone w bazie
 
@@ -178,9 +189,9 @@ src/data/              akcje i koszty, listy cech, biomy, emotikony, miasta, tab
                        domeny, kolory), księga (chronicle.ts), rysunki Er (eraArt.tsx)
 src/lib/               typy wierszy, geometria heksów (hex.ts), widok świata dla mapy i akcji (world.ts)
 src/store/             stan gry synchronizowany z Realtime
-src/features/          auth, lobby, palette, creation, pantheon (zegar domen, atrybuty, karta postaci),
-                       game (gods-bar, actions, map, altar, chaos, chronicle)
-src/components/ui/     StoneButton, MarblePanel, FrescoFrame, kości, TraitPicker, EmojiPicker
+src/features/          auth, lobby, palette, creation, pantheon (zegar domen, atrybuty, karta postaci, AttrPicker),
+                       game (SummaryPanel, gods-bar, actions, map, altar, chaos, chronicle)
+src/components/ui/     StoneButton, MarblePanel, FrescoFrame, kości, EmojiPicker
 src/styles/            tokeny materiałów i tekstury CSS
 src/img/               źródłowe obrazy: akcje (PNG 512px), domeny/ i atrybuty/ (PNG 1024px)
 public/actions/        kopie JPG 512px i miniatury 160px

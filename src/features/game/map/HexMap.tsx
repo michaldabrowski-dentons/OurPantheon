@@ -21,9 +21,9 @@ export interface Inspect {
 }
 
 /**
- * The map itself: 91 fields in an SVG. Only the polygons hear the mouse; everything painted on
- * them (decor, signs, dots) lets clicks through. In a map mode a click is an answer; otherwise it
- * opens the field's card beside the mouse.
+ * The map itself: 91 fields in an SVG that fills whatever room it gets. Only the polygons hear the
+ * mouse; everything painted on them (decor, signs, dots) lets clicks through. In a map mode a click
+ * is an answer; otherwise it opens the field's card beside the mouse.
  */
 export function HexMap({ world, inspected, onInspect }: { world: WorldView; inspected: Inspect | null; onInspect: (i: Inspect | null) => void }) {
   const mode = useMapMode((s) => s.mode)
@@ -73,7 +73,13 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
 
   return (
     <div className={styles.board}>
-      <svg className={styles.svg} viewBox={`${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}`} role="img" aria-label="Mapa świata">
+      <svg className={styles.svg} viewBox={`${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}`} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Mapa świata">
+        <defs>
+          <filter id="signShadow" x="-40%" y="-40%" width="180%" height="180%">
+            <feDropShadow dx="0" dy="1" stdDeviation="1.2" floodColor="#000" floodOpacity="0.85" />
+          </filter>
+        </defs>
+        {/* the fields first, so no sign is ever covered by a neighbour */}
         {HEXES.map(({ q, r }) => {
           const hex = world.hexAt(q, r)
           const { x, y } = axialToPixel(q, r, R)
@@ -81,28 +87,39 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
           const valid = mode ? canPick(mode, selection, q, r, world) : false
           const selected = selection.some((s) => s.q === q && s.r === r)
           const isInspected = !!inspected && inspected.q === q && inspected.r === r
-          const occupants = world.occupantsAt(q, r)
-          const city = world.cityAt(q, r)
           const cls = [styles.hex, mode ? (valid ? styles.hexValid : styles.hexDim) : '', selected ? styles.hexSelected : '', isInspected ? styles.hexInspected : ''].join(' ')
           return (
-            <g key={hexKey(q, r)}>
-              <polygon
-                className={cls}
-                points={hexCorners(x, y, R, 1.2)}
-                fill={biome?.fill ?? '#222'}
-                onClick={(e) => onHexClick(e, q, r)}
-                data-q={q}
-                data-r={r}
-              >
-                <title>{biome ? biome.name : 'poza światem'}</title>
-              </polygon>
-              {hex?.decor.map((d, i) => (
+            <polygon
+              key={hexKey(q, r)}
+              className={cls}
+              points={hexCorners(x, y, R, 0)}
+              fill={biome?.fill ?? '#222'}
+              stroke={biome?.fill ?? '#222'}
+              strokeWidth={1.6}
+              onClick={(e) => onHexClick(e, q, r)}
+              data-q={q}
+              data-r={r}
+            >
+              <title>{biome ? biome.name : 'poza światem'}</title>
+            </polygon>
+          )
+        })}
+        {HEXES.map(({ q, r }) => {
+          const hex = world.hexAt(q, r)
+          if (!hex) return null
+          const { x, y } = axialToPixel(q, r, R)
+          const occupants = world.occupantsAt(q, r)
+          const city = world.cityAt(q, r)
+          if (hex.decor.length === 0 && occupants.length === 0 && !city) return null
+          return (
+            <g key={hexKey(q, r)} className={styles.layer}>
+              {hex.decor.map((d, i) => (
                 <text
                   key={i}
                   className={[styles.decor, city ? styles.decorUnderCity : ''].join(' ')}
                   x={x + d.x * R}
                   y={y + d.y * R}
-                  fontSize={R * 0.42}
+                  fontSize={R * 0.46}
                   textAnchor="middle"
                   dominantBaseline="central"
                 >
@@ -115,12 +132,14 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
                 const off = SLOT_OFFSETS[o.slot] ?? SLOT_OFFSETS[0]
                 const sx = x + off.x * R
                 const sy = y + off.y * R
+                const size = R * 0.46
                 return (
-                  <g key={o.id}>
-                    <text className={[styles.sign, ent.kind === 'avatar' ? styles.signAvatar : ''].join(' ')} x={sx} y={sy} textAnchor="middle" dominantBaseline="central">
+                  <g key={o.id} className={styles.sign}>
+                    <rect className={styles.signPlate} x={sx - size * 0.62} y={sy - size * 0.6} width={size * 1.24} height={size * 1.2} rx={size * 0.3} />
+                    <text x={sx} y={sy} fontSize={size} textAnchor="middle" dominantBaseline="central" filter="url(#signShadow)">
                       {ent.emoji ?? (ent.kind === 'avatar' ? '✦' : '●')}
                     </text>
-                    {ent.kind === 'avatar' && <HpBar x={sx} y={sy + R * 0.3} hp={ent.hp ?? 0} />}
+                    {ent.kind === 'avatar' && <HpBar x={sx} y={sy + size * 0.68} hp={ent.hp ?? 0} />}
                   </g>
                 )
               })}
@@ -159,14 +178,14 @@ function CityPyramid({ x, y, city, world, colorOf }: { x: number; y: number; cit
   const rows = PYRAMID[total] ?? [total]
   const owners: string[] = []
   for (const f of followers) for (let i = 0; i < f.dots; i++) owners.push(f.player_id)
-  const step = R * 0.19
-  const dotR = R * 0.085
+  const step = R * 0.2
+  const dotR = R * 0.09
   const height = rows.length * step
   const plateW = Math.max(...rows) * step + step * 0.9
   let k = 0
   return (
     <g className={styles.dots}>
-      <rect className={styles.cityPlate} x={x - plateW / 2} y={y - height / 2 - step * 0.35} width={plateW} height={height + step * 0.7} rx={4} />
+      <rect className={styles.cityPlate} x={x - plateW / 2} y={y - height / 2 - step * 0.35} width={plateW} height={height + step * 0.7} rx={5} />
       {rows.map((count, rowIdx) => {
         const cy = y + height / 2 - step / 2 - rowIdx * step
         const startX = x - ((count - 1) * step) / 2
@@ -176,7 +195,7 @@ function CityPyramid({ x, y, city, world, colorOf }: { x: number; y: number; cit
           return (
             <g key={`${rowIdx}-${i}`}>
               <circle className={styles.dot} cx={startX + i * step} cy={cy} r={dotR} fill={c.fill} stroke={c.stroke} />
-              <circle className={styles.dotRim} cx={startX + i * step} cy={cy} r={dotR + 0.9} />
+              <circle className={styles.dotRim} cx={startX + i * step} cy={cy} r={dotR + 1} />
             </g>
           )
         })

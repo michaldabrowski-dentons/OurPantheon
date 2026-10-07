@@ -3,7 +3,6 @@ import type { Entity } from '@/lib/types'
 import { isSapient } from '@/data/actions'
 import { godPortraitSrc } from '@/features/pantheon/GodPortrait'
 import { useGameStore, godLabel } from '@/store/useGameStore'
-import { Tag } from '@/components/ui/Primitives'
 import { EntityDetail } from './EntityDetail'
 import styles from '../game.module.css'
 
@@ -88,7 +87,6 @@ function EntityCard({ entity, delay, onOpen }: { entity: Entity; delay: number; 
           .filter(Boolean)
       : []
   const showGods = entity.kind === 'avatar'
-  const tags = [...entity.traits.slice(0, 3), ...entity.specialties.slice(0, 2)]
 
   return (
     <button
@@ -118,18 +116,6 @@ function EntityCard({ entity, delay, onOpen }: { entity: Entity; delay: number; 
         {entity.status === 'dead' && (entity.kind === 'avatar' ? ' · poległ' : ' · wymarły')}
         {entity.status === 'destroyed' && ' · ruina'}
       </span>
-      {tags.length > 0 && (
-        <span className={styles.cardTags}>
-          {tags.map((t) => (
-            <Tag key={t}>{t}</Tag>
-          ))}
-          {entity.flaws.slice(0, 1).map((t) => (
-            <Tag key={t} tone="flaw">
-              {t}
-            </Tag>
-          ))}
-        </span>
-      )}
     </button>
   )
 }

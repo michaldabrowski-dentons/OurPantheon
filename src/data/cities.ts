@@ -44,12 +44,30 @@ export function cityLevelLabel(dots: number): string {
   return lvl === 0 ? 'Ruina' : `${CITY_LEVELS[lvl - 1]} (poziom ${lvl})`
 }
 
-/** "1 wyznawca", "4 wyznawców", "22 wyznawców" */
+/** "1 wyznawca", "4 wyznawców", "22 wyznawców" (the table talks in digits) */
 export function followersWord(n: number): string {
   const a = Math.abs(n)
   if (a === 1) return '1 wyznawca'
   return `${a} wyznawców`
 }
+
+/** the book never writes a digit: "jeden wyznawca", "czterech wyznawców", "jedenastu wyznawców" */
+const COUNT_WORDS: Record<number, string> = {
+  1: 'jeden', 2: 'dwóch', 3: 'trzech', 4: 'czterech', 5: 'pięciu', 6: 'sześciu', 7: 'siedmiu', 8: 'ośmiu', 9: 'dziewięciu', 10: 'dziesięciu',
+  11: 'jedenastu', 12: 'dwunastu', 13: 'trzynastu', 14: 'czternastu', 15: 'piętnastu', 16: 'szesnastu', 17: 'siedemnastu', 18: 'osiemnastu', 19: 'dziewiętnastu', 20: 'dwudziestu',
+}
+export function followersInWords(n: number): string {
+  const a = Math.abs(n)
+  if (a === 1) return 'jeden wyznawca'
+  return `${COUNT_WORDS[a] ?? 'wielu'} wyznawców`
+}
+
+/** what a god may hand a city; the last choice lets the player write their own */
+export const GIFTS: string[] = [
+  'Ogień', 'Rolnictwo', 'Pismo', 'Koło', 'Metalurgia', 'Żegluga', 'Medycyna', 'Prawo', 'Astronomia', 'Kalendarz',
+  'Muzyka', 'Oliwki i wino', 'Hodowla', 'Garncarstwo', 'Tkactwo', 'Mury', 'Świątynia', 'Koszary', 'Port', 'Targ',
+  'Biblioteka', 'Akwedukt', 'Pałac', 'Teatr', 'Latarnia morska', 'Droga', 'Most', 'Spichlerz', 'Szkoła', 'Mennica',
+]
 
 /** "1 kropka", "2 kropki", "5 kropek" */
 export function dotsWord(n: number): string {

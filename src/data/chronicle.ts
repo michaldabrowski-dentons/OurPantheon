@@ -6,8 +6,8 @@
 import type { ActionLog, BiomeKey, Entity, EntityKind, GodGender } from '@/lib/types'
 import { ACTION_BY_KEY, ERA_NAMES, type ActionKey, type Era } from './actions'
 import { CHAOS_BY_KEY, QUESTION_LEADS, type ChaosCategoryKey } from './chaosTables'
-import { BIOME_BY_KEY, BIOME_LOC } from './biomes'
-import { followersWord } from './cities'
+import { BIOME_ACC, BIOME_BY_KEY, BIOME_GEN, BIOME_LOC } from './biomes'
+import { followersInWords } from './cities'
 
 export interface GodRef {
   name: string
@@ -102,79 +102,18 @@ function soften(text: string, id: string): string {
   return m ? `${m[2].toUpperCase()}${m[3]}` : text
 }
 
-/** "jedno pole", "dwa pola", "pięć pól" */
-function fieldsWord(n: number): string {
-  if (n === 1) return 'jedno pole'
-  if (n >= 2 && n <= 4) return `${['', '', 'dwa', 'trzy', 'cztery'][n]} pola`
-  return `${n} pól`
+/** how far, without a digit and without the word for a field */
+function journeyWord(n: number): string {
+  if (n <= 1) return 'na sąsiednie ziemie'
+  if (n === 2) return 'przez dwie krainy'
+  if (n === 3) return 'przez trzy krainy'
+  return 'przez wiele krain'
 }
 
 // ---------- what the god saw ----------
-const CONDITION_PAST: Record<string, string> = {
-  'Nadmiernie przejmują się sprawami śmiertelników.': 'nadmiernie przejmował się sprawami śmiertelników',
-  'Mają nienasycony głód lub pragnienie czegoś.': 'miał nienasycony głód, którego nic nie mogło zaspokoić',
-  'Nie mogą wchodzić na gęsto zaludnione obszary.': 'nie mógł wchodzić tam, gdzie mieszkało wielu',
-  'Mają wyjątkową słabość na coś przyziemnego, jak srebro, czekolada lub woda.': 'miał słabość na coś zgoła przyziemnego',
-  'Są nieożywionym przedmiotem, jak posąg, klejnot, góra.': 'był rzeczą nieożywioną',
-  'Są przedmiotem, który trzeba dzierżyć: broń, tarcza, księga, pojazd.': 'był rzeczą, którą trzeba dzierżyć',
-  'Są niematerialne: język, baśń lub duch.': 'nie miał ciała',
-  'Są śmiertelne i przechodzą przez cykl reinkarnacji.': 'był śmiertelny i wracał w nowych ciałach',
-  'Brak im wolnej woli; wykonują wszystko, co każe twórca.': 'nie miał własnej woli i czynił tylko to, co mu kazano',
-  'Jest ich wiele (np. anioły).': 'był wieloma naraz',
-  'Nie wiedzą, że są Awatarem.': 'nie wiedział, że jest awatarem',
-}
-
-/** the sentence(s) after the deed: what the god saw in the thing made or changed */
-function seen(id: string, G: string, p: P, ent: Entity | undefined, changed: boolean): string {
-  if (!ent) return ''
-  const odtad = changed ? ' odtąd' : ''
-  const traits = ent.traits.map((t) => t.toLowerCase())
-  const parts: string[] = []
-  const saw = (were: string, list: string) =>
-    pick(id + 's', [
-      `I ${p('widzia')} ${G}, że ${were}${odtad} ${list}.`,
-      `${cap(p('widzia'))} ${G}, że ${were}${odtad} ${list}, i było to dobre.`,
-      `${cap(were)}${odtad} ${list}.`,
-    ])
-  switch (ent.kind) {
-    case 'creature':
-      if (traits.length) parts.push(saw('były', joinAnd(traits)))
-      break
-    case 'civilization': {
-      if (traits.length) parts.push(saw('była', joinAnd(traits)))
-      const s = ent.specialties.map((x) => x.toLowerCase())
-      const f = ent.flaws.map((x) => x.toLowerCase())
-      if (s.length && f.length) parts.push(pick(id + 'f', [`Siłą jej było: ${joinAnd(s)}; brakiem zaś: ${joinAnd(f)}.`, `Słynęła z tego: ${joinAnd(s)}. Brakło jej zaś tego: ${joinAnd(f)}.`]))
-      else if (s.length) parts.push(`Siłą jej było: ${joinAnd(s)}.`)
-      else if (f.length) parts.push(`Brakiem jej było: ${joinAnd(f)}.`)
-      break
-    }
-    case 'avatar': {
-      const c = ent.conditions.map((x) => CONDITION_PAST[x] ?? lowerFirst(stripPeriod(x)))
-      if (c.length) parts.push(pick(id + 'c', [`Awatar ten ${joinAnd(c)}.`, `A awatar ten ${joinAnd(c)}.`]))
-      break
-    }
-    default:
-      break
-  }
-  return parts.join(' ')
-}
-
-/** true when the written line already names every trait, specialty, flaw and condition of the thing */
-function mentionsAll(summary: string, ent: Entity | undefined): boolean {
-  if (!ent || !summary) return false
-  const words = [...ent.traits, ...ent.specialties, ...ent.flaws, ...ent.conditions.map((c) => CONDITION_PAST[c] ?? stripPeriod(c))].map((w) => w.toLowerCase())
-  if (words.length === 0) return false
-  const s = summary.toLowerCase()
-  return words.every((w) => s.includes(w))
-}
-
-/**
- * The sentence(s) the book would add about a thing's traits, for the action dialog to draft the
- * description with. `id` picks the variant, so the draft reads the same for everyone at the table.
- */
-export function describeSeen(id: string, god: GodRef, ent: Entity, changed: boolean): string {
-  return seen(id, god.name, pastFor(god.gender), ent, changed)
+/** things have no traits any more; the book says nothing after the deed but what the map tells */
+export function describeSeen(_id: string, _god: GodRef, _ent: Entity, _changed: boolean): string {
+  return ''
 }
 
 /** The opening sentence of a deed ("I stworzył X istoty, i nazwał je N."), for the dialog's draft. */
@@ -298,13 +237,15 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
   switch (l.action_key) {
     case 'shape_land': {
       const hexes = (Array.isArray(o.hexes) ? o.hexes : []) as O[]
-      const to = biomeName(str(o, 'biome'))
-      const from = Array.from(new Set(hexes.map((h) => biomeName(str(h, 'from'))).filter((b) => b && b !== to)))
+      const toKey = str(o, 'biome') as BiomeKey
+      const to = biomeName(toKey)
+      const fromKeys = Array.from(new Set(hexes.map((h) => str(h, 'from')).filter((b) => b && b !== toKey))) as BiomeKey[]
+      const from = fromKeys.map(biomeName)
       if (hexes.length) {
         parts.push(
           from.length
-            ? pick(id + 'o', [`Tam, gdzie ${from.length > 1 ? 'były' : 'była'} ${joinAnd(from)}, na ${fieldsWord(hexes.length)} rozpostarła się ${to}.`, `I zmieniło się ${fieldsWord(hexes.length)}: z ${joinAnd(from)} w ${to === 'góry' ? 'góry' : to}.`])
-            : `I utrwaliła się ${to} na ${fieldsWord(hexes.length)}.`,
+            ? pick(id + 'o', [`Tam, gdzie ${from.length > 1 ? 'były' : 'była'} ${joinAnd(from)}, rozpostarła się ${to}.`, `I odmieniła się ta kraina: z ${joinAnd(fromKeys.map((k) => BIOME_GEN[k] ?? k))} w ${BIOME_ACC[toKey] ?? to}.`])
+            : `I utrwaliła się ${to} na tych ziemiach.`,
         )
       }
       break
@@ -326,9 +267,9 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
         else if (t === 'creature') (h.extinct ? extinct : creatures).push(str(h, 'name'))
         else if (t === 'avatar') (num(h, 'hp') === 0 ? fallen : wounded).push(str(h, 'name'))
       }
-      const lost = Array.from(dotsBy.entries()).map(([pid, n]) => `${followersWord(n)} bóstwa ${ctx.god(pid).name}`)
+      const lost = Array.from(dotsBy.entries()).map(([pid, n]) => `${followersInWords(n)} bóstwa ${ctx.god(pid).name}`)
       if (lost.length) parts.push(`Zginęło ${joinAnd(lost)}.`)
-      if (creatures.length) parts.push(`Przepadły z tego pola ${joinAnd(Array.from(new Set(creatures)))}.`)
+      if (creatures.length) parts.push(`Przepadły z tej ziemi ${joinAnd(Array.from(new Set(creatures)))}.`)
       if (extinct.length) parts.push(`I wyginęły na zawsze ${joinAnd(extinct)}.`)
       if (wounded.length) parts.push(`Ranny został awatar ${joinAnd(wounded)}.`)
       if (fallen.length) parts.push(`A awatar ${joinAnd(fallen)} padł.`)
@@ -350,7 +291,7 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
     }
     case 'migrate': {
       const d = num(o, 'distance')
-      parts.push(pick(id + 'o', [`Rozeszły się o ${fieldsWord(d)} dalej i nie opuściły dawnego domu.`, `I było ich odtąd więcej: o ${fieldsWord(d)} dalej żyły tak samo.`]))
+      parts.push(pick(id + 'o', [`Rozeszły się ${journeyWord(d)} i nie opuściły dawnego domu.`, `I było ich odtąd więcej: ${journeyWord(d)} żyły tak samo.`]))
       break
     }
     case 'create_civilization': {
@@ -364,8 +305,8 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       const gained = num(o, 'gained')
       const added = num(o, 'added')
       if (gift) parts.push(`A darem tym było: ${lowerFirst(stripPeriod(gift))}.`)
-      if (gained >= 2) parts.push(pick(id + 'o', ['Przyjęli go wyznawcy z radością, i urosło miasto o dwie kropki.', 'I rozkwitło miasto od tego daru, a wyznawców przybyło dwakroć.']))
-      else if (gained === 1) parts.push(pick(id + 'o', ['Przyjęli go, i urosło miasto o jedną kropkę.', 'I przyjął lud ten dar, i przybyło wyznawców.']))
+      if (gained >= 2) parts.push(pick(id + 'o', ['Przyjęli go wyznawcy z radością, i urosło miasto dwakroć.', 'I rozkwitło miasto od tego daru, a wyznawców przybyło dwakroć.']))
+      else if (gained === 1) parts.push(pick(id + 'o', ['Przyjęli go, i urosło miasto.', 'I przyjął lud ten dar, i przybyło wyznawców.']))
       else parts.push(pick(id + 'o', ['Lecz nie przyjęli daru, i nic się nie zmieniło.', `Odwrócili się jednak od daru, i ${G} ${p('odesz')} z niczym.`]))
       if (gained > added) parts.push('Miasto było już pełne i nie pomieściło wszystkich.')
       break
@@ -375,7 +316,7 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       const to = str(o, 'to_name')
       const d = num(o, 'distance')
       const sp = str(o, 'species_name')
-      const went = `${cap(followersWord(n))} ${sp ? `z istot ${sp} ` : ''}${n === 1 ? 'przeszedł' : 'przeszło'} o ${fieldsWord(d)}`
+      const went = `${cap(followersInWords(n))} ${sp ? `z istot ${sp} ` : ''}${n === 1 ? 'przeszedł' : 'przeszło'} ${journeyWord(d)}`
       parts.push(o.new ? `${went} i ${n === 1 ? 'założył' : 'założyli'} miasto ${to}.` : `${went} i ${n === 1 ? 'dołączył' : 'dołączyli'} do miasta ${to}.`)
       if (o.source_destroyed) parts.push(`A miasto ${str(o, 'from_name')} opustoszało i obróciło się w ruinę.`)
       break
@@ -395,11 +336,11 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       const converted = num(o, 'converted')
       const attLost = num(o, 'attacker_lost')
       const defLost = num(o, 'defender_lost')
-      parts.push(`Armia liczyła ${followersWord(army)}, a bronił miasta ${def}.`)
-      if (diff >= 3) parts.push(`Zwyciężyła armia w pełni: padło ${followersWord(removed)} obrońców${converted ? `, a ${followersWord(converted)} spośród jeńców ${converted === 1 ? 'uwierzył' : 'uwierzyło'} w ${G}` : ''}. I wróciła armia cała.`)
-      else if (diff >= 1) parts.push(`Przełamano mury, lecz walka była krwawa: padło ${followersWord(removed)} obrońców${converted ? `, ${followersWord(converted)} ${converted === 1 ? 'uwierzył' : 'uwierzyło'} w ${G}` : ''}, a armia straciła ${followersWord(attLost)}.`)
+      parts.push(`Armia liczyła ${followersInWords(army)}, a bronił miasta ${def}.`)
+      if (diff >= 3) parts.push(`Zwyciężyła armia w pełni: padło ${followersInWords(removed)} obrońców${converted ? `, a ${followersInWords(converted)} spośród jeńców ${converted === 1 ? 'uwierzył' : 'uwierzyło'} w ${G}` : ''}. I wróciła armia cała.`)
+      else if (diff >= 1) parts.push(`Przełamano mury, lecz walka była krwawa: padło ${followersInWords(removed)} obrońców${converted ? `, ${followersInWords(converted)} ${converted === 1 ? 'uwierzył' : 'uwierzyło'} w ${G}` : ''}, a armia straciła ${followersInWords(attLost)}.`)
       else if (diff === 0) parts.push('Nikt nie zwyciężył: obie strony straciły po jednym, i wróciła armia do domu.')
-      else if (diff >= -2) parts.push(`Załamał się atak na murach: z całej armii wrócił jeden, a obrońcy stracili ${followersWord(defLost)}.`)
+      else if (diff >= -2) parts.push(`Załamał się atak na murach: z całej armii wrócił jeden, a obrońcy stracili ${followersInWords(defLost)}.`)
       else parts.push('Masakra: cała armia legła pod murami i nikt nie wrócił do domu, a miasto zostało nietknięte.')
       if (o.target_destroyed) parts.push(`I nie zostało z miasta ${str(o, 'target_name')} nic prócz ruin.`)
       if (o.source_destroyed) parts.push('A miasto, z którego wyszła armia, opustoszało.')
@@ -408,7 +349,7 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
     case 'command_avatar': {
       const d = num(o, 'distance')
       const name = str(o, 'name')
-      if (d > 0) parts.push(`I przeszedł awatar ${name} o ${fieldsWord(d)}.`)
+      if (d > 0) parts.push(`I przeszedł awatar ${name} ${journeyWord(d)}.`)
       break
     }
     case 'resurrect_avatar':
@@ -465,10 +406,6 @@ export function chronicleVerse(l: ActionLog, ctx: VerseContext): string {
     if (!whole) {
       const told = outcomeSentences(l, ctx)
       if (told) parts.push(told)
-      const detail = action.entityKind ? seen(l.id, G, p, ent, action.entityOp === 'update') : ''
-      // the dialog drafts the description from the very sentence the book would add about the traits;
-      // when the player kept it (or wrote the traits in themselves), the book does not say it twice
-      if (detail && !mentionsAll(l.summary, ent)) parts.push(detail)
     }
     if (l.is_avatar_free_action) parts.push(pick(l.id + 'a', [`${cap(p('uczyni'))} to rękami swojego awatara.`, 'Rękami awatara stało się to na świecie.']))
     return parts.join(' ')

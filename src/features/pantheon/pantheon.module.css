@@ -539,3 +539,70 @@
   margin-right: 2px;
   color: var(--gold-dark);
 }
+
+/* ---------- the same hands, wherever a roll asks which attribute it leans on ---------- */
+.attrPick {
+  display: grid;
+  gap: 6px;
+}
+.attrPickLabel {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+.attrPickGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 10px;
+}
+.attrPickBtn {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 10px 8px 10px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background: linear-gradient(180deg, rgba(255, 250, 235, 0.55), rgba(240, 228, 200, 0.35));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 2px 4px rgba(0, 0, 0, 0.25);
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.attrPickBtn img {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px var(--gold-inlay), 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+.attrPickBtn b {
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+}
+.attrPickNum {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  background: radial-gradient(circle at 35% 30%, #fbf6ea, #d8cdb8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 1px 3px rgba(0, 0, 0, 0.4);
+  color: var(--ink);
+}
+.attrPickOn {
+  border-color: var(--gold);
+  background: linear-gradient(180deg, rgba(247, 222, 143, 0.6), rgba(217, 165, 69, 0.35));
+}
+.attrPickBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

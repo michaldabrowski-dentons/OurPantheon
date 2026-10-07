@@ -22,6 +22,7 @@ export function ChaosOverlay({ onError }: { onError: (m: string | null) => void 
   const log = useGameStore((s) => s.log)
   const draw = useGameStore(selectCurrentChaosDraw)
   const me = useGameStore(selectMyPlayer(user.id))
+  const isHost = game.host_id === user.id
   const [busy, setBusy] = useState(false)
   const [flipped, setFlipped] = useState(false)
   const [dustKey, setDustKey] = useState(0)
@@ -97,8 +98,9 @@ export function ChaosOverlay({ onError }: { onError: (m: string | null) => void 
               <button
                 type="button"
                 className={[styles.face, styles.front].join(' ')}
-                disabled={busy || !!draw}
+                disabled={busy || !!draw || !isHost}
                 onClick={() => call('reveal_chaos', { p_game_id: game.id })}
+                title={isHost ? undefined : 'Kartę odwraca gospodarz.'}
                 aria-label="Odwróć Kartę Chaosu"
               >
                 <Sigil />
@@ -186,15 +188,18 @@ export function ChaosOverlay({ onError }: { onError: (m: string | null) => void 
         )}
 
         <div className={styles.resultFoot}>
-          {draw && (
+          {draw && isHost && (
             <StoneButton size="sm" disabled={busy} onClick={() => call('reveal_chaos', { p_game_id: game.id })}
               title={chosen ? 'Jeszcze jedno zdarzenie Chaosu w tej rundzie.' : 'Ta karta nie ma sensu. Losujemy inną.'}>
               {chosen ? 'Kolejna Karta Chaosu' : 'Losuj jeszcze raz'}
             </StoneButton>
           )}
-          <StoneButton variant="gold" size="lg" disabled={busy} onClick={() => call('end_chaos_phase', { p_game_id: game.id })}>
-            {chosen ? 'Zakończ rundę' : draw ? 'Zakończ rundę bez wyboru' : 'Pomiń Chaos i zakończ rundę'}
-          </StoneButton>
+          {(chosen || isHost) && (
+            <StoneButton variant="gold" size="lg" disabled={busy} onClick={() => call('end_chaos_phase', { p_game_id: game.id })}>
+              {chosen ? 'Zakończ rundę' : draw ? 'Zakończ rundę bez wyboru' : 'Pomiń Chaos i zakończ rundę'}
+            </StoneButton>
+          )}
+          {!chosen && !isHost && <p className={styles.skip}>Kartę odwraca i rundę zamyka gospodarz.</p>}
         </div>
         {!draw && <p className={styles.skip}>Każda runda w Erze {game.era} to {game.era === 1 ? 'tysiące lat' : game.era === 2 ? 'setki lat' : 'dekady'}. Chaos jest opcjonalny.</p>}
       </div>
