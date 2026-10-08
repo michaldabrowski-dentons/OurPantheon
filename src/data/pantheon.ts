@@ -377,3 +377,26 @@ export function wikiUrl(name: string): string {
   const title = WIKI_TITLES[name] ?? name.replace(/ /g, '_')
   return 'https://pl.wikipedia.org/wiki/' + encodeURI(title)
 }
+
+/** the afterlife each domain keeps for its fallen followers; the god may rewrite it on its sheet */
+export const AFTERLIFE_DEFAULT: Record<DomainKey, string> = {
+  war: 'Wieczne Pole Bitwy. Za dnia dusze wojowników ścierają się w chwalebnej rzezi, nocą rany zrastają się, a polegli zasiadają przy wielkich ogniskach, by pić ze złotych rogów i chwalić się bliznami.',
+  love: 'Ogrody Rozkoszy. Świetliste altany i ogrody, które nigdy nie przestają kwitnąć. Dusze oddają się tańcom, uniesieniom i czułości, nie znając bólu, starości ani zmartwień.',
+  nature: 'Wieczna Puszcza. Bezkresna, dzika kraina potężnych dębów i złotych łanów. Dusze wracają do korzeni, zrastają się z ziemią i stają się ogniwem wielkiego, nieprzerwanego kręgu życia.',
+  rule: 'Niebiańskie Pałace. Miasto ze złota i białego marmuru zawieszone w chmurach. Każda dusza zna tam swoje miejsce w doskonałej, niewzruszonej hierarchii i nie pragnie innego.',
+  light: 'Słoneczna Barka. Ognisty okręt żeglujący po bezkresnym błękicie. Dusze stają się jego świetlistymi pasażerami: promieniami, które o świcie spadają na świat jako ciepło.',
+  forge: 'Wielka Kuźnia. Rozżarzone, lawą rozświetlone jaskinie w sercu świata. Dusze w pocie czoła wykuwają tam arcydzieła, a ich młoty biją w kowadła w rytmie serca ziemi.',
+  knowledge: 'Nieskończona Biblioteka. Astralna przestrzeń pełna lewitujących ksiąg i zwojów. Dusze spędzają wieczność, zgłębiając tajemnice wszechświata i czytając własne losy od końca.',
+  storm: 'Pandemonium. Wirujący cyklon burz, ognia i pękniętej materii. Dusze tracą w nim kształt i stają się czystą, niszczącą energią, która zasila kolejne nawałnice.',
+  secrets: 'Ciemna Strona Księżyca. Miejsce, którego nikt nie widział i skąd nie wracają żadne wieści. Co się tam dzieje, wiedzą tylko ci, którzy już tam są.',
+  harvest: 'Złote Łany. Kraina wiecznej, łagodnej jesieni. Dusze zasiadają do biesiady bez końca, przy stołach uginających się od chleba, miodu i wina, a wokół szumią pola, które nie znają zimy.',
+  vengeance: 'Przepaść. Surowa, mroczna otchłań, w której dusze zdrajców i mścicieli trwają w wiecznej czujności: spiskują, podsłuchują i wbijają sobie noże w plecy, bo nie ma tam nikogo, komu można zaufać.',
+  order: 'Kryształowy Trybunał. Dusze zrzucają tu chaos ludzkich uczuć i stają się skrzydlatymi, bezwzględnymi sługami, które w ordynku strzegą porządku świata i ważą każdy jego czyn.',
+}
+
+/** what the god's sheet says about its afterlife: its own words, or the domain's */
+export function afterlifeText(player: { domain_key: DomainKey | null; afterlife_description?: string }): string {
+  const own = (player.afterlife_description ?? '').trim()
+  if (own) return own
+  return player.domain_key ? AFTERLIFE_DEFAULT[player.domain_key] : 'Zaświaty tego bóstwa nie mają jeszcze kształtu.'
+}

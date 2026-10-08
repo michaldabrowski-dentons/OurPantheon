@@ -164,7 +164,7 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
                       <text x={sx} y={sy} fontSize={size} textAnchor="middle" dominantBaseline="central" filter="url(#signShadow)">
                         {ent.emoji ?? (ent.kind === 'avatar' ? '✦' : '●')}
                       </text>
-                      {ent.kind === 'avatar' && <HpBar x={sx} y={sy + size * 0.68} hp={ent.hp ?? 0} />}
+                      {ent.kind === 'avatar' && <HpBar x={sx} y={sy + size * 0.68} hp={ent.hp ?? 0} max={ent.max_hp ?? 3} />}
                     </g>
                   )
                 })}
@@ -263,12 +263,12 @@ function CityPyramid({ x, y, city, world, colorOf }: { x: number; y: number; cit
   )
 }
 
-function HpBar({ x, y, hp }: { x: number; y: number; hp: number }) {
+function HpBar({ x, y, hp, max }: { x: number; y: number; hp: number; max: number }) {
   const w = R * 0.5
   return (
     <g className={styles.hp}>
       <rect className={styles.hpBack} x={x - w / 2} y={y} width={w} height={3} rx={1.5} />
-      <rect className={styles.hpBar} x={x - w / 2} y={y} width={(w * Math.max(0, Math.min(3, hp))) / 3} height={3} rx={1.5} />
+      <rect className={styles.hpBar} x={x - w / 2} y={y} width={(w * Math.max(0, Math.min(max, hp))) / Math.max(1, max)} height={3} rx={1.5} />
     </g>
   )
 }

@@ -116,7 +116,7 @@ export function EntityDetail({ entity, onClose, onError }: { entity: Entity; onC
               {sapient ? ' rozumna' : ''} · Era {entity.created_era}, runda {entity.created_round}
               {creator ? ` · ${godLabel(creator)}` : ''}
               {entity.is_chaos ? ' · dzieło Chaosu' : ''}
-              {entity.kind === 'avatar' && entity.status === 'active' ? ` · życie ${entity.hp ?? 0} z 3` : ''}
+              {entity.kind === 'avatar' && entity.status === 'active' ? ` · życie ${entity.hp ?? 0} z ${entity.max_hp ?? 3}` : ''}
             </p>
             {statusNote && <Notice tone="error">{statusNote}</Notice>}
           </div>

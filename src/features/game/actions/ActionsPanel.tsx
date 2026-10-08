@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { ACTION_BY_KEY, actionsByCategory, type ActionDef, type Era } from '@/data/actions'
+import { ACTION_BY_KEY, actionsByCategory, viaAvatarAllowed, viaAvatarCost, type ActionDef, type Era } from '@/data/actions'
 import { rpc } from '@/lib/supabase'
 import { TransferDialog } from '../TransferDialog'
 import { useUser } from '@/features/auth/AuthGate'
@@ -28,8 +28,8 @@ export function ActionsPanel() {
   const era = game.era as Era
   const versePending = !!game.verse_pending_by
   const myTurn = game.phase === 'gods' && !!me && game.current_turn_player_id === me.id && !me.is_resting && !pending && !versePending
-  // a living avatar with its free action still unspent opens every word, whatever the Words in hand
-  const avatarFree = !!me && !me.avatar_action_used && world.avatarsOf(me.id).length > 0
+  // an avatar standing on the map speaks most words for half the price
+  const avatarStands = !!me && world.avatarsOf(me.id).some((a) => a.occupant)
   const groups = useMemo(() => actionsByCategory(era), [era])
 
   // the window of a word closes by itself when the Gods phase ends or the turn moves on:
@@ -84,9 +84,12 @@ export function ActionsPanel() {
           )}
           {actions.map((a) => {
             const cost = a.costs[era - 1]
+            const via = avatarStands && viaAvatarAllowed(a.key)
+            const viaCost = viaAvatarCost(cost + (a.distance ? 1 : 0))
             const affordable = !!me && me.logos >= cost + (a.distance ? 1 : 0)
+            const affordableVia = via && !!me && me.logos >= viaCost
             const reqOk = !a.requirement || a.requirement.check(world, me)
-            const off = !myTurn || !(affordable || (avatarFree && !a.contested)) || !reqOk
+            const off = !myTurn || !(affordable || affordableVia) || !reqOk
             const delay = 60 + tile++ * 30
             return (
               <button
@@ -99,10 +102,12 @@ export function ActionsPanel() {
                   !reqOk && a.requirement
                     ? `Najpierw: ${a.requirement.text}.`
                     : !affordable
-                      ? avatarFree && !a.contested
-                        ? `Za mało Logos (potrzeba ${cost}), ale awatar może to uczynić za darmo.`
-                        : `Za mało Logos: potrzeba ${cost}${a.distance ? ' plus dystans' : ''}.`
-                      : a.summary
+                      ? affordableVia
+                        ? `Za mało Logos na słowo z nieba (potrzeba ${cost}), ale awatar wypowie je za ${viaCost}.`
+                        : `Za mało Logos: potrzeba ${cost}${a.distance ? ' plus dystans' : ''}${via ? `, przez awatara ${viaCost}` : ''}.`
+                      : via
+                        ? `${a.summary} Przez awatara: ${viaCost} Logos, cel do dwóch heksów od niego.`
+                        : a.summary
                 }
               >
                 <span className={styles.stoneIcon}>
@@ -134,6 +139,12 @@ export function ActionsPanel() {
                       {a.distance ? Math.max(1, a.costs[e - 1]) : a.costs[e - 1]}
                     </span>
                   ))}
+                  {via && (
+                    <span className={[styles.stoneVia, affordableVia ? '' : styles.costOver].join(' ')} title={`Przez awatara: ${viaCost} Logos`}>
+                      <small>awatar</small>
+                      {viaCost}
+                    </span>
+                  )}
                 </span>
               </button>
             )

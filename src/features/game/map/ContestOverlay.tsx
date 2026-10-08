@@ -48,6 +48,10 @@ export function ContestOverlay() {
   const att = players.find((p) => p.id === contest.attacker_id)
   const target = contest.target_city_id ? entities.find((e) => e.id === contest.target_city_id) : undefined
   const myDots = contest.target_city_id ? world.dotsOf(contest.target_city_id, me.id) : 0
+  // my avatar standing in the attacked city fights with its life
+  const targetCity = contest.target_city_id ? world.cityOf(contest.target_city_id) : undefined
+  const wallAvatar = contest.kind === 'holy_war' && targetCity ? world.avatarsOf(me.id).find((a) => a.occupant && a.occupant.q === targetCity.q && a.occupant.r === targetCity.r)?.entity : undefined
+  const wallHp = wallAvatar?.hp ?? 0
   const scores = scoresFor(me.domain_key, me.attr_primary, me.attr_bonus)
   const war = contest.kind === 'holy_war'
   const duel = contest.kind === 'avatar_duel'
@@ -80,12 +84,13 @@ export function ContestOverlay() {
           <>
             {duel ? (
               <p>
-                <b>{godLabel(att)}</b> posyła awatara <b>{attAvatar?.emoji ?? ''} {attAvatar?.name ?? ''}</b> przeciw twojemu awatarowi <b>{defAvatar?.emoji ?? ''} {defAvatar?.name ?? ''}</b> (życie {defAvatar?.hp ?? 0} z 3).
+                <b>{godLabel(att)}</b> posyła awatara <b>{attAvatar?.emoji ?? ''} {attAvatar?.name ?? ''}</b> przeciw twojemu awatarowi <b>{defAvatar?.emoji ?? ''} {defAvatar?.name ?? ''}</b> (życie {defAvatar?.hp ?? 0} z {defAvatar?.max_hp ?? 3}).
               </p>
             ) : (
               <p>
                 <b>{godLabel(att)}</b> {war ? `wysyła armię ${followersWord(contest.army ?? 0)} na miasto` : 'nawraca twoich wyznawców w mieście'} <b>{target?.name ?? 'bez imienia'}</b>. Masz tam {followersWord(myDots)}.
                 {war ? ' Do rzutu doliczasz ich liczbę: to twoja obronna populacja.' : ''}
+                {wallAvatar ? ` Na murach stoi twój awatar ${wallAvatar.emoji ?? ''} ${wallAvatar.name}: jego życie (${wallHp}) też dolicza się do rzutu.` : ''}
               </p>
             )}
             <p className={styles.verdict}>
@@ -100,7 +105,7 @@ export function ContestOverlay() {
             {error && <Notice tone="error">{error}</Notice>}
             <div className={styles.footer}>
               <StoneButton variant="gold" size="lg" disabled={!attr || busy} onClick={roll}>
-                {busy ? 'Kości lecą…' : `Rzuć 2k6${attr ? ` + ${ATTRIBUTES.find((x) => x.key === attr)!.name}` : ''}${war ? ` + ${myDots}` : ''}${chosenHold ? ` + ${chosenHold}` : ''}`}
+                {busy ? 'Kości lecą…' : `Rzuć 2k6${attr ? ` + ${ATTRIBUTES.find((x) => x.key === attr)!.name}` : ''}${war ? ` + ${myDots}` : ''}${wallHp ? ` + ${wallHp} (awatar)` : ''}${chosenHold ? ` + ${chosenHold}` : ''}`}
               </StoneButton>
             </div>
           </>
@@ -129,7 +134,7 @@ export function ContestSides({ contest, attackerName, defenderName }: { contest:
         <b>{attackerName}</b>
         <Dice2d6 d1={contest.attacker_d1} d2={contest.attacker_d2} showTotal={false} animateKey={`${contest.id}-a`} />
         <span className={styles.sideTotal}>{contest.attacker_total}</span>
-        <span className={styles.sideMod}>{contest.attacker_d1} + {contest.attacker_d2} {contest.attacker_mod < 0 ? '-' : '+'} {Math.abs(contest.attacker_mod)} ({attName}{war ? ' i armia' : ''})</span>
+        <span className={styles.sideMod}>{contest.attacker_d1} + {contest.attacker_d2} {contest.attacker_mod < 0 ? '-' : '+'} {Math.abs(contest.attacker_mod)} ({attName}{war ? (contest.attacker_avatar_id ? ', armia i awatar' : ' i armia') : ''})</span>
       </div>
       <span className={styles.versus}>PRZECIW</span>
       <div className={styles.side}>
@@ -137,7 +142,7 @@ export function ContestSides({ contest, attackerName, defenderName }: { contest:
         {contest.defender_d1 !== null && contest.defender_d2 !== null && <Dice2d6 d1={contest.defender_d1} d2={contest.defender_d2} showTotal={false} animateKey={`${contest.id}-d`} />}
         <span className={styles.sideTotal}>{contest.defender_total ?? '?'}</span>
         <span className={styles.sideMod}>
-          {contest.defender_d1 ?? '?'} + {contest.defender_d2 ?? '?'} {(contest.defender_mod ?? 0) < 0 ? '-' : '+'} {Math.abs(contest.defender_mod ?? 0)} ({defName}{war ? ' i obrońcy' : ''})
+          {contest.defender_d1 ?? '?'} + {contest.defender_d2 ?? '?'} {(contest.defender_mod ?? 0) < 0 ? '-' : '+'} {Math.abs(contest.defender_mod ?? 0)} ({defName}{war ? (contest.defender_avatar_id ? ', obrońcy i awatar' : ' i obrońcy') : ''})
         </span>
       </div>
     </div>
@@ -158,7 +163,7 @@ export function verdict(c: Contest, attacker: string, defender: string, converte
     const d = `${o.defender_emoji ?? ''} ${o.defender_avatar ?? 'awatar obrońcy'}`.trim()
     const aLoss = Number(o.attacker_loss ?? 0)
     const dLoss = Number(o.defender_loss ?? 0)
-    const hp = (n: unknown) => `życie ${Number(n ?? 0)} z 3`
+    const hp = (n: unknown) => `życie ${Number(n ?? 0)}`
     const fate = (dead: unknown, name: string, loss: number, left: unknown) => (dead ? `${name} ginie i znika z mapy` : loss > 0 ? `${name} traci ${loss === 1 ? 'jedno życie' : 'dwa życia'} (${hp(left)})` : `${name} bez szwanku`)
     const head = diff >= 3 ? `${attacker} dominuje (o ${diff})` : diff >= 1 ? `${attacker} wygrywa krwawo (o ${diff})` : diff === 0 ? 'Remis' : diff >= -2 ? `${defender} odpiera cios (o ${-diff})` : `${defender} miażdży napastnika (o ${-diff})`
     return `${head}: ${fate(o.defender_dead, d, dLoss, o.defender_hp)}, ${fate(o.attacker_dead, a, aLoss, o.attacker_hp)}.`

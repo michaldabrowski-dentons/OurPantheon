@@ -198,10 +198,10 @@ const OPENERS: Record<ActionKey, Opener[]> = {
     (G, p, n) => `${cap(p('rzek'))} ${G}: niech będzie mi ktoś na świecie. I ${p('zesła')} awatara ${n}.`,
     (G, p, n) => `I ${p('odłama')} ${G} cząstkę siebie, i ${p('posła')} ją na świat jako ${n}.`,
   ],
-  command_avatar: [
-    (G, p) => `${cap(p('rozkaza'))} ${G} awatarowi.`,
-    (G, p) => `I ${p('przemówi')} ${G} do swojego awatara, i ten usłuchał.`,
-    (G, p) => `${cap(p('posła'))} ${G} awatara, by czynił wolę bóstwa.`,
+  pilgrimage: [
+    (G, p, n) => `${cap(p('posła'))} ${G} awatara ${n} na pielgrzymkę.`,
+    (G, p, n) => `I ${p('rzek')} ${G} do awatara ${n}: idź. I poszedł.`,
+    (G, p, n) => `${cap(p('wyprawi'))} ${G} awatara ${n} w drogę przez świat.`,
   ],
   resurrect_avatar: [
     (G, p, n) => `${cap(p('wskrzesi'))} ${G} awatara ${n}.`,
@@ -285,6 +285,8 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       if (fallen.length) parts.push(`A awatar ${joinAnd(fallen)} padł.`)
       if (o.city_destroyed) parts.push(`I nie zostało z miasta ${city} nic prócz ruin.`)
       if (hits.length === 0) parts.push('Lecz nie było tam nikogo, kto by to odczuł.')
+      const after = str(o, 'biome_after')
+      if (after) parts.push(`I nie został tam kamień na kamieniu: ziemia stała się ${after === 'woda' ? 'wodą' : after === 'pustynia' ? 'pustynią' : 'jałowym ugorem'}.`)
       break
     }
     case 'create_creature':
@@ -329,6 +331,7 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       const went = `${cap(followersInWords(n))} ${sp ? `z istot ${sp} ` : ''}${n === 1 ? 'przeszedł' : 'przeszło'} ${journeyWord(d)}`
       parts.push(o.new ? `${went} i ${n === 1 ? 'założył' : 'założyli'} miasto ${to}.` : `${went} i ${n === 1 ? 'dołączył' : 'dołączyli'} do miasta ${to}.`)
       if (o.source_destroyed) parts.push(`A miasto ${str(o, 'from_name')} opustoszało i obróciło się w ruinę.`)
+      if (o.avatar_moved) parts.push(`A z ludem poszedł awatar ${str(o, 'avatar_emoji') ? `${str(o, 'avatar_emoji')} ` : ''}${str(o, 'avatar_name')}.`)
       break
     }
     case 'convert': {
@@ -362,10 +365,10 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       if (o.source_destroyed) parts.push('A miasto, z którego wyszła armia, opustoszało.')
       break
     }
-    case 'command_avatar': {
+    case 'pilgrimage': {
       const d = num(o, 'distance')
-      const name = str(o, 'name')
-      if (d > 0) parts.push(`I przeszedł awatar ${name} ${journeyWord(d)}.`)
+      const name = `${str(o, 'emoji') ? `${str(o, 'emoji')} ` : ''}${str(o, 'name')}`
+      if (d > 0) parts.push(`I przeszedł awatar ${name} ${journeyWord(d)}, i stanął na nowej ziemi.`)
       break
     }
     case 'resurrect_avatar':
@@ -450,7 +453,7 @@ export function chronicleVerse(l: ActionLog, ctx: VerseContext): string {
       const told = outcomeSentences(l, ctx)
       if (told) parts.push(told)
     }
-    if (l.is_avatar_free_action) parts.push(pick(l.id + 'a', [`${cap(p('uczyni'))} to rękami swojego awatara.`, 'Rękami awatara stało się to na świecie.']))
+    if (l.is_avatar_free_action && key !== 'pilgrimage') parts.push(pick(l.id + 'a', [`${cap(p('uczyni'))} to rękami swojego awatara.`, 'Rękami awatara stało się to na świecie.']))
     return parts.join(' ')
   }
 

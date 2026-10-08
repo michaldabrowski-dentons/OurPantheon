@@ -990,11 +990,35 @@
 /* the three Eras side by side, no labels: the live cost in gold, the other two small and grey */
 .stoneCosts {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: flex-end;
-  gap: 7px;
+  gap: 0 7px;
+  max-width: 96px;
   font-family: var(--font-display);
   white-space: nowrap;
+}
+/* the avatar's price under the god's: ember, with a tiny label */
+.stoneVia {
+  flex-basis: 100%;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 2px;
+  padding-top: 2px;
+  border-top: 1px solid rgba(164, 54, 28, 0.25);
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #a4361c;
+}
+.stoneVia > small {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(164, 54, 28, 0.75);
 }
 .stoneOther {
   font-size: 0.7rem;

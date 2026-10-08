@@ -24,8 +24,6 @@ function deedLine(action: ActionDef, god: DraftGod, targetName: string | null): 
   switch (action.key) {
     case 'great_miracle':
       return `I stało się tak na całym świecie, od krańca po kraniec.`
-    case 'command_avatar':
-      return `${cap(p('posłucha'))} ${targetName ? `awatar ${targetName}` : 'awatar'} i ${p('uczyni')} to, co mu kazano.`
     case 'resurrect_avatar':
       return `${cap(p('wyrwa'))} ${G} ${targetName ? `awatara ${targetName}` : 'awatara'} z objęć śmierci.`
     default:

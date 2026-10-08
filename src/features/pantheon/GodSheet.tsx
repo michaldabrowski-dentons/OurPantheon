@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { rpc } from '@/lib/supabase'
-import type { Entity, EntityKind, GodGender } from '@/lib/types'
-import { DOMAIN_BY_KEY, domainTitle } from '@/data/pantheon'
+import type { Entity, EntityKind, GodGender, Player } from '@/lib/types'
+import { DOMAIN_BY_KEY, afterlifeText, domainTitle } from '@/data/pantheon'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, godLabel, selectEntitiesOf, selectPropheciesOf } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
@@ -82,6 +82,8 @@ export function GodSheet({ playerId, onClose }: { playerId: string; onClose: () 
           </div>
         </div>
 
+        <Afterlife player={player} mine={mine} />
+
         {(active.length > 0 || fulfilled.length > 0) && (
           <div className={styles.works}>
             <p className={styles.sectionTitle}>Proroctwa</p>
@@ -132,6 +134,64 @@ export function GodSheet({ playerId, onClose }: { playerId: string; onClose: () 
       </div>
     </Modal>,
     document.body,
+  )
+}
+
+/** Where the god's fallen followers go: its own words about the place, and every soul that arrived. */
+function Afterlife({ player, mine }: { player: Player; mine: boolean }) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const souls = player.afterlife ?? []
+  const counts = souls.reduce<Map<string, number>>((m, e) => m.set(e, (m.get(e) ?? 0) + 1), new Map())
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    try {
+      await rpc('set_afterlife', { p_game_id: player.game_id, p_text: text.trim() })
+      setEditing(false)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className={styles.works}>
+      <p className={styles.sectionTitle}>Zaświaty</p>
+      {editing ? (
+        <div className={styles.creation}>
+          <TextArea id="afterlife" label="Jak wyglądają twoje Zaświaty" rows={4} maxLength={2000} value={text} onChange={(e) => setText(e.target.value)} />
+          {error && <Notice tone="error">{error}</Notice>}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <StoneButton onClick={() => setEditing(false)} disabled={busy}>Anuluj</StoneButton>
+            <StoneButton variant="gold" disabled={busy} onClick={save}>Zapisz</StoneButton>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.sheetHead}>
+          <p className={styles.afterlifeText}>{afterlifeText(player)}</p>
+          {mine && (
+            <StoneButton size="sm" onClick={() => { setText(afterlifeText(player)); setEditing(true) }}>
+              Opisz
+            </StoneButton>
+          )}
+        </div>
+      )}
+      {souls.length === 0 ? (
+        <p className={styles.worksEmpty}>Jeszcze żadna dusza tu nie trafiła.</p>
+      ) : (
+        <div className={styles.souls} aria-label={`Dusze: ${souls.length}`} title={[...counts].map(([e, n]) => `${e} ${n}`).join(', ')}>
+          {souls.map((e, i) => (
+            <span key={i} className={styles.soul} style={{ '--i': i } as CSSProperties}>{e}</span>
+          ))}
+          <span className={styles.soulCount}>{souls.length} {souls.length === 1 ? 'dusza' : souls.length < 5 ? 'dusze' : 'dusz'}</span>
+        </div>
+      )}
+    </div>
   )
 }
 

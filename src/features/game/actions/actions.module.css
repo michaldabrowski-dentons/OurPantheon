@@ -429,3 +429,64 @@
   object-fit: contain;
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45));
 }
+
+/* ---------- who speaks: the god itself, or its avatar for half the price ---------- */
+.viaPick {
+  display: grid;
+  gap: 8px;
+}
+.viaRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 4px;
+  background: rgba(255, 250, 235, 0.55);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+.viaRow input {
+  accent-color: var(--gold-inlay);
+}
+.viaOn {
+  background: linear-gradient(180deg, rgba(247, 222, 143, 0.6), rgba(217, 165, 69, 0.35));
+  box-shadow: 0 0 0 1.5px var(--gold-inlay), 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.viaWho {
+  display: grid;
+  gap: 2px;
+}
+.viaWho > b {
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+.viaWho > b > small {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.viaWho > small {
+  font-style: italic;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+.viaCost {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 900;
+  white-space: nowrap;
+  color: var(--gold-dark);
+}
+.viaCostHalf {
+  color: #a4361c;
+}
+.viaNote {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 3px;
+  font-style: italic;
+  background: rgba(164, 54, 28, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(164, 54, 28, 0.25);
+}

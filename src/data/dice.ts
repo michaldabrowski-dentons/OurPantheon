@@ -29,9 +29,9 @@ export function rollOf(l: ActionLog): ShownRoll | null {
     const tier = o.tier === 'strong' ? 'Dwóch nowych wyznawców.' : o.tier === 'mixed' ? 'Jeden nowy wyznawca.' : 'Dar odrzucony.'
     return { kind: '2d6', d1: Number(o.d1), d2: Number(o.d2), total: Number(o.total), label: `Rozwój Cywilizacji, ${score < 0 ? '−' : '+'}${Math.abs(score)}${o.avatar ? ' − 2' : ''}${hold ? ` + ${hold} (proroctwo)` : ''}`, verdict: tier }
   }
-  if (l.action_key === 'catastrophe' && typeof o.d6 === 'number') {
+  if (l.action_key === 'catastrophe' && typeof o.d1 === 'number') {
     const wrath = Number(o.wrath)
-    return { kind: 'd6', d1: Number(o.d6), d2: 0, total: Number(o.damage), label: `Kataklizm, k6 ${wrath < 0 ? '−' : '+'} ${Math.abs(wrath)} Gniew${hold ? ` + ${hold} (proroctwo)` : ''}`, verdict: `Obrażeń: ${o.damage}.` }
+    return { kind: '2d6', d1: Number(o.d1), d2: Number(o.d2), total: Number(o.total), label: `Kataklizm, 2k6 ${wrath < 0 ? '−' : '+'} ${Math.abs(wrath)} Gniew${hold ? ` + ${hold} (proroctwo)` : ''}`, verdict: `Połowa z ${o.total} to ${o.damage} ${Number(o.damage) === 1 ? 'obrażenie' : Number(o.damage) < 5 ? 'obrażenia' : 'obrażeń'}.` }
   }
   const kindName = (k: unknown) => (k === 'holy_war' ? 'Święta Wojna' : k === 'avatar_duel' ? 'Walka Awatarów' : 'Nawracanie')
   const attrName = (a: unknown) => ATTRIBUTE_BY_KEY[a as AttrKey]?.name ?? ''

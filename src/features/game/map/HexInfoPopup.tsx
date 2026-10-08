@@ -124,7 +124,7 @@ export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect
         <div className={styles.popupSection}>
           <h5>Awatary</h5>
           {avatars.map((e) => (
-            <Row key={e.id} e={e} onOpen={onOpenEntity} extra={`życie ${e.hp ?? 0} z 3`}>
+            <Row key={e.id} e={e} onOpen={onOpenEntity} extra={`życie ${e.hp ?? 0} z ${e.max_hp ?? 3}`}>
               {myAvatarIds.has(e.id) && myTurn && (
                 <button type="button" className={styles.popupAct} title="Awatar przemawia o tym, co nadejdzie" onClick={() => { request({ key: 'prophecy', avatarId: e.id }); onClose() }}>
                   Proroctwo

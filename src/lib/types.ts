@@ -58,6 +58,10 @@ export interface Player {
   is_resting: boolean
   low_logos_streak: number
   avatar_action_used: boolean
+  /** the souls of its fallen followers, each as the sign of their people */
+  afterlife: string[]
+  /** the god's own words about its afterlife; empty means the domain's default */
+  afterlife_description: string
   joined_at: string
 }
 
@@ -109,6 +113,8 @@ export interface Entity {
   emoji: string | null
   /** avatars only: life left, 3 when sent */
   hp: number | null
+  /** avatars: the life it returns to (grows by one with every incarnation) */
+  max_hp: number | null
   created_at: string
   updated_at: string
 }
@@ -354,13 +360,16 @@ export interface HexRef {
 /** Payload of perform_action; which keys matter depends on the action (see 0012_hex_map.sql) */
 export interface ActionPayload {
   summary?: string
-  use_avatar_action?: boolean
+  /** the word is spoken through this avatar: half the price, the target within two fields of it */
+  via_avatar_id?: string
   entity?: EntityPayload
   /** shape_land */
   biome?: BiomeKey
   hexes?: HexRef[]
   /** catastrophe */
   type?: string
+  /** catastrophe: the land left behind when nothing survives */
+  after?: BiomeKey
   /** the field (creation, catastrophe, resurrection) */
   q?: number
   r?: number
@@ -382,7 +391,7 @@ export interface ActionPayload {
   dots?: number
   name?: string
   description?: string
-  /** command_avatar, prophecy */
+  /** pilgrimage, prophecy */
   avatar_id?: string
   /** prophecy: what is foretold */
   text?: string

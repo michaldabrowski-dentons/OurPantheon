@@ -85,8 +85,8 @@ export function describeEvent(l: ActionLog, ctx: EventContext): string {
       const dice =
         l.action_key === 'develop_civilization' && typeof o.d1 === 'number'
           ? ` Kości: ${o.d1} + ${o.d2} ${Number(o.score) < 0 ? '-' : '+'} ${Math.abs(Number(o.score))} = ${o.total}.`
-          : l.action_key === 'catastrophe' && typeof o.d6 === 'number'
-            ? ` Kość: ${o.d6} ${Number(o.wrath) < 0 ? '-' : '+'} ${Math.abs(Number(o.wrath))} (Gniew) = ${o.damage}.`
+          : l.action_key === 'catastrophe' && typeof o.d1 === 'number'
+            ? ` Kości: ${o.d1} + ${o.d2} ${Number(o.wrath) < 0 ? '-' : '+'} ${Math.abs(Number(o.wrath))} (Gniew) = ${o.total}, połowa to ${o.damage}.`
             : ''
       return `${G}: ${a.name}${e ? ` (${e.name})` : ''}${who}.${dice}`
     }

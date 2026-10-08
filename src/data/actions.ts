@@ -18,7 +18,7 @@ export type ActionKey =
   | 'convert'
   | 'holy_war'
   | 'create_avatar'
-  | 'command_avatar'
+  | 'pilgrimage'
   | 'resurrect_avatar'
   | 'avatar_duel'
   | 'prophecy'
@@ -27,7 +27,10 @@ export type Era = 1 | 2 | 3
 export type ActionCategoryKey = 'terraform' | 'life' | 'mortals' | 'avatar' | 'words'
 
 /** the steps of a word's window, in order; 'map' hands the choice to the map */
-export type FlowStep = 'setup' | 'roll' | 'map' | 'form' | 'confirm' | 'verse' | 'declare'
+/** how far the avatar reaches: the fields its words, its duels and its exoduses may begin on */
+export const AVATAR_REACH = 2
+
+export type FlowStep = 'via' | 'setup' | 'roll' | 'map' | 'form' | 'confirm' | 'verse' | 'declare'
 
 export interface TierText {
   strong: string // 10+
@@ -118,10 +121,11 @@ export const ACTIONS: ActionDef[] = [
     costs: [10, 10, 10],
     requiresRoll: false,
     flow: ['form', 'map', 'confirm', 'verse'],
-    summary: 'Wybierz rodzaj kataklizmu i heks. Obrażenia: k6 + Gniew. Każde zabiera miastu wyznawcę, zabija istotę albo rani awatara.',
+    summary: 'Wybierz rodzaj kataklizmu, heks i co zostanie po zniszczeniu. Obrażenia: połowa z 2k6 + Gniew. Każde zabiera miastu wyznawcę, zabija istotę albo rani awatara.',
     details: [
-      'Bóstwa muszą czasem okazać swój gniew. Wybierz rodzaj kataklizmu (tsunami, susza, trzęsienie ziemi, meteor, plaga albo własny), a potem kliknij heks. Kości rzuca księga: k6 plus twój Gniew, najmniej jedno obrażenie.',
-      'Każde obrażenie trafia losowo w to, co stoi na heksie: w jednego wyznawcę miasta (losowego bóstwa), w jedną istotę nierozumną (znika z tego pola) albo w awatara (traci 1 z 3 punktów życia). Istoty rozumne giną dopiero wtedy, gdy nie ma już miasta. Miasto bez wyznawców staje się ruiną.',
+      'Bóstwa muszą czasem okazać swój gniew. Wybierz rodzaj kataklizmu (deszcz ognia, tsunami, susza, trzęsienie ziemi, meteor, plaga albo własny), a potem kliknij heks. Kości rzuca księga: 2k6 plus twój Gniew, a obrażeń jest połowa tego wyniku (w dół), najmniej jedno.',
+      'Możesz wybrać, co zostanie po zniszczeniu: pustynia, ugór albo woda. Ziemia zmienia się tylko wtedy, gdy na polu nikt nie przeżyje: miasto obróci się w ruinę, istoty przepadną, awatar zginie. Jeśli ktokolwiek przeżyje, teren zostaje bez zmian.',
+      'Każde obrażenie trafia losowo w to, co stoi na heksie: w jednego wyznawcę miasta (losowego bóstwa), w jedną istotę nierozumną (znika z tego pola) albo w awatara (traci jedno życie). Istoty rozumne giną dopiero wtedy, gdy nie ma już miasta. Miasto bez wyznawców staje się ruiną.',
       'Kataklizm jest lokalny. Aby wpłynąć na świat na większą skalę, użyj Wielkiego Cudu.',
     ],
   },
@@ -280,7 +284,7 @@ export const ACTIONS: ActionDef[] = [
     summary: 'Z miasta, w którym rządzisz, wyślij armię wyznawców na cudze miasto. Do ceny dochodzi 1 Logos za heks. Obie strony rzucają 2k6 + atrybut + siły.',
     details: [
       'Wybierz swoje miasto (takie, w którym masz najwięcej wyznawców) i zdecyduj, ilu swoich wyznawców zabierasz: to twoja Armia. Co najmniej jeden zostaje w domu. Wybierz cel i broniące się bóstwo. Do ceny słowa dochodzi 1 Logos za każdy heks dystansu między miastami.',
-      'Atakujący rzuca 2k6 + Gniew + wielkość Armii. Obrońca rzuca 2k6 + wybrany atrybut (Łaska to mury, Gniew to wyjście przed mury) + liczba swoich kropek w atakowanym mieście. Różnica wyników decyduje.',
+      'Atakujący rzuca 2k6 + Gniew + wielkość Armii; jeśli wojnę wypowiada przez awatara, ten prowadzi lud jak generał i dolicza swoje życie. Obrońca rzuca 2k6 + wybrany atrybut (Łaska to mury, Gniew to wyjście przed mury) + liczba swoich wyznawców w atakowanym mieście + życie swojego awatara, jeśli stoi w tym mieście. Różnica wyników decyduje.',
       'Wygrana o 3+: wymazujesz tylu wyznawców wroga, ilu liczy Armia; połowa z nich (w górę) staje się twoimi wyznawcami w tym mieście, Armia wraca cała. Wygrana o 1..2: to samo, lecz tracisz połowę Armii. Remis: obie strony tracą po jednym wyznawcy, Armia wraca. Przegrana o 1..2: wraca jeden, obrońca traci jednego. Przegrana o 3+: Armia ginie co do jednego, miasto nietknięte.',
     ],
     requirement: { text: 'miasto, w którym rządzisz, i cudze miasto', check: (w, me) => !!me && w.cities.some((c) => w.holds(c.entity_id, me.id)) && rivalCities(w, me).length > 0 },
@@ -299,23 +303,23 @@ export const ACTIONS: ActionDef[] = [
     summary: 'Most między boskością a śmiertelnikami: własny znak, miejsce na mapie, 3 punkty życia. Co rundę 1 darmowa akcja.',
     details: [
       'Gdy zsyłasz awatara, tworzysz coś, co przerzuca most nad przepaścią między boskością a śmiertelnikami. Twoje awatary nie są tobą, lecz twoim przedłużeniem. Mogą mieć własne pragnienia i ambicje, a nawet ulegać wpływom innych bóstw.',
-      'Awatar staje na wybranym heksie (nie na Wodzie ani w Górach), nosi własny znak i ma 3 punkty życia; Kataklizm może go ranić. Gdy życie spadnie do zera, ginie i wraca tylko przez Wskrzeszenie.',
-      'W każdej rundzie masz 1 darmową akcję, którą może wykonać twój awatar. Kim jest awatar i co go ogranicza, opowiedz w wersecie.',
+      'Awatar staje na wybranym heksie (nie na Wodzie ani w Górach), nosi własny znak i ma 2 punkty życia; Kataklizm, wojna i walka mogą go ranić, a sen Fazy Chaosu leczy jedno życie. Gdy życie spadnie do zera, ginie i wraca tylko przez Wskrzeszenie. Każde kolejne wcielenie wraca o jedno życie silniejsze, najwyżej dwanaście.',
+      'Awatar to ręka bóstwa na ziemi: słowa Terraformacji, Tworzenia Życia i Śmiertelników wypowiedziane przez niego kosztują połowę, lecz ich cel musi leżeć najwyżej dwa heksy od niego. Na wojnę idzie jak generał: jego życie dolicza się do rzutu armii, a gdy stoi w atakowanym mieście, do rzutu obrony. Wielki Cud przez awatara spala go.',
     ],
   },
   {
-    key: 'command_avatar',
-    name: 'Rozkaz dla Awatara',
+    key: 'pilgrimage',
+    name: 'Pielgrzymka Awatara',
     category: 'avatar',
-    costs: [2, 2, 2],
+    costs: [0, 0, 0],
     distance: true,
     requiresRoll: false,
-    flow: ['form', 'map', 'confirm', 'verse'],
-    summary: 'Awatar czyni wolę bóstwa. Może też przejść do 3 heksów: 1 Logos za każdy. Przy rzutach odejmij 2.',
+    flow: ['map', 'map', 'confirm', 'verse'],
+    summary: 'Awatar rusza w drogę: 1 Logos za każdy heks, bez granicy. Kliknij awatara, potem pole.',
     details: [
-      'Awatary mają dostęp do tych samych mocy, które mają bóstwa, i możesz im rozkazać użyć tych akcji. Zastrzeżenia: Wielki Cud niszczy awatara, Stworzenie Istoty można wykonać tylko raz na Erę, Wskrzeszenie Awatara oznacza, że awatar poświęca samego siebie.',
-      'Rozkaz może też przesunąć awatara po mapie: do 3 heksów, 1 Logos za każdy, na pole z wolnym miejscem, nie na Wodę ani w Góry. Zbuduj wokół rozkazu krótką scenę z uwarunkowań awatara.',
-      'Jeśli akcja wymaga rzutu, odejmij 2 od wyniku. Przy 10+ uwarunkowania pomagają, przy 7..9 komplikują, przy 6- awatar odrzuca rozkaz albo zawodzi.',
+      'Awatar to ręka bóstwa na ziemi i sięga tylko dwa heksy od siebie. Pielgrzymka przenosi go tam, gdzie ma działać: na pole z wolnym miejscem, nie na Wodę ani w Góry.',
+      'Koszt to dystans: 1 Logos za każdy heks drogi, bez górnej granicy. Świecą tylko pola, na które cię stać.',
+      'W drodze awatar nie czyni cudów; dopiero z nowego miejsca wypowiada słowa za połowę ceny, rusza na wojnę, nawraca albo staje do walki.',
     ],
     requirement: { text: 'musi istnieć twój żywy awatar', check: (w, me) => aliveAvatar(w, me) },
   },
@@ -343,13 +347,13 @@ export const ACTIONS: ActionDef[] = [
     requiresRoll: false,
     contested: true,
     flow: ['map', 'map', 'form', 'declare'],
-    summary: 'Twój awatar staje przeciw awatarowi innego bóstwa na tym samym lub sąsiednim heksie. Rzut sporny: 2k6 + Gniew, Majestat albo Podszept.',
+    summary: 'Twój awatar staje przeciw awatarowi innego bóstwa najwyżej dwa heksy od siebie. Rzut sporny: 2k6 + Gniew, Majestat albo Podszept.',
     details: [
-      'Kliknij swojego awatara, potem awatara przeciwnika stojącego na tym samym heksie albo obok. Jeśli jest dalej, najpierw każ awatarowi podejść (Rozkaz dla Awatara).',
+      'Kliknij swojego awatara, potem awatara przeciwnika stojącego najwyżej dwa heksy od niego. Jeśli jest dalej, najpierw wyślij awatara na Pielgrzymkę.',
       'Wybierz, czym walczysz: Gniew to brutalne starcie siłowe, Majestat to pojedynek boskiej aury, Podszept to skrytobójstwo i mroczna magia. Obrońca też wybiera atrybut. Obaj rzucają 2k6 + atrybut.',
       'Wygrana o 3+: awatar wroga traci 2 życia, twój bez szwanku. Wygrana o 1..2: wróg traci 1, ty też 1. Remis: obaj tracą po 1. Przegrana o 1..2: ty tracisz 1. Przegrana o 3+: ty tracisz 2. Awatar bez życia ginie i znika z mapy.',
     ],
-    requirement: { text: 'twój awatar obok cudzego', check: (w, me) => duelPossible(w, me) },
+    requirement: { text: 'twój awatar w zasięgu cudzego', check: (w, me) => duelPossible(w, me) },
   },
   {
     key: 'prophecy',
@@ -377,7 +381,7 @@ function duelPossible(w: WorldView, me: Player | null): boolean {
   const enemies = w.entities.filter((e) => e.kind === 'avatar' && e.status === 'active' && !w.avatarsOf(me.id).some((a) => a.entity.id === e.id))
   return enemies.some((e) => {
     const occ = w.occupantsOf(e.id)[0]
-    return !!occ && mine.some((a) => Math.max(Math.abs(a.occupant!.q - occ.q), Math.abs(a.occupant!.r - occ.r), Math.abs(a.occupant!.q + a.occupant!.r - occ.q - occ.r)) <= 1)
+    return !!occ && mine.some((a) => Math.max(Math.abs(a.occupant!.q - occ.q), Math.abs(a.occupant!.r - occ.r), Math.abs(a.occupant!.q + a.occupant!.r - occ.q - occ.r)) <= AVATAR_REACH)
   })
 }
 
@@ -454,10 +458,21 @@ export const LOG_LABELS: Record<string, string> = {
   dots_reward: 'Dary wyznawców',
   contest_declared: 'Starcie',
   contest_cancelled: 'Starcie odwołane',
+  command_avatar: 'Rozkaz dla Awatara',
   prophecy_fulfilled: 'Proroctwo spełnione',
   avatars_heal: 'Awatary leczą rany',
   round_end: 'Koniec rundy',
   era_advance: 'Nowa Era',
   game_start: 'Początek',
   game_end: 'Epilog',
+}
+
+/** the words an avatar may speak for its god: half the price, the target within two fields */
+const VIA_AVATAR = new Set<ActionKey>(['shape_land', 'catastrophe', 'great_miracle', 'create_creature', 'create_sapient', 'change_creature', 'migrate', 'create_civilization', 'develop_civilization', 'exodus', 'convert', 'holy_war'])
+export function viaAvatarAllowed(key: ActionKey): boolean {
+  return VIA_AVATAR.has(key)
+}
+/** what a word costs when the avatar speaks it */
+export function viaAvatarCost(cost: number): number {
+  return Math.ceil(cost / 2)
 }

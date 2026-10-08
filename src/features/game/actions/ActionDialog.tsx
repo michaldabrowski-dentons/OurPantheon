@@ -3,7 +3,7 @@ import { rpc } from '@/lib/supabase'
 import type { ActionLog, ActionPayload, AttrKey, BiomeKey, Entity, EntityKind, HexRef, Player } from '@/lib/types'
 import type { MapPick, WorldView } from '@/lib/world'
 import { hexDistance } from '@/lib/hex'
-import { costFor, type ActionDef, type Era, type FlowStep } from '@/data/actions'
+import { AVATAR_REACH, costFor, viaAvatarAllowed, viaAvatarCost, type ActionDef, type Era, type FlowStep } from '@/data/actions'
 import { SAPIENT_TRAITS } from '@/data/traits'
 import { BIOMES, BIOME_BY_KEY, CATASTROPHE_TYPES } from '@/data/biomes'
 import { AVATAR_EMOJI, CREATURE_EMOJI, SAPIENT_EMOJI } from '@/data/emoji'
@@ -15,7 +15,7 @@ import { describeEvent } from '@/data/tableEvents'
 import { GIFTS, followersWord } from '@/data/cities'
 import { useGameStore, playerLabel, godLabel, selectPropheciesOf } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
-import { Modal, TextField, TextArea, Notice, Dice2d6, Die, FrescoFrame, inputClass, labelClass, fieldClass } from '@/components/ui/Primitives'
+import { Modal, TextField, TextArea, Notice, Dice2d6, FrescoFrame, inputClass, labelClass, fieldClass } from '@/components/ui/Primitives'
 import { actionArt } from '@/data/actionArt'
 import { EmojiPicker } from '@/components/ui/EmojiPicker'
 import { ActionIcon } from '@/components/ui/ActionIcons'
@@ -29,7 +29,10 @@ import styles from './actions.module.css'
 const OWN_GIFT = '__own'
 
 interface FormState {
-  useAvatar: boolean
+  /** the avatar that speaks the word (half the price, reach of two fields); empty = the god itself */
+  viaAvatarId: string
+  /** catastrophe: the land left when nothing survives */
+  after: '' | BiomeKey
   name: string
   description: string
   co_god_ids: string[]
@@ -62,8 +65,9 @@ interface FormState {
   text: string
 }
 
-const initial = (useAvatar: boolean): FormState => ({
-  useAvatar,
+const initial = (): FormState => ({
+  viaAvatarId: '',
+  after: '',
   name: '',
   description: '',
   co_god_ids: [],
@@ -108,33 +112,15 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   const era = game.era as Era
   const baseCost = costFor(action.key, era)
   const myAvatars = world.avatarsOf(me.id)
-  const hasAvatar = myAvatars.length > 0
-  const avatarFree = hasAvatar && !me.avatar_action_used
-  // the rulebook's limits on the free action
-  const isCreatureAction = action.key === 'create_creature' || action.key === 'create_sapient'
-  const avatarMadeCreatureThisEra = log.some(
-    (l) => l.is_avatar_free_action && l.player_id === me.id && l.era === game.era && (l.action_key === 'create_creature' || l.action_key === 'create_sapient'),
-  )
-  const avatarBlocked = (isCreatureAction && avatarMadeCreatureThisEra) || action.contested === true
-  const avatarNote = avatarBlocked
-    ? action.contested
-      ? 'Starcia toczą bóstwa same.'
-      : 'Awatar stworzył już istotę w tej Erze. Może to zrobić tylko raz na Erę.'
-    : action.key === 'great_miracle'
-      ? 'Wielki Cud niszczy awatara. Trzeba go będzie wskrzesić.'
-      : action.key === 'resurrect_avatar'
-        ? 'Awatar poświęci samego siebie, by tamten mógł powrócić.'
-        : action.key === 'develop_civilization'
-          ? 'Awatar odejmuje 2 od wyniku rzutu.'
-          : null
-
-  const flow = action.flow
+  const standing = myAvatars.filter((a) => a.occupant)
+  // the avatar may speak this word: the window first asks who speaks
+  const viaAllowed = viaAvatarAllowed(action.key) && standing.length > 0
+  const flow = useMemo<FlowStep[]>(() => (viaAllowed ? ['via', ...action.flow] : action.flow), [viaAllowed, action.flow])
   // a prophecy opened from the avatar on the map skips the question which avatar speaks
   const [stepIdx, setStepIdx] = useState(action.key === 'prophecy' && preset?.avatarId ? 1 : 0)
   const step: FlowStep = flow[stepIdx]
   const [f, setF] = useState<FormState>(() => {
-    const s = initial(avatarFree && !avatarBlocked && me.logos < baseCost)
-    if (action.key === 'command_avatar') s.avatarId = myAvatars[0]?.entity.id ?? ''
+    const s = initial()
     if (action.key === 'prophecy' && preset?.avatarId) s.avatarId = preset.avatarId
     if (action.key === 'avatar_duel') s.attr = 'wrath'
     if (action.key === 'resurrect_avatar') s.deadAvatarId = entities.find((e) => e.kind === 'avatar' && e.status !== 'active')?.id ?? ''
@@ -180,21 +166,24 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         const t = f.targetCityId ? world.cityOf(f.targetCityId) : undefined
         return srcCity && t ? hexDistance(srcCity, t) : 0
       }
-      case 'command_avatar':
-        return f.moveAvatar && avatarOcc && f.target ? hexDistance(avatarOcc, f.target) : 0
+      case 'pilgrimage':
+        return avatarOcc && f.target ? hexDistance(avatarOcc, f.target) : 0
       default:
         return 0
     }
   })()
   const cost = baseCost + distance
-  const paid = f.useAvatar ? 0 : cost
-  const canPay = f.useAvatar || me.logos >= cost
-  /** how many fields of distance my Words still buy */
-  const budget = f.useAvatar ? Infinity : me.logos - baseCost
+  const viaAv = f.viaAvatarId ? standing.find((a) => a.entity.id === f.viaAvatarId) : undefined
+  const viaOcc = viaAv?.occupant
+  const paid = viaAv ? viaAvatarCost(cost) : cost
+  const canPay = me.logos >= paid
+  /** how many fields of distance my Words still buy (half price through the avatar) */
+  const budget = viaAv ? 2 * me.logos - baseCost : me.logos - baseCost
+  const inReach = (q: number, r: number) => !viaOcc || hexDistance(viaOcc, { q, r }) <= AVATAR_REACH
 
   // ---------- the map's questions ----------
   const mapOrdinal = flow.slice(0, stepIdx).filter((s) => s === 'map').length
-  const skipMap = (i: number) => flow[i] === 'map' && action.key === 'command_avatar' && !f.moveAvatar
+  const skipMap = (_i: number) => false
 
   function advance(from: number) {
     let i = from + 1
@@ -302,8 +291,8 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         return {
           kind: 'occupant',
           title: 'Walka Awatarów',
-          instruction: 'Kliknij awatara innego bóstwa na tym samym heksie albo obok. Dalszego trzeba najpierw dogonić Rozkazem dla Awatara.',
-          valid: (q, r, w) => !!mineOcc && hexDistance(mineOcc, { q, r }) <= 1 && w.occupantsAt(q, r).some((o) => enemy(o, w)),
+          instruction: 'Kliknij awatara innego bóstwa najwyżej dwa heksy od twojego. Dalszego trzeba najpierw dogonić Pielgrzymką.',
+          valid: (q, r, w) => !!mineOcc && hexDistance(mineOcc, { q, r }) <= AVATAR_REACH && w.occupantsAt(q, r).some((o) => enemy(o, w)),
           validOccupant: (o, w) => enemy(o, w),
         }
       }
@@ -317,17 +306,39 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           validOccupant: (o) => myIds.has(o.entity_id),
         }
       }
-      case 'command_avatar':
+      case 'pilgrimage': {
+        const myIds = new Set(myAvatars.map((a) => a.entity.id))
+        if (mapOrdinal === 0) {
+          return {
+            kind: 'occupant',
+            title: 'Pielgrzymka Awatara',
+            instruction: 'Kliknij swojego awatara, który rusza w drogę.',
+            valid: (q, r, w) => w.occupantsAt(q, r).some((o) => myIds.has(o.entity_id)),
+            validOccupant: (o) => myIds.has(o.entity_id),
+          }
+        }
         return {
           kind: 'hex',
-          title: 'Rozkaz dla Awatara',
-          instruction: 'Kliknij heks do trzech pól od awatara: wolne miejsce, nie Woda, nie Góry. 1 Logos za każdy heks.',
-          valid: (q, r, w) => !w.blocked(q, r) && w.freeSlot(q, r) !== null && !!avatarOcc && hexDistance(avatarOcc, { q, r }) <= 3 && reach(avatarOcc, q, r),
+          title: 'Pielgrzymka Awatara',
+          instruction: 'Kliknij heks, na który idzie awatar: wolne miejsce, nie Woda, nie Góry. 1 Logos za każdy heks; świecą tylko te, na które cię stać.',
+          valid: (q, r, w) => !w.blocked(q, r) && w.freeSlot(q, r) !== null && !!avatarOcc && reach(avatarOcc, q, r),
           costFor: (sel) => (avatarOcc && sel[0] ? hexDistance(avatarOcc, sel[0]) : null),
         }
+      }
       default:
         return null
     }
+  }
+
+  /** the same question, limited to the avatar's reach when it speaks the word */
+  function reachSpec(spec: Omit<MapMode, 'onFinish' | 'onCancel'> | null): Omit<MapMode, 'onFinish' | 'onCancel'> | null {
+    if (!spec || !viaOcc) return spec
+    const key = action.key
+    // the far end of a journey is not limited: only where the word begins
+    const unlimited = (key === 'migrate' && mapOrdinal === 0) || ((key === 'exodus' || key === 'holy_war') && mapOrdinal === 1)
+    if (unlimited) return spec
+    const valid = spec.valid
+    return { ...spec, instruction: `${spec.instruction} W zasięgu awatara: do dwóch heksów od niego.`, valid: (q, r, w, sel) => inReach(q, r) && valid(q, r, w, sel) }
   }
 
   function applyPicks(picks: MapPick[]) {
@@ -389,6 +400,13 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           n.avatarId = occ?.entity_id ?? ''
           break
         }
+        case 'pilgrimage': {
+          if (mapOrdinal === 0) {
+            const occ = world.occupantsAt(p.q, p.r).find((o) => o.id === p.occupantId)
+            n.avatarId = occ?.entity_id ?? ''
+          } else n.target = { q: p.q, r: p.r }
+          break
+        }
         case 'holy_war':
           if (mapOrdinal === 0) {
             n.cityId = p.cityId ?? ''
@@ -409,7 +427,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   // hand the question to the map when a map step begins; take it back when the window goes
   useEffect(() => {
     if (step !== 'map') return
-    const spec = mapSpec()
+    const spec = reachSpec(mapSpec())
     if (!spec) {
       advance(stepIdx)
       return
@@ -428,13 +446,13 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
 
   // ---------- the payload ----------
   function buildPayload(): ActionPayload {
-    const base: ActionPayload = { use_avatar_action: f.useAvatar, summary: '' }
+    const base: ActionPayload = { via_avatar_id: f.viaAvatarId || undefined, summary: '' }
     const t = f.target ?? { q: 0, r: 0 }
     switch (action.key) {
       case 'shape_land':
         return { ...base, biome: f.biome, hexes: f.hexes }
       case 'catastrophe':
-        return { ...base, type: f.catastrophe.trim(), q: t.q, r: t.r, prophecy_id: f.prophecyId ?? undefined }
+        return { ...base, type: f.catastrophe.trim(), q: t.q, r: t.r, prophecy_id: f.prophecyId ?? undefined, after: f.after || undefined }
       case 'great_miracle':
         return base
       case 'create_creature':
@@ -457,8 +475,8 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         return { ...base, avatar_id: f.avatarId, text: f.text.trim() }
       case 'exodus':
         return { ...base, city_id: f.cityId, dots: f.dots, species_id: f.speciesId, to: f.target ?? undefined, name: f.name.trim(), description: '' }
-      case 'command_avatar':
-        return { ...base, avatar_id: f.avatarId, summary: f.summary.trim(), to: f.moveAvatar ? f.target ?? undefined : undefined }
+      case 'pilgrimage':
+        return { ...base, avatar_id: f.avatarId, to: f.target ?? undefined }
       case 'resurrect_avatar':
         return { ...base, entity: { op: 'update', id: f.deadAvatarId, description: f.description }, q: t.q, r: t.r }
       default:
@@ -496,10 +514,10 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     setError(null)
     try {
       const payload = action.key === 'convert'
-        ? { city_id: f.cityId, defender_id: f.defenderId, attr: f.attr, prophecy_id: f.prophecyId }
+        ? { city_id: f.cityId, defender_id: f.defenderId, attr: f.attr, prophecy_id: f.prophecyId, via_avatar_id: f.viaAvatarId || undefined }
         : action.key === 'avatar_duel'
           ? { attacker_avatar_id: f.avatarId, defender_avatar_id: f.enemyAvatarId, attr: f.attr, prophecy_id: f.prophecyId }
-          : { source_city_id: f.cityId, army: f.army, target_city_id: f.targetCityId, defender_id: f.defenderId, prophecy_id: f.prophecyId }
+          : { source_city_id: f.cityId, army: f.army, target_city_id: f.targetCityId, defender_id: f.defenderId, prophecy_id: f.prophecyId, via_avatar_id: f.viaAvatarId || undefined }
       await rpc('declare_contest', { p_game_id: game.id, p_kind: action.key, p_payload: payload })
       onClose()
     } catch (err) {
@@ -514,12 +532,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   const drafted = useMemo(() => {
     if (!liveRow) return ''
     if (action.key === 'great_miracle') return draftDeedSummary(action, god, null)
-    const base = composeVerse(liveRow, ctx)
-    if (action.key === 'command_avatar' && f.summary.trim()) {
-      const s = f.summary.trim()
-      return `${base} ${s.endsWith('.') ? s : `${s}.`}`
-    }
-    return base
+    return composeVerse(liveRow, ctx)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveRow, ctx, action.key])
   useEffect(() => {
@@ -563,7 +576,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
               </button>
               {lead}
             </div>
-            <CostSeal label={sealLabel} cost={f.useAvatar ? 0 : action.distance ? Math.max(1, cost) : cost} have={me.logos} free={f.useAvatar} />
+            <CostSeal label={sealLabel} cost={action.distance ? Math.max(1, paid) : paid} have={me.logos} free={!!viaAv} />
           </div>
           {children}
         </div>
@@ -571,15 +584,11 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     </Modal>
   )
 
-  const avatarRow = avatarFree && !action.contested && (
-    <div className={styles.avatarRow}>
-      <label className={styles.check}>
-        <input type="checkbox" checked={f.useAvatar} disabled={avatarBlocked} onChange={(e) => set('useAvatar', e.target.checked)} />
-        Darmowa akcja awatara (raz na rundę)
-      </label>
-      {avatarNote && <small className={styles.avatarNote}>{avatarNote}</small>}
-      {me.logos < cost && !f.useAvatar && <small className={styles.avatarNote}>Masz za mało Logos: to słowo padnie tylko przez awatara.</small>}
-    </div>
+  // who speaks: the god itself, or one of its avatars standing on the map (half the price, reach of two)
+  const viaRow = viaAv && (
+    <p className={styles.viaNote}>
+      Przez awatara {viaAv.entity.emoji ?? ''} {viaAv.entity.name}: {paid} zamiast {cost} Logos{action.key === 'great_miracle' ? '. Awatar spłonie w Wielkim Cudzie.' : '.'}
+    </p>
   )
 
   const footer = (primary: ReactNode) => (
@@ -591,6 +600,51 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
 
   // the map is asking, or the wrath is playing: the window steps aside
   if (step === 'map' || curtain || (step === 'verse' && waitingDice)) return null
+
+  // ---------- via: who speaks the word ----------
+  if (step === 'via') {
+    const full = action.distance ? `${baseCost} + dystans` : String(baseCost)
+    const half = action.distance ? `${viaAvatarCost(baseCost)} + połowa dystansu` : String(viaAvatarCost(baseCost))
+    return shell(
+      <div className={styles.form}>
+        <div className={styles.viaPick} role="radiogroup" aria-label="Kto wypowiada słowo">
+          <span className={labelClass}>Kto wypowiada słowo</span>
+          <label className={[styles.viaRow, !f.viaAvatarId ? styles.viaOn : ''].join(' ')}>
+            <input type="radio" name="via" checked={!f.viaAvatarId} onChange={() => set('viaAvatarId', '')} />
+            <span className={styles.viaWho}>
+              <b>{godLabel(me)}</b>
+              <small>Bóstwo samo, z nieba. Cel gdziekolwiek na świecie.</small>
+            </span>
+            <span className={styles.viaCost}>{full}</span>
+          </label>
+          {standing.map((a) => (
+            <label key={a.entity.id} className={[styles.viaRow, styles.viaAvatar, f.viaAvatarId === a.entity.id ? styles.viaOn : ''].join(' ')}>
+              <input type="radio" name="via" checked={f.viaAvatarId === a.entity.id} onChange={() => set('viaAvatarId', a.entity.id)} />
+              <span className={styles.viaWho}>
+                <b>{a.entity.emoji ?? ''} {a.entity.name} <small>życie {a.entity.hp ?? 0} z {a.entity.max_hp ?? 3}</small></b>
+                <small>
+                  Przez awatara: połowa ceny, cel najwyżej dwa heksy od niego.
+                  {action.key === 'great_miracle' ? ' Wielki Cud spali awatara.' : ''}
+                  {action.key === 'holy_war' ? ' Awatar poprowadzi armię: jego życie dolicza się do rzutu.' : ''}
+                  {action.key === 'exodus' ? ' Awatar pójdzie z ludem na nowe miejsce.' : ''}
+                </small>
+              </span>
+              <span className={[styles.viaCost, styles.viaCostHalf].join(' ')}>{half}</span>
+            </label>
+          ))}
+        </div>
+        {error && <Notice tone="error">{error}</Notice>}
+        {footer(
+          <StoneButton variant="gold" size="lg" disabled={busy} onClick={() => advance(stepIdx)}>
+            {flow[stepIdx + 1] === 'map' ? 'Dalej: wskaż na mapie' : 'Dalej'}
+          </StoneButton>,
+        )}
+      </div>,
+      onClose,
+      'Koszt',
+      <p className={styles.summary}>{action.summary}</p>,
+    )
+  }
 
   // ---------- form: what the word needs before (or after) the map ----------
   if (step === 'form') {
@@ -616,7 +670,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   if (step === 'confirm') {
     return shell(
       <div className={styles.form}>
-        {avatarRow}
+        {viaRow}
         <ul className={styles.chosen}>
           {confirmLines().map((line, i) => (
             <li key={i}>{line}</li>
@@ -626,8 +680,8 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         {(action.key === 'develop_civilization' || action.key === 'catastrophe') && <ProphecyPicker prophecies={prophecies} value={f.prophecyId} onChange={(v) => set('prophecyId', v)} disabled={busy} />}
         {error && <Notice tone="error">{error}</Notice>}
         {footer(
-          <StoneButton variant="gold" size="lg" disabled={busy || !canPay} title={!canPay ? 'Za mało Logos. Zaznacz darmową akcję awatara albo odstąp.' : undefined} onClick={submit}>
-            {busy ? 'Słowo pada…' : f.useAvatar ? 'Czyń przez awatara (0 Logos)' : `Zapłać ${paid} Logos`}
+          <StoneButton variant="gold" size="lg" disabled={busy || !canPay} title={!canPay ? 'Za mało Logos. Odstąp albo wypowiedz słowo przez awatara.' : undefined} onClick={submit}>
+            {busy ? 'Słowo pada…' : viaAv ? `Czyń przez awatara (${paid} Logos)` : `Zapłać ${paid} Logos`}
           </StoneButton>,
         )}
       </div>,
@@ -642,6 +696,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     const def = players.find((p) => p.id === f.defenderId)
     return shell(
       <div className={styles.form}>
+        {viaRow}
         <ul className={styles.chosen}>
           {confirmLines().map((line, i) => (
             <li key={i}>{line}</li>
@@ -654,7 +709,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         {error && <Notice tone="error">{error}</Notice>}
         {footer(
           <StoneButton variant="gold" size="lg" disabled={busy || !canPay || !f.defenderId} onClick={declare}>
-            {busy ? 'Kości lecą…' : `Rozpocznij starcie (${cost} Logos)`}
+            {busy ? 'Kości lecą…' : `Rozpocznij starcie (${paid} Logos)`}
           </StoneButton>,
         )}
       </div>,
@@ -679,12 +734,12 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           <span className={styles.hint}>{o.tier === 'strong' ? '10+: dwóch wyznawców' : o.tier === 'mixed' ? '7..9: jeden wyznawca' : '6-: dar odrzucony'}</span>
         </div>
       )}
-      {action.key === 'catastrophe' && typeof o.d6 === 'number' && (
+      {action.key === 'catastrophe' && typeof o.d1 === 'number' && (
         <div className={styles.diceRow}>
-          <Die value={Number(o.d6)} />
+          <Dice2d6 d1={Number(o.d1)} d2={Number(o.d2)} showTotal={false} animateKey={liveRow?.id} />
           <span className={styles.rollTotal}>
             <b className="engraved">{Number(o.damage)}</b>
-            <small>{Number(o.d6)} {Number(o.wrath) < 0 ? '−' : '+'} {Math.abs(Number(o.wrath))} (Gniew){o.prophecy ? ` + ${Number((o.prophecy as Record<string, unknown>).hold ?? 0)} (proroctwo)` : ''}, najmniej 1</small>
+            <small>{Number(o.d1)} + {Number(o.d2)} {Number(o.wrath) < 0 ? '−' : '+'} {Math.abs(Number(o.wrath))} (Gniew){o.prophecy ? ` + ${Number(o.prophecy)} (proroctwo)` : ''} = {Number(o.total)}, połowa w dół, najmniej 1</small>
           </span>
           <span className={styles.hint}>obrażeń</span>
         </div>
@@ -700,9 +755,10 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
             <li key={`c${i}`}>{String(h.emoji ?? '')} {String(h.name)}: {h.extinct ? 'wyginęły na zawsze' : 'przepadły z tego pola'}</li>
           ))}
           {(o.hits as Record<string, unknown>[]).filter((h) => h.t === 'avatar').map((h, i) => (
-            <li key={`a${i}`}>Awatar {String(h.name)}: {Number(h.hp) === 0 ? 'poległ' : `ranny, życie ${h.hp} z 3`}</li>
+            <li key={`a${i}`}>Awatar {String(h.name)}: {Number(h.hp) === 0 ? 'poległ' : `ranny, życie ${h.hp} z ${h.max_hp ?? 3}`}</li>
           ))}
           {o.city_destroyed ? <li>Miasto {String(o.city_name ?? '')} obróciło się w ruinę.</li> : null}
+          {o.biome_after ? <li>Nikt nie przeżył: ziemia stała się terenem {BIOME_BY_KEY[String(o.biome_after) as BiomeKey]?.name.toLowerCase() ?? ''}.</li> : f.after ? <li>Ktoś przeżył, więc ziemia została, jaka była.</li> : null}
           {Number(o.wasted) > 0 && <li>Obrażeń bez celu: {String(o.wasted)}.</li>}
         </ul>
       )}
@@ -764,7 +820,16 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
                 </select>
               </label>
               {!CATASTROPHE_TYPES.includes(f.catastrophe) && <TextField id="cat_own" label="Nazwij kataklizm" value={f.catastrophe} onChange={(e) => set('catastrophe', e.target.value)} maxLength={60} />}
-              <p className={styles.hint}>Obrażenia: k6 + Gniew ({scoreText(scores.wrath)}), najmniej 1. Każde trafia losowo w wyznawcę miasta, istotę albo awatara.</p>
+              <label className={fieldClass}>
+                <span className={labelClass}>Co zostanie po zniszczeniu</span>
+                <select className={inputClass} value={f.after} onChange={(e) => set('after', e.target.value as FormState['after'])}>
+                  <option value="">Bez zmian</option>
+                  <option value="pustynia">Pustynia 🏜️</option>
+                  <option value="ziemia">Ugór 🪨</option>
+                  <option value="woda">Woda 🌊</option>
+                </select>
+              </label>
+              <p className={styles.hint}>Obrażenia: 2k6 + Gniew ({scoreText(scores.wrath)}), połowa w dół, najmniej 1. Każde trafia losowo w wyznawcę miasta, istotę albo awatara. Teren zmieni się tylko wtedy, gdy na polu nikt nie przeżyje.</p>
             </div>
           ),
         }
@@ -845,7 +910,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
               </label>
               {f.gift === OWN_GIFT && <TextField id="gift_own" label="Nazwij dar" value={f.giftOwn} onChange={(e) => set('giftOwn', e.target.value)} maxLength={80} />}
               <AttrPicker label="Co wspiera ten dar" options={['grace', 'wisdom']} value={f.attr} scores={scores} onChange={(v) => set('attr', v)} />
-              <p className={styles.hint}>Księga rzuci 2k6 + atrybut{f.useAvatar ? ' − 2 (awatar)' : ''}: 10+ to dwóch wyznawców, 7..9 jeden, 6- nic.</p>
+              <p className={styles.hint}>Księga rzuci 2k6 + atrybut: 10+ to dwóch wyznawców, 7..9 jeden, 6- nic.</p>
             </div>
           ),
         }
@@ -948,7 +1013,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           fields: (
             <div className={styles.fields}>
               <p className={styles.hint}>
-                {mine?.emoji ?? ''} {mine?.name ?? 'Twój awatar'} (życie {mine?.hp ?? 0} z 3) przeciw {enemy?.emoji ?? ''} {enemy?.name ?? 'awatarowi'} (życie {enemy?.hp ?? 0} z 3), którym włada {godLabel(players.find((pl) => pl.id === f.defenderId))}.
+                {mine?.emoji ?? ''} {mine?.name ?? 'Twój awatar'} (życie {mine?.hp ?? 0} z {mine?.max_hp ?? 3}) przeciw {enemy?.emoji ?? ''} {enemy?.name ?? 'awatarowi'} (życie {enemy?.hp ?? 0} z {enemy?.max_hp ?? 3}), którym włada {godLabel(players.find((pl) => pl.id === f.defenderId))}.
               </p>
               <AttrPicker label="Czym walczysz" options={['wrath', 'majesty', 'whisper']} value={f.attr} scores={scores} onChange={(v) => set('attr', v)} />
               <p className={styles.hint}>Gniew to siła, Majestat to boska aura, Podszept to skrytobójstwo. Obrońca też wybiera. Wygrana o 3+ rani wroga dwa razy, o 1..2 rani obu, remis rani obu, przegrana rani ciebie.</p>
@@ -969,27 +1034,6 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           ),
         }
       }
-      case 'command_avatar':
-        return {
-          ready: !!f.avatarId,
-          fields: (
-            <div className={styles.fields}>
-              <label className={fieldClass}>
-                <span className={labelClass}>Awatar</span>
-                <select className={inputClass} value={f.avatarId} onChange={(e) => set('avatarId', e.target.value)}>
-                  {myAvatars.map((a) => (
-                    <option key={a.entity.id} value={a.entity.id}>{a.entity.emoji ?? ''} {a.entity.name}</option>
-                  ))}
-                </select>
-              </label>
-              <TextArea id="order" label="Co rozkazujesz" placeholder="Krótko: co awatar czyni i jak." value={f.summary} onChange={(e) => set('summary', e.target.value)} />
-              <label className={styles.check}>
-                <input type="checkbox" checked={f.moveAvatar} disabled={!avatarOcc} onChange={(e) => set('moveAvatar', e.target.checked)} />
-                Awatar przechodzi na inny heks (do 3 pól, 1 Logos za każdy)
-              </label>
-            </div>
-          ),
-        }
       case 'resurrect_avatar': {
         const dead = entities.filter((e) => e.kind === 'avatar' && e.status !== 'active')
         return {
@@ -1020,7 +1064,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
       case 'shape_land':
         return [`Biom: ${BIOME_BY_KEY[f.biome].name}`, `Heksy: ${f.hexes.map((h) => `(${h.q}, ${h.r})`).join(' ')}`]
       case 'catastrophe':
-        return [`Kataklizm: ${f.catastrophe}`, `Cel: ${at}`, `Obrażenia: k6 + Gniew (${scoreText(scores.wrath)}), najmniej 1`]
+        return [`Kataklizm: ${f.catastrophe}`, `Cel: ${at}`, `Obrażenia: połowa z 2k6 + Gniew (${scoreText(scores.wrath)}), najmniej 1`, f.after ? `Gdy nikt nie przeżyje: ${BIOME_BY_KEY[f.after].name}` : 'Teren bez zmian']
       case 'great_miracle':
         return ['Coś WIELKIEGO na skalę całego świata. Opowiesz to w wersecie.']
       case 'create_creature':
@@ -1042,8 +1086,8 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         return [`Miasto: ${world.entityById(f.cityId)?.name ?? ''}`, `Nawracasz wyznawców: ${godLabel(players.find((p) => p.id === f.defenderId))}`, `Atrybut: ${ATTRIBUTE_BY_KEY[f.attr].name} (${scoreText(scores[f.attr])})`]
       case 'holy_war':
         return [`Z miasta: ${world.entityById(f.cityId)?.name ?? ''}, Armia: ${followersWord(f.army)}`, `Cel: ${world.entityById(f.targetCityId)?.name ?? ''}, broni: ${godLabel(players.find((p) => p.id === f.defenderId))}`, `Rzut: 2k6 + Gniew (${scoreText(scores.wrath)}) + ${f.army}`]
-      case 'command_avatar':
-        return [`Awatar: ${world.entityById(f.avatarId)?.name ?? ''}`, f.summary.trim() ? `Rozkaz: ${f.summary.trim()}` : 'Rozkaz opowiesz w wersecie.', f.moveAvatar && f.target ? `Przejście na ${at}` : 'Bez przejścia']
+      case 'pilgrimage':
+        return [`Awatar: ${world.entityById(f.avatarId)?.emoji ?? ''} ${world.entityById(f.avatarId)?.name ?? ''}`, `Idzie na ${at}`]
       case 'resurrect_avatar':
         return [`Awatar: ${entities.find((e) => e.id === f.deadAvatarId)?.name ?? ''}`, `Wraca na ${at}, z pełnym życiem`]
       case 'avatar_duel':
@@ -1085,7 +1129,7 @@ function RulesAside({ action, era, open, onHide }: { action: ActionDef; era: Era
         <div className={styles.rulesCosts} aria-label="Koszt">
           {([1, 2, 3] as Era[]).map((e) => (
             <span key={e} className={e === era ? styles.rulesCostNow : ''}>
-              {action.distance ? `${action.costs[e - 1]}+` : action.costs[e - 1]}
+              {action.distance ? (action.costs[e - 1] === 0 ? '1 za heks' : `${action.costs[e - 1]}+`) : action.costs[e - 1]}
             </span>
           ))}
         </div>

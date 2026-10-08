@@ -6,6 +6,7 @@ const ART_FILE: Partial<Record<ActionKey, string>> = {
   exodus: 'command_followers',
   convert: 'create_orthodoxy',
   avatar_duel: 'avatar_fight',
+  pilgrimage: 'command_avatar',
 }
 
 /** Painted plates for the words, in public/actions: 512px squares and 160px thumbnails. */

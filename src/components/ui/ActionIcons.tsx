@@ -118,7 +118,7 @@ const SHAPES: Record<ActionKey, ReactNode> = {
     </>
   ),
   // a command sent up
-  command_avatar: (
+  pilgrimage: (
     <>
       <path d="M12 21V9M7 13l5-5 5 5M5 21h14" />
       <circle cx="12" cy="4" r="1.6" />

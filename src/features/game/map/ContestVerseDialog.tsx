@@ -115,7 +115,7 @@ export function ContestVerseDialog() {
             </label>
             {defAvatar ? (
               <label className={fieldClass}>
-                <span className={labelClass}>Rany awatara {defAvatar.emoji ?? ''} {defAvatar.name} (życie {defAvatar.hp ?? 0} z 3): jeden sukces to jedna rana</span>
+                <span className={labelClass}>Rany awatara {defAvatar.emoji ?? ''} {defAvatar.name} (życie {defAvatar.hp ?? 0} z {defAvatar.max_hp ?? 3}): jeden sukces to jedna rana</span>
                 <input className={inputClass} type="number" min={0} max={Math.min(defAvatar.hp ?? 0, successes)} value={avatar} onChange={(e) => setAvatar(clampAvatar(Number(e.target.value) || 0))} />
               </label>
             ) : (

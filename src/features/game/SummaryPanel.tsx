@@ -56,8 +56,7 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
   const totals = players.map((p) => world.totalDots(p.id)).filter((n) => n > 0)
   const myRank = myDots > 0 ? 1 + new Set(totals.filter((n) => n > myDots)).size : 0
   const prize = followersPrize(myRank)
-  const hasAvatar = !!me && world.avatarsOf(me.id).length > 0
-  const avatarState: 'free' | 'used' | 'none' = !hasAvatar ? 'none' : me?.avatar_action_used ? 'used' : 'free'
+  const myAvatars = me ? world.avatarsOf(me.id) : []
 
   const ctx = useMemo(
     () => ({
@@ -169,12 +168,17 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
             <span className={[styles.chip, me && me.low_logos_streak > 0 ? styles.chipOn : ''].join(' ')} title="Premia za skromność do Rzutu Logos: kolejne rundy zakończone z 5 lub mniej Słowami.">
               skromność +{me?.low_logos_streak ?? 0}
             </span>
-            <span
-              className={[styles.chip, avatarState === 'free' ? styles.chipGold : '', avatarState === 'none' ? styles.chipOff : ''].join(' ')}
-              title={avatarState === 'none' ? 'Nie masz żywego awatara.' : avatarState === 'used' ? 'Darmowa akcja awatara zużyta w tej rundzie.' : 'Darmowa akcja awatara czeka: zaznacz ją w oknie akcji.'}
-            >
-              <AvatarIcon /> {avatarState === 'none' ? 'brak awatara' : avatarState === 'used' ? 'akcja awatara zużyta' : 'akcja awatara wolna'}
-            </span>
+            {myAvatars.length === 0 ? (
+              <span className={[styles.chip, styles.chipOff].join(' ')} title="Nie masz żywego awatara.">
+                <AvatarIcon /> brak awatara
+              </span>
+            ) : (
+              myAvatars.map((a) => (
+                <span key={a.entity.id} className={[styles.chip, styles.chipGold].join(' ')} title={`${a.entity.name}: życie ${a.entity.hp ?? 0} z ${a.entity.max_hp ?? 3}. Słowa przez awatara kosztują połowę, cel do dwóch heksów od niego.`}>
+                  <AvatarIcon /> {a.entity.emoji ?? ''} {a.entity.name} {a.entity.hp ?? 0} z {a.entity.max_hp ?? 3}
+                </span>
+              ))
+            )}
           </div>
         </div>
       </section>

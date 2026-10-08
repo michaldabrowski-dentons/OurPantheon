@@ -21,7 +21,7 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
    `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`, `0017_prices_and_ruins.sql`,
-   `0018_verse_lock_avatars_prophecies.sql`.
+   `0018_verse_lock_avatars_prophecies.sql`, `0019_afterlife_avatar_hand.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -113,8 +113,10 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 
 - Kształtowanie Lądów: biom, potem do trzech sąsiadujących pól (trzeci klik kończy sam). Pola z miastem lub
   awatarem nie staną się Wodą ani Górami.
-- Kataklizm (domyślnie deszcz ognia): rodzaj i pole; obrażenia k6 + Gniew (najmniej 1), każde losowo
-  w wyznawcę miasta, istotę nierozumną albo awatara (−1 życia); istoty rozumne giną dopiero bez miasta. Najpierw
+- Kataklizm (domyślnie deszcz ognia): rodzaj, pole i co zostanie po zniszczeniu (bez zmian, pustynia, ugór,
+  woda); obrażenia to połowa (w dół) z 2k6 + Gniew, najmniej 1, każde losowo w wyznawcę miasta, istotę
+  nierozumną albo awatara (−1 życia); istoty rozumne giną dopiero bez miasta. Biom zmienia się tylko wtedy,
+  gdy na polu nikt nie przeżył (`outcome.biome_after`). Najpierw
   toczy się kość w oknie, potem na polu spada ogień (błysk, komety, pierścienie), a okno akcji wraca dopiero po
   animacji z listą strat. Zniszczone miasto zostawia na polu czaszkę (`entities.attributes.ruin`).
 - Stworzenie Istoty / Istoty Rozumnej / Zesłanie Awatara: nazwa i emotikona, potem ląd z wolnym miejscem.
@@ -134,11 +136,24 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   armia to moi wyznawcy z miasta, w którym rządzę (jeden zostaje), koszt 8 / 6 / 4 plus 1 za heks; atakujący 2k6 + Gniew +
   armia, obrońca 2k6 + atrybut + swoje kropki w celu; skala zwycięstwa jak w briefie (pełne, pyrrusowe, remis
   bez oblężenia, odparcie, masakra).
-- Rozkaz dla Awatara może przesunąć awatara do trzech pól (1 Logos za heks); Wskrzeszenie (12 / 15 / 16) stawia
-  go na wybranym polu z pełnym życiem. We śnie (koniec Chaosu) każdy żywy awatar leczy jedno życie
-  (wiersz `avatars_heal`).
-- Walka Awatarów (5 / 4 / 3): mój awatar i awatar innego bóstwa na tym samym polu albo obok (dalszego trzeba
-  najpierw dogonić Rozkazem); starcie 2k6 + Gniew, Majestat albo Podszept po obu stronach (obrońca wybiera u
+- Awatar jest ręką bóstwa na ziemi (0019): nie ma już darmowej akcji. Słowa Terraformacji, Tworzenia Życia
+  i Śmiertelników (także Nawracanie i Święta Wojna) można wypowiedzieć przez awatara za połowę ceny (w górę,
+  `via_avatar_id`), ale cel musi leżeć najwyżej dwa heksy od niego (wszystkie pola Kształtowania, pole
+  kataklizmu, miejsce istoty, miasto Rozwoju i Nawracania, miasto źródłowe Exodusu i Wojny; cel Migracji;
+  dalekie cele Exodusu i Wojny bez ograniczeń). Okno akcji zaczyna się od pytania „Kto wypowiada słowo”, kafle
+  pokazują obok ceny bóstwa cenę przez awatara (kolor żaru). Przy Exodusie awatar idzie z ludem na nowe pole
+  (gdy jest miejsce). Wielki Cud przez awatara spala go. Na wojnie awatar prowadzi lud: jego życie dolicza się
+  do rzutu armii; awatar obrońcy stojący w atakowanym mieście dolicza życie do obrony.
+- Pielgrzymka Awatara (zamiast Rozkazu): 1 Logos za heks, bez granicy, na pole z wolnym miejscem. Awatar
+  rodzi się z 2 życiami (`entities.max_hp`), każde kolejne wcielenie (Wskrzeszenie 12 / 15 / 16 albo nowy awatar
+  po śmierci poprzedniego) wraca o jedno życie silniejsze, najwyżej 12; sen Fazy Chaosu leczy jedno życie do
+  maksimum (wiersz `avatars_heal`).
+- Zaświaty: każdy wyznawca, który zginął (kataklizm, straty w wojnie po obu stronach, sukcesy po wygranej),
+  trafia jako dusza do `players.afterlife` swojego bóstwa, pod znakiem ludu, z którego miasto powstało
+  (`city_species_emoji`, `collect_souls`). Karta bóstwa ma sekcję „Zaświaty”: opis (domyślny z domeny,
+  `AFTERLIFE_DEFAULT`, własny przez `set_afterlife`) i chmurę dusz.
+- Walka Awatarów (5 / 4 / 3): mój awatar i awatar innego bóstwa najwyżej dwa heksy od siebie (dalszego trzeba
+  najpierw dogonić Pielgrzymką); starcie 2k6 + Gniew, Majestat albo Podszept po obu stronach (obrońca wybiera u
   siebie). Wygrana o 3+: wróg traci 2 życia; o 1..2: wróg 1 i ja 1; remis: obaj po 1; przegrana o 1..2: ja 1;
   o 3+: ja 2. Awatar bez życia ginie i znika z mapy. Plansza `avatar_fight.jpg`.
 - Wygrana Święta Wojna (pełna albo pyrrusowa) daje atakującemu tyle sukcesów, ilu liczyła armia; w oknie
