@@ -630,6 +630,8 @@ export function nightVerse(rows: ActionLog[], ctx: VerseContext): string {
   const wandered = new Set<string>()
   const grew: string[] = []
   const settled: string[] = []
+  const died: string[] = []
+  const starved: string[] = []
   for (const l of rows) {
     const o = (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as O
     switch (l.action_key) {
@@ -637,7 +639,9 @@ export function nightVerse(rows: ActionLog[], ctx: VerseContext): string {
         const res = str(o, 'result')
         const name = thing(o)
         if (res === 'reproduce' || res === 'pack' || res === 'split') born.push(name)
-        else if (res === 'move' || res === 'move_best' || res === 'hunt') wandered.add(name)
+        else if (res === 'die') died.push(name)
+        else if (res === 'mutation' && str(o, 'mutation_name')) parts.push(`${str(o, 'unit') === 'tribe' ? 'Z ludu' : 'Z'} ${name} ${str(o, 'unit') === 'tribe' ? 'narodził się nowy lud' : 'wziął się nowy rodzaj'}: ${str(o, 'mutation_emoji') ? `${str(o, 'mutation_emoji')} ` : ''}${str(o, 'mutation_name')}.`)
+        else if (['move', 'move_best', 'hunt', 'hunting', 'wander', 'graze_best', 'explore', 'promised'].includes(res)) wandered.add(name)
         break
       }
       case 'night_fight': {
@@ -674,8 +678,9 @@ export function nightVerse(rows: ActionLog[], ctx: VerseContext): string {
       case 'night_city': {
         const res = str(o, 'result')
         const name = str(o, 'name')
-        if (res === 'grow') grew.push(name)
-        else if (res === 'exodus' && str(o, 'target_kind') === 'found') {
+        if (res === 'grow' || res === 'bloom') grew.push(name)
+        else if (res === 'famine') starved.push(`${name}${o.source_destroyed ? ' (i nie zostało z niego nic prócz ruin)' : ''}`)
+        else if ((res === 'exodus' || res === 'colony') && str(o, 'target_kind') === 'found') {
           const n = ((Array.isArray(o.groups) ? o.groups : []) as O[]).reduce((k, g) => k + num(g, 'n'), 0)
           const newName = ctx.entity(str(o, 'new_city_id'))?.name ?? 'bez imienia'
           parts.push(`Zabrakło chleba w mieście ${name}: ${followersInWords(n)} ${n === 1 ? 'wyszedł' : 'wyszło'} w drogę i ${n === 1 ? 'założył' : 'założyło'} miasto ${newName}.${o.source_destroyed ? ` A ${name} opustoszało.` : ''}`)
@@ -691,6 +696,8 @@ export function nightVerse(rows: ActionLog[], ctx: VerseContext): string {
     }
   }
   if (born.length) parts.push(`Rozmnożyły się ${joinAnd(Array.from(new Set(born)))}.`)
+  if (died.length) parts.push(`Wymarły ${joinAnd(Array.from(new Set(died)))}.`)
+  if (starved.length) parts.push(`Głód i zaraza nawiedziły ${starved.length === 1 ? 'miasto' : 'miasta'} ${joinAnd(starved)}.`)
   if (settled.length) parts.push(`A ${joinAnd(settled)}.`)
   if (grew.length) parts.push(`Rosły miasta: ${joinAnd(Array.from(new Set(grew)))}.`)
   if (wandered.size) parts.push(pick(first.id + 'w', [`A ${joinAnd(Array.from(wandered))} wędrowały po ziemi.`, `Stada i bestie szły za trawą i za krwią: ${joinAnd(Array.from(wandered))}.`]))

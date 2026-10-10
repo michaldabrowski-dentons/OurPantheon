@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { rpc } from '@/lib/supabase'
-import type { ActionLog, NightFight, NightSide } from '@/lib/types'
+import type { NightFight, NightSide } from '@/lib/types'
 import { nightLine } from '@/data/tableEvents'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, godLabel, playerLabel, selectMyPlayer, selectNight } from '@/store/useGameStore'
@@ -20,8 +20,9 @@ const SCENE_TITLE: Record<NightFight['scene'], string> = {
 const GRACE_MS = 60000
 
 /**
- * Two sides, two rolls: the god of each side clicks for its own (the host for the absent). The
- * window cannot be closed while the night waits; once both rolled it shows what the dice decided.
+ * Two sides, two rolls: the god of each side clicks for its own (the host for the absent). Once both
+ * rolled, the verdict stays on the table until both gods have read it (the host reads for the absent,
+ * after a minute anyone may); only then does the night go on.
  */
 export function NightFightDialog() {
   const { user } = useUser()
@@ -35,32 +36,17 @@ export function NightFightDialog() {
   const isHost = game.host_id === user.id
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [verdict, setVerdict] = useState<ActionLog | null>(null)
-  const seen = useRef<string | null | undefined>(undefined)
   const [now, setNow] = useState(Date.now())
 
   const fight = night?.pending?.kind === 'fight' ? night.pending : null
-
-  // the newest fight row, for a moment after the dice fell
-  const latest = useMemo(() => [...log].reverse().find((l) => l.action_key === 'night_fight') ?? null, [log])
-  useEffect(() => {
-    if (seen.current === undefined) {
-      seen.current = latest?.id ?? null
-      return
-    }
-    if (!latest || latest.id === seen.current) return
-    seen.current = latest.id
-    if (Date.now() - new Date(latest.created_at).getTime() > 20000) return
-    setVerdict(latest)
-    const t = window.setTimeout(() => setVerdict(null), 3200)
-    return () => window.clearTimeout(t)
-  }, [latest])
+  const verdict = night?.pending?.kind === 'verdict' ? night.pending : null
+  const waitingOn = !!fight || !!verdict
 
   useEffect(() => {
-    if (!fight) return
+    if (!waitingOn) return
     const t = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(t)
-  }, [fight])
+  }, [waitingOn])
 
   const ctx = useMemo(
     () => ({
@@ -73,13 +59,13 @@ export function NightFightDialog() {
     [players, profiles, entities],
   )
 
-  if (!fight && !verdict) return null
+  if (!me || (!fight && !verdict)) return null
 
-  async function roll(side: 'left' | 'right') {
-    setBusy(side)
+  async function call(fn: string, args: Record<string, unknown>, key: string) {
+    setBusy(key)
     setError(null)
     try {
-      await rpc('chaos_fight_roll', { p_game_id: game.id, p_side: side })
+      await rpc(fn, { p_game_id: game.id, ...args })
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -87,11 +73,12 @@ export function NightFightDialog() {
     }
   }
 
+  const godOf = (s: NightSide) => (s.player_id ? godLabel(players.find((p) => p.id === s.player_id)) : 'bezbożni')
+
   if (fight) {
     const since = new Date(fight.since).getTime()
     const late = now - since > GRACE_MS
-    const mayRoll = (s: NightSide) => !!me && (s.player_id === null || s.player_id === me.id || isHost || late)
-    const godOf = (s: NightSide) => (s.player_id ? godLabel(players.find((p) => p.id === s.player_id)) : 'bezbożni')
+    const mayRoll = (s: NightSide) => s.player_id === null || s.player_id === me.id || isHost || late
     const Side = ({ s, side }: { s: NightSide; side: 'left' | 'right' }) => (
       <div className={mapStyles.side}>
         <b>{s.emoji ? `${s.emoji} ` : ''}{s.label}</b>
@@ -106,8 +93,8 @@ export function NightFightDialog() {
           <>
             <span className={mapStyles.sideTotal}>?</span>
             <span className={mapStyles.sideMod}>2k6 {s.mod < 0 ? '−' : '+'} {Math.abs(s.mod)}</span>
-            <StoneButton variant="gold" size="sm" disabled={!!busy || !mayRoll(s)} onClick={() => roll(side)} title={mayRoll(s) ? undefined : 'Za tę stronę rzuca jej bóstwo albo gospodarz.'}>
-              {busy === side ? 'Kości lecą…' : mayRoll(s) && me && s.player_id !== me.id ? 'Rzuć za nich' : 'Rzuć 2k6'}
+            <StoneButton variant="gold" size="sm" disabled={!!busy || !mayRoll(s)} onClick={() => call('chaos_fight_roll', { p_side: side }, side)} title={mayRoll(s) ? undefined : 'Za tę stronę rzuca jej bóstwo albo gospodarz.'}>
+              {busy === side ? 'Kości lecą…' : mayRoll(s) && s.player_id !== me.id ? 'Rzuć za nich' : 'Rzuć 2k6'}
             </StoneButton>
           </>
         )}
@@ -134,26 +121,45 @@ export function NightFightDialog() {
     )
   }
 
+  // the verdict: read by both gods before the night goes on
   const v = verdict!
-  const o = (v.outcome && !Array.isArray(v.outcome) ? v.outcome : {}) as Record<string, unknown>
+  const row = log.find((l) => l.id === v.log_id)
+  const o = (row?.outcome && !Array.isArray(row.outcome) ? row.outcome : {}) as Record<string, unknown>
   const L = (o.left ?? {}) as NightSide
   const R = (o.right ?? {}) as NightSide
+  const late = now - new Date(v.since).getTime() > GRACE_MS
+  const acked = v.acks.includes(me.id)
+  const mine = v.players.includes(me.id)
+  const mayAck = !acked && (mine || isHost || late || v.players.length === 0)
+  const waitingFor = v.players.filter((p) => !v.acks.includes(p)).map((p) => godLabel(players.find((x) => x.id === p)))
   const SideDone = ({ s, side }: { s: NightSide; side: 'left' | 'right' }) => (
     <div className={mapStyles.side}>
       <b>{s.emoji ? `${s.emoji} ` : ''}{s.label}</b>
-      {s.roll && <Dice2d6 d1={s.roll.d1} d2={s.roll.d2} showTotal={false} animateKey={`${v.id}-${side}`} />}
+      <small className={styles.nightSideGod}>{side === 'left' ? 'napastnik' : 'obrońca'} · {godOf(s)}</small>
+      {s.roll && <Dice2d6 d1={s.roll.d1} d2={s.roll.d2} showTotal={false} animateKey={`${v.log_id}-${side}`} />}
       <span className={mapStyles.sideTotal}>{s.roll?.total ?? '?'}</span>
+      {s.roll && <span className={mapStyles.sideMod}>{s.roll.d1} + {s.roll.d2} {s.mod < 0 ? '−' : '+'} {Math.abs(s.mod)}</span>}
     </div>
   )
   return (
-    <Modal title="Kości padły" onClose={() => setVerdict(null)} wide>
+    <Modal title="Kości padły" wide>
       <div className={mapStyles.contestBody}>
         <div className={mapStyles.sides}>
           <SideDone s={L} side="left" />
           <span className={mapStyles.versus}>PRZECIW</span>
           <SideDone s={R} side="right" />
         </div>
-        <p className={mapStyles.verdict}>{nightLine(v, ctx)}</p>
+        <p className={mapStyles.verdict}>{row ? nightLine(row, ctx) : 'Kości padły.'}</p>
+        {error && <Notice tone="error">{error}</Notice>}
+        <div className={mapStyles.footer}>
+          {waitingFor.length > 0 && !acked && !mine && !isHost && !late && <small className={styles.nightHint}>Czekamy, aż {waitingFor.join(' i ')} przeczyta wynik.</small>}
+          {acked && <small className={styles.nightHint}>Przeczytane. Czekamy na {waitingFor.join(' i ') || 'resztę stołu'}.</small>}
+          {mayAck && (
+            <StoneButton variant="gold" size="lg" disabled={!!busy} onClick={() => call('chaos_ack_fight', {}, 'ack')}>
+              {busy === 'ack' ? 'Chwila…' : isHost && !mine ? 'Dalej (za wszystkich)' : 'Przeczytałem, dalej'}
+            </StoneButton>
+          )}
+        </div>
       </div>
     </Modal>
   )

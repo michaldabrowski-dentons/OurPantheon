@@ -8,22 +8,53 @@ export interface EventContext {
   entity: (id: string | null) => Entity | undefined
 }
 
-const RESULT_WORDS: Record<string, string> = {
-  idle: 'stoi w miejscu',
-  tame: 'pasie się przy ludziach',
-  camp: 'obozuje',
-  move: 'wędruje',
-  move_best: 'idzie na żyźniejszą ziemię',
-  hunt: 'poluje',
-  sated: 'leży przy stadzie',
-  reproduce: 'mnoży się',
-  pack: 'rozrasta watahę',
-  split: 'dzieli się na dwa plemiona',
-  crowded: 'nie ma gdzie się rozmnożyć',
-  people: 'mieszka w mieście',
-  settle: 'osiada i zakłada miasto',
-  attack: 'rusza do ataku',
-  fight: 'wpada na przeciwnika',
+/** what a herd, a beast or a tribe did, told of the thing by its name ("Nyki migrują") */
+function moveLine(unit: string, name: string, res: string, o: Record<string, unknown>): string {
+  const mutant = typeof o.mutation_name === 'string' && o.mutation_name ? `${typeof o.mutation_emoji === 'string' ? `${o.mutation_emoji} ` : ''}${o.mutation_name}` : null
+  if (unit === 'herbivore') {
+    switch (res) {
+      case 'die': return `${name} wymierają z głodu.`
+      case 'wander': return `${name} migrują.`
+      case 'stay': return `${name} spokojnie się pasą.`
+      case 'tame': return `${name} pasą się przy ludziach.`
+      case 'graze_best': return `${name} migrują na lepsze pastwiska.`
+      case 'reproduce': return `${name} mnożą się.`
+      case 'crowded': return `${name} nie mają gdzie się rozmnożyć.`
+      case 'mutation': return mutant ? `Ewolucja tworzy nowy gatunek: ${mutant}!` : `${name} zmieniają się: czekamy na nazwę nowego gatunku.`
+      default: return `${name}: ${res}.`
+    }
+  }
+  if (unit === 'beast') {
+    const hunt = typeof o.hunt_new === 'string' ? ` Nowa wataha ${o.hunt_new === 'hunt' ? 'rusza na łowy' : o.hunt_new === 'fight' ? 'wpada na przeciwnika' : o.hunt_new === 'attack' ? 'napada' : 'krąży'}.` : ''
+    switch (res) {
+      case 'die': return `${name} zdychają z głodu.`
+      case 'wander': return `${name} migrują.`
+      case 'sleep': return `${name} leżą w leżach.`
+      case 'hunt': return `${name} wyruszają na łowy.`
+      case 'hunting': return `${name} wyruszają na łowy.`
+      case 'prowl': return `${name} krążą pod miastem.`
+      case 'sated': return `${name} leżą syte przy stadzie.`
+      case 'attack': return `${name} napadają!`
+      case 'fight': return `${name} wpadają na przeciwnika.`
+      case 'pack': return `${name} mnożą się.${hunt}`
+      case 'crowded': return `${name} nie mają gdzie się rozmnożyć.`
+      case 'mutation': return mutant ? `Wataha dzieli się. Powstają ${mutant}!${hunt}` : `${name} dzielą się: czekamy na nazwę nowej watahy.`
+      default: return `${name}: ${res}.`
+    }
+  }
+  switch (res) {
+    case 'die': return `${name} przegrywają walkę z naturą.`
+    case 'explore': return `${name} eksplorują nieznane.`
+    case 'camp': return `${name} rozbijają obóz.`
+    case 'promised': return `${name} podążają ku Ziemi Obiecanej.`
+    case 'settle': return `${name} osiadają i zakładają miasto.`
+    case 'split': return `${name} dzielą się.`
+    case 'fight': return `${name} wpadają na przeciwnika.`
+    case 'people': return `${name} mieszkają w mieście.`
+    case 'crowded': return `${name} nie mają gdzie się podzielić.`
+    case 'mutation': return mutant ? `Narodził się nowy lud: ${mutant}!` : `${name} dzielą się: czekamy na nazwę nowego ludu.`
+    default: return `${name}: ${res}.`
+  }
 }
 
 /** one line of the night, for the night panel and the bar */
@@ -36,7 +67,8 @@ export function nightLine(l: ActionLog, ctx: EventContext): string {
       return `Noc zapada: stada ${o.herbivores ?? 0}, bestie ${o.beasts ?? 0}, plemiona ${o.tribes ?? 0}, miasta ${o.cities ?? 0}.`
     case 'night_move': {
       const res = String(o.result ?? '')
-      return `${name}: ${d ?? '?'}, ${RESULT_WORDS[res] ?? res}.`
+      const total = l.roll?.total ?? d
+      return `${moveLine(String(o.unit ?? ''), name, res, o)}${total !== undefined && total !== null ? ` (${total})` : ''}`
     }
     case 'night_fight': {
       const L = (o.left ?? {}) as Record<string, unknown>
@@ -63,14 +95,20 @@ export function nightLine(l: ActionLog, ctx: EventContext): string {
     }
     case 'night_city': {
       const res = String(o.result ?? '')
-      const what =
-        res === 'grow' ? 'rośnie o jedną grupę bezbożnych'
-        : res === 'full' ? 'jest już pełne'
-        : res === 'stagnate' ? 'stoi w miejscu'
-        : res === 'exodus' ? `nadwyżka (${followersWord(Number(o.overflow ?? 0))}) ${o.target_kind === 'found' ? 'odchodzi założyć miasto' : o.target_kind === 'beast' ? 'rusza na bestię' : 'rusza na cudze miasto'}`
-        : res === 'stay' ? 'nie ma dokąd wysłać nadwyżki'
-        : res
-      return `Miasto ${String(o.name ?? '')}: ${d ?? '?'} przeciw żyzności ${o.fertility ?? '?'} przy ludności ${o.population ?? '?'}, ${what}.`
+      const city = String(o.name ?? '')
+      const total = l.roll?.total ?? d
+      const line =
+        res === 'bloom' ? `${city} przeżywa rozkwit.`
+        : res === 'full' ? `${city} przeżywa rozkwit, lecz jest już pełne.`
+        : res === 'calm' ? `W ${city} mijają lata spokoju.`
+        : res === 'colony' ? `${city} jest przeludnione. Obywatele (${followersWord(Number(o.overflow ?? 0))}) wyruszają założyć nową kolonię${o.target_kind === 'beast' ? ' i muszą walczyć z bestią' : ''}.`
+        : res === 'stay' ? `${city} jest przeludnione, lecz nie ma dokąd pójść.`
+        : res === 'famine' ? `Głód i choroby dziesiątkują ${city}.${o.source_destroyed ? ' Osada obraca się w ruinę.' : ''}`
+        : res === 'grow' ? `${city} rośnie o jedną grupę bezbożnych.`
+        : res === 'stagnate' ? `W ${city} mijają lata spokoju.`
+        : res === 'exodus' ? `${city} jest przeludnione. Obywatele wyruszają założyć nową kolonię.`
+        : `${city}: ${res}.`
+      return `${line} (${total ?? '?'})`
     }
     case 'night_city_founded': {
       const who = ctx.god(typeof o.namer_id === 'string' ? o.namer_id : null).name

@@ -196,6 +196,9 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
                     <text x={rx} y={ry} fontSize={size} textAnchor="middle" dominantBaseline="central" filter="url(#signShadow)">
                       {hex.resource}
                     </text>
+                    <text className={[styles.strength, styles.rank].join(' ')} x={rx + size * 0.6} y={ry + size * 0.5} fontSize={size * 0.42} textAnchor="middle" dominantBaseline="central">
+                      {strengthLabel(hex.resource_bonus ?? 1)}
+                    </text>
                   </g>
                 )}
               </g>
@@ -255,9 +258,9 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
                     {ent.emoji ?? (ent.kind === 'avatar' ? '✦' : '●')}
                   </text>
                   {ent.kind === 'avatar' && <HpBar x={0} y={size * 0.68} hp={ent.hp ?? 0} max={ent.max_hp ?? 3} />}
-                  {role === 'beast' && (
-                    <text className={styles.strength} x={size * 0.66} y={size * 0.52} fontSize={size * 0.42} textAnchor="middle" dominantBaseline="central">
-                      {strengthLabel(ent.strength ?? 0)}
+                  {(role === 'beast' || role === 'herbivore') && (
+                    <text className={[styles.strength, role === 'herbivore' ? styles.rank : ''].join(' ')} x={size * 0.66} y={size * 0.52} fontSize={size * 0.42} textAnchor="middle" dominantBaseline="central">
+                      {strengthLabel(ent.strength ?? (role === 'herbivore' ? 1 : 0))}
                     </text>
                   )}
                 </motion.g>
@@ -314,9 +317,13 @@ function riverPath(pts: { x: number; y: number }[], seed: string): string {
     const len = Math.hypot(dx, dy) || 1
     const nx = -dy / len
     const ny = dx / len
-    const sign = hashStr(`${seed}:${i}`) % 2 === 0 ? 1 : -1
-    const amp = R * 0.14
-    d += ` Q ${(mx + nx * amp * sign).toFixed(1)} ${(my + ny * amp * sign).toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`
+    // two bends per leg, each to its own side, so the water truly meanders
+    const h = hashStr(`${seed}:${i}`)
+    const sign = h % 2 === 0 ? 1 : -1
+    const amp = R * (0.16 + ((h >> 3) % 5) * 0.03)
+    const q1 = { x: a.x + dx * 0.25 + nx * amp * sign, y: a.y + dy * 0.25 + ny * amp * sign }
+    const q2 = { x: a.x + dx * 0.75 - nx * amp * sign, y: a.y + dy * 0.75 - ny * amp * sign }
+    d += ` Q ${q1.x.toFixed(1)} ${q1.y.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)} Q ${q2.x.toFixed(1)} ${q2.y.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`
   }
   return d
 }
@@ -331,8 +338,7 @@ function RiverLayer({ rivers, draft }: { rivers: River[]; draft: HexRef[] | null
     }
     return (
       <g className={cls}>
-        <path className={styles.riverBase} d={d} strokeWidth={R * 0.22} />
-        <path className={styles.riverTop} d={d} strokeWidth={R * 0.11} />
+        <path className={styles.riverTop} d={d} strokeWidth={R * 0.07} />
       </g>
     )
   }

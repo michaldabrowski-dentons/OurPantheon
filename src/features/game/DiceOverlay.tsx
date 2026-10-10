@@ -9,7 +9,7 @@ import styles from './game.module.css'
 const ROLLING_MS = 1600
 
 /** rows after which a window with the outcome and its decisions follows */
-const RESULT_FOLLOWS = new Set(['convert', 'holy_war', 'avatar_duel', 'develop_civilization', 'catastrophe', 'create_creature'])
+const RESULT_FOLLOWS = new Set(['convert', 'holy_war', 'avatar_duel', 'develop_civilization', 'catastrophe', 'create_creature', 'bless_land'])
 
 /**
  * Every throw at the table, for everyone: the dice tumble for a moment before they settle, so the

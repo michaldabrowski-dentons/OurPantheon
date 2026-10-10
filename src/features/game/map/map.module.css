@@ -681,30 +681,21 @@
 .river {
   pointer-events: none;
 }
-.riverBase {
-  fill: none;
-  stroke: #0f2d44;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.85;
-}
 .riverTop {
   fill: none;
-  stroke: #4f9bcf;
+  stroke: #3c8fcc;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.95;
+  opacity: 0.78;
 }
 .riverOpen .riverTop {
-  stroke-dasharray: 6 4;
-  opacity: 0.7;
-}
-.riverDraft .riverBase {
-  opacity: 0.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.45;
 }
 .riverDraft .riverTop {
-  stroke: #9fd3f5;
-  stroke-dasharray: 5 5;
+  stroke: #bfe6ff;
+  stroke-dasharray: 4 4;
+  opacity: 0.9;
 }
 
 /* ---------- fertility and resources ---------- */
@@ -719,6 +710,9 @@
   font-weight: 700;
   pointer-events: none;
   user-select: none;
+}
+.rank {
+  fill: #d9f3c3;
 }
 .strength {
   fill: #ffd56b;

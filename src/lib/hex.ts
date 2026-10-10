@@ -112,6 +112,6 @@ export function generatePreviewMap(gameId: string, seed = 7): Hex[] {
   return allHexes().map(({ q, r }) => {
     const d = hexDistance({ q, r }, { q: 0, r: 0 })
     const biome: BiomeKey = d >= 4 && rnd() < 0.8 ? 'woda' : landBiome(rnd())
-    return { game_id: gameId, q, r, biome, decor: decorFor(biome, rnd), resource: null }
+    return { game_id: gameId, q, r, biome, decor: decorFor(biome, rnd), resource: null, resource_bonus: 1 }
   })
 }

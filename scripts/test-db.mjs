@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql', '0015_fix_biome_draw.sql', '0016_colors_and_tiles.sql', '0017_prices_and_ruins.sql', '0018_verse_lock_avatars_prophecies.sql', '0019_afterlife_avatar_hand.sql', '0020_fertility_rivers_resources.sql', '0021_chaos_night.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql', '0015_fix_biome_draw.sql', '0016_colors_and_tiles.sql', '0017_prices_and_ruins.sql', '0018_verse_lock_avatars_prophecies.sql', '0019_afterlife_avatar_hand.sql', '0020_fertility_rivers_resources.sql', '0021_chaos_night.sql', '0022_night_2d6_ranks_mutations.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -311,12 +311,26 @@ console.log('\n# fertility, rivers and resources')
   await topUp()
   ok((await rpcErr(`select perform_action($1, 'bless_land', $2::jsonb)`, [game.id, J({ q: 0, r: 1, resource: '🌾' })])) !== null, 'water takes no resource')
   ok((await rpcErr(`select perform_action($1, 'bless_land', $2::jsonb)`, [game.id, J({ q: 0, r: 0, resource: '🍕' })])) !== null, 'an unknown resource is refused')
+  const rankOf = (total) => (total <= 6 ? -1 : total <= 8 ? 0 : total <= 10 ? 1 : total <= 12 ? 2 : 3)
+  await fixDice(6)
   const bless = (await q(`select * from perform_action($1, 'bless_land', $2::jsonb)`, [game.id, J({ q: 0, r: 0, resource: '🌾' })]))[0]
-  ok(bless.logos_delta === -4 && bless.outcome.fertility === 4 && (await F(0, 0)) === 4, 'blessed land: 4 Logos, fertility +1')
+  await fixDice(null)
+  {
+    const o = bless.outcome
+    ok(bless.logos_delta === -4 && o.d1 === 6 && o.total === 12 + o.grace && o.bonus === rankOf(o.total) && o.bonus >= 2, `blessed land: 4 Logos, 2k6 ${o.d1}+${o.d2} + Łaska ${o.grace} gives a rank of ${o.bonus}`)
+    ok(bless.roll && bless.roll.attr === 'grace' && (await F(0, 0)) === 3 + o.bonus && (await q('select resource_bonus from hexes where game_id = $1 and q = 0 and r = 0', [game.id]))[0].resource_bonus === o.bonus, 'the rank feeds the fertility and sits on the field')
+  }
   await topUp()
-  ok((await rpcErr(`select perform_action($1, 'bless_land', $2::jsonb)`, [game.id, J({ q: 0, r: 0, resource: '💎' })])) === 'Ta ziemia jest już pobłogosławiona.', 'one resource per field')
-  const blessM = (await q(`select * from perform_action($1, 'bless_land', $2::jsonb)`, [game.id, J({ q: 0, r: 2, resource: '💎' })]))[0]
-  ok(blessM.outcome.resource === '💎' && (await F(0, 2)) === 3, 'mountains take a resource too')
+  await fixDice(1)
+  const cursed = (await q(`select * from perform_action($1, 'bless_land', $2::jsonb)`, [game.id, J({ q: 0, r: 0, resource: '💎' })]))[0]
+  await fixDice(null)
+  ok(cursed.outcome.replaced === '🌾' && cursed.outcome.bonus === -1 && (await F(0, 0)) === 2, 'a new blessing replaces the resource; a 2 on the dice curses the lode (-1)')
+  ok((await rpcErr(`select perform_action($1, 'bless_land', $2::jsonb)`, [game.id, J({ q: 0, r: 0, resource: '🍕' })])) !== null, 'the list of resources is closed')
+  await topUp()
+  await fixDice(4)
+  const blessM = (await q(`select * from perform_action($1, 'bless_land', $2::jsonb)`, [game.id, J({ q: 0, r: 2, resource: '⭐' })]))[0]
+  await fixDice(null)
+  ok(blessM.outcome.resource === '⭐' && (await F(0, 2)) === 2 + blessM.outcome.bonus, 'mountains take a resource too, with its rank')
   // water drowns a channel, land dries a mouth
   await topUp()
   const drown = (await q(`select * from perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'woda', hexes: [{ q: 1, r: 1 }] })]))[0]
@@ -355,7 +369,7 @@ console.log('\n# fertility, rivers and resources')
   ok(flood.outcome.biome_after === 'woda' && flood.outcome.rivers_cut.length === 1 && (await q('select path from rivers where id = $1', [riverA.outcome.river_id]))[0].path.length === 1, 'a flood on the channel shortens the river')
   // back to the map the rest of the play expects
   await db.query('delete from rivers where game_id = $1', [game.id])
-  await db.query('update hexes set resource = null where game_id = $1', [game.id])
+  await db.query('update hexes set resource = null, resource_bonus = 1 where game_id = $1', [game.id])
   for (const h of saved) await setB(h.q, h.r, h.biome)
   await topUp()
 }
@@ -382,6 +396,12 @@ const third = (await q(`select * from perform_action($1, 'create_creature', $2::
   const row = (await q('select diet, strength from entities where id = $1', [third.entity_id]))[0]
   ok(row.diet === 'carnivore' && row.strength === o.strength, 'diet and strength stored on the creature')
   ok((await q('select diet, strength from entities where id = $1', [creature.entity_id]))[0].diet === 'herbivore' && (await q(`select creature_role(e) as r from entities e where id = $1`, [creature.entity_id]))[0].r === 'herbivore', 'a creature without a choice is a herd')
+  {
+    const o = creature.outcome
+    const expected = o.total <= 6 ? -1 : o.total <= 8 ? 0 : o.total <= 10 ? 1 : o.total <= 12 ? 2 : 3
+    ok(o.role === 'herbivore' && o.total === o.d1 + o.d2 + o.grace && o.strength === expected && creature.roll.attr === 'grace', `a herd's rank ${o.strength} comes from 2k6 ${o.d1}+${o.d2} + Łaska ${o.grace}`)
+    ok((await q('select hex_herd_bonus($1, 0, 0) as b', [game.id]))[0].b === o.strength, 'the herd lends its rank to the field it grazes on')
+  }
   ok((await q(`select creature_role(e) as r from entities e where id = $1`, [sapient.entity_id]))[0].r === 'tribe', 'a sapient without a city is a tribe')
 }
 await topUp()
@@ -813,9 +833,9 @@ let cityB = null
   const F = async (qq, rr) => (await q('select hex_fertility($1, $2, $3) as f', [game.id, qq, rr]))[0].f
   ok((await F(0, 0)) === 3 && (await F(1, 0)) === 2 && (await F(0, 1)) === 3 && (await F(1, -1)) === 1 && (await F(0, -1)) === 2 && (await F(-1, 0)) === 1, 'the fertility of the six fields')
   const place = (qq, rr, slot, entityId) => db.query('insert into hex_occupants (game_id, q, r, slot, entity_id) values ($1, $2, $3, $4, $5)', [game.id, qq, rr, slot, entityId])
-  const [deer] = await q(`insert into entities (game_id, kind, name, emoji, diet, created_by_player_id) values ($1, 'creature', 'Jelenie', '🦌', 'herbivore', $2) returning id`, [game.id, hostP.id])
+  const [deer] = await q(`insert into entities (game_id, kind, name, emoji, diet, strength, created_by_player_id) values ($1, 'creature', 'Jelenie', '🦌', 'herbivore', 1, $2) returning id`, [game.id, hostP.id])
   await db.query(`insert into entity_gods (entity_id, player_id, game_id, role) values ($1, $2, $3, 'creator')`, [deer.id, hostP.id, game.id])
-  await place(0, -1, 0, deer.id)
+  await place(0, 1, 0, deer.id)
   const wolves = third.entity_id
   await db.query(`update entities set status = 'active', strength = 1 where id = $1`, [wolves])
   await db.query('update entity_gods set player_id = $2 where entity_id = $1', [wolves, hostP.id])
@@ -825,7 +845,7 @@ let cityB = null
   await place(0, 0, 1, dwarves.id)
   await db.query(`update entities set status = 'active' where id = $1`, [variant.entity_id])
   await db.query('update entity_gods set player_id = $2 where entity_id = $1', [variant.entity_id, hostP.id])
-  await place(1, 0, 1, variant.entity_id)
+  await place(0, 1, 1, variant.entity_id)
   await db.query(`update entities set status = 'active' where id = $1`, [civ.entity_id])
   await db.query(`insert into cities (entity_id, game_id, q, r, atheists) values ($1, $2, 1, -1, 1)`, [civ.entity_id, game.id])
   await db.query('insert into city_followers (game_id, city_id, player_id, dots) values ($1, $2, $3, 2), ($1, $2, $4, 2)', [game.id, civ.entity_id, actor.id, otherP.id])
@@ -844,17 +864,28 @@ let cityB = null
   ok((await rpcErr(`select start_chaos_night($1)`, [game.id])) === 'Noc już trwa.', 'one night per round')
   const begin = (await q(`select * from actions_log where action_key = 'night_begin' order by created_at desc limit 1`))[0]
   ok(begin.outcome.herbivores === 1 && begin.outcome.beasts === 1 && begin.outcome.tribes === 2 && begin.outcome.cities === 1, 'the night begins with a count of all that moves')
-  await queueDice(5, 4, 6, 2)
-  // the herd seeks the richest pasture
+  await queueDice(6, 6, 5, 5)
+  // the herd rolls a 12: a new kind is born on the richest neighbouring field, once its god names it
   let st = (await q(`select * from chaos_step($1, 0)`, [game.id]))[0]
   const herdMove = (await q(`select * from actions_log where action_key = 'night_move' order by created_at desc limit 1`))[0]
-  ok(st.cursor === 1 && herdMove.roll.d1 === 5 && herdMove.outcome.unit === 'herbivore' && herdMove.outcome.result === 'move_best' && herdMove.outcome.to.q === 0 && herdMove.outcome.to.r === 0, 'on a 5 the herd walks to the richest neighbouring field')
-  ok((await q('select q, r from hex_occupants where entity_id = $1', [deer.id]))[0].q === 0 && herdMove.outcome.fertility_to === 4 && (await F(0, 0)) === 4, 'a herd makes its land richer by one')
+  ok(st.cursor === 1 && herdMove.roll.d1 === 6 && herdMove.roll.total === 12 && herdMove.outcome.unit === 'herbivore' && herdMove.outcome.result === 'mutation', 'on a 12 the herd mutates')
+  ok(st.status === 'mutation' && st.pending.kind === 'mutation' && st.pending.parent_id === deer.id && st.pending.at.q === 0 && st.pending.at.r === 0 && st.pending.namer_id === hostP.id && st.pending.role === 'herbivore', 'the night waits for the god of the herd to name the new kind, which will appear on the best field around')
+  ok((await rpcErr(`select chaos_step($1)`, [game.id])) === 'Noc czeka na nazwę nowej odmiany.', 'no step while a mutation waits')
+  await as(B)
+  ok((await rpcErr(`select chaos_name_mutation($1, 'Cudze', '🦓')`, [game.id])) !== null, 'a stranger does not name the new kind')
+  await as(A)
+  ok((await rpcErr(`select chaos_name_mutation($1, 'Zebry', '🦌')`, [game.id])) === 'Ta emotikona należy już do kogoś innego.', 'the new kind needs a free sign')
+  st = (await q(`select * from chaos_name_mutation($1, 'Zebry mgielne', '🦓')`, [game.id]))[0]
+  const zebra = (await q(`select e.*, l.to_entity_id as parent from entities e left join entity_links l on l.from_entity_id = e.id and l.relation = 'variant_of' where e.game_id = $1 and e.name = 'Zebry mgielne'`, [game.id]))[0]
+  ok(st.status === 'running' && zebra && zebra.emoji === '🦓' && zebra.diet === 'herbivore' && zebra.strength === 1 && zebra.parent === deer.id, 'the new kind is named, wears its sign, keeps the rank and is a variant of its parent')
+  ok((await q('select q, r, slot from hex_occupants where entity_id = $1', [zebra.id]))[0].q === 0 && (await q('select q from hex_occupants where entity_id = $1', [deer.id]))[0].q === 0 && (await q('select r from hex_occupants where entity_id = $1', [deer.id]))[0].r === 1, 'the new herd grazes on the best field; the old one stays where it was')
+  ok((await F(0, 0)) === 4 && (await q(`select count(*)::int as n from entity_gods where entity_id = $1 and player_id = $2`, [zebra.id, hostP.id]))[0].n === 1, 'the new herd lends its rank to its field and belongs to the same god')
+  ok(herdMove.id && (await q('select outcome from actions_log where id = $1', [herdMove.id]))[0].outcome.mutation_name === 'Zebry mgielne', 'the move row remembers the name')
   st = (await q(`select * from chaos_step($1, 0)`, [game.id]))[0]
   ok(st.cursor === 1 && (await q(`select count(*)::int as n from actions_log where action_key = 'night_move'`))[0].n === 1, 'a step with a stale cursor does nothing')
-  // the beast hunts towards the herd and runs into the tribe
+  // the beast rolls a 10: it hunts towards the nearest herd and runs into the tribe standing there
   st = (await q(`select * from chaos_step($1, 1)`, [game.id]))[0]
-  ok(st.status === 'fight' && st.pending.scene === 'creature' && st.pending.left.entity_id === wolves && st.pending.right.entity_id === dwarves.id && st.pending.at.q === 0 && st.pending.at.r === 0 && st.pending.origin.q === -1, 'on a 4 the beast steps towards the herd and finds the tribe there: a fight')
+  ok(st.status === 'fight' && st.pending.scene === 'creature' && st.pending.left.entity_id === wolves && st.pending.right.entity_id === dwarves.id && st.pending.at.q === 0 && st.pending.at.r === 0 && st.pending.origin.q === -1, 'on a 10 the beast steps towards the herd and finds the tribe there: a fight')
   ok(st.pending.left.mod === 1 && st.pending.right.mod === 0 && st.pending.left.player_id === hostP.id && st.pending.right.player_id === guestP.id, 'the beast fights with its strength, the tribe with nothing; each side has its god')
   ok((await rpcErr(`select chaos_step($1)`, [game.id])) === 'Noc czeka na rzuty w walce.', 'the night waits for the fight')
   await as(B)
@@ -870,16 +901,22 @@ let cityB = null
   st = (await q(`select * from chaos_fight_roll($1, 'right')`, [game.id]))[0]
   await fixDice(null)
   const fight = (await q(`select * from actions_log where action_key = 'night_fight' order by created_at desc limit 1`))[0]
-  ok(st.status === 'running' && st.pending === null && fight.outcome.diff === 11 && fight.outcome.loser === 'right' && fight.outcome.result === 'eaten' && fight.outcome.removed === true && fight.outcome.extinct === true, 'both rolled: the tribe lost by eleven and was eaten')
+  ok(st.status === 'verdict' && st.pending.kind === 'verdict' && st.pending.log_id === fight.id && st.pending.players.length === 2 && fight.outcome.diff === 11 && fight.outcome.loser === 'right' && fight.outcome.result === 'eaten' && fight.outcome.removed === true && fight.outcome.extinct === true, 'both rolled: the tribe lost by eleven and was eaten; the verdict waits to be read')
   ok(fight.roll.att.total === 13 && fight.roll.def.total === 2, 'the fight row carries both rolls')
   ok((await q('select q, r from hex_occupants where entity_id = $1', [wolves]))[0].q === 0 && (await q('select count(*)::int as n from hex_occupants where entity_id = $1', [dwarves.id]))[0].n === 0 && (await q('select status from entities where id = $1', [dwarves.id]))[0].status === 'dead', 'the beast took the field; the last of the dwarves is gone')
-  // the tribes: the eaten one is skipped, the other settles
-  let guard = 0
+  ok((await rpcErr(`select chaos_step($1)`, [game.id])) === 'Noc czeka, aż bogowie przeczytają wynik walki.', 'the night waits until both gods have read the verdict')
+  st = (await q(`select * from chaos_ack_fight($1)`, [game.id]))[0]
+  ok(st.status === 'verdict' && st.pending.acks.length === 1 && st.pending.acks[0] === guestP.id, 'one god has read it; the other has not')
   await as(A)
+  st = (await q(`select * from chaos_ack_fight($1)`, [game.id]))[0]
+  ok(st.status === 'running' && st.pending === null, 'both read it: the night goes on')
+  // the tribes: the eaten one is skipped, the other already stands on the best land around and settles
+  await queueDice(4, 5, 5, 6)
+  let guard = 0
   while (st.status === 'running' && guard++ < 3) st = (await q(`select * from chaos_step($1)`, [game.id]))[0]
-  ok(st.status === 'naming' && st.pending.city_id && st.pending.namer_id === hostP.id && st.pending.q === 1 && st.pending.r === 0, 'on a 6 the tribe on fertile land founds a city and waits for its name from its god')
+  ok(st.status === 'naming' && st.pending.city_id && st.pending.namer_id === hostP.id && st.pending.q === 0 && st.pending.r === 1, 'on a 9 the tribe on the richest land around founds a city and waits for its name from its god')
   const settle = (await q(`select * from actions_log where action_key = 'night_move' order by created_at desc limit 1`))[0]
-  ok(settle.outcome.unit === 'tribe' && settle.outcome.result === 'settle' && settle.outcome.new_city_id === st.pending.city_id, 'the settling is a book row')
+  ok(settle.outcome.unit === 'tribe' && settle.roll.total === 9 && settle.outcome.result === 'settle' && settle.outcome.new_city_id === st.pending.city_id, 'the settling is a book row')
   ok((await rpcErr(`select chaos_step($1)`, [game.id])) === 'Noc czeka na nazwę nowego miasta.', 'the night waits for the name')
   await as(B)
   ok((await rpcErr(`select chaos_name_city($1, 'Cudze')`, [game.id])) !== null, 'a stranger does not name it')
@@ -887,19 +924,34 @@ let cityB = null
   ok((await rpcErr(`select chaos_name_city($1, '   ')`, [game.id])) !== null, 'a name is needed')
   st = (await q(`select * from chaos_name_city($1, 'Gniazdo Mew')`, [game.id]))[0]
   const tribeCity = (await q('select * from cities where entity_id = $1', [settle.outcome.new_city_id]))[0]
-  ok(st.status === 'running' && (await q('select name from entities where id = $1', [tribeCity.entity_id]))[0].name === 'Gniazdo Mew' && tribeCity.atheists === 1 && tribeCity.q === 1, 'the city is named; its first people are godless')
+  ok(st.status === 'running' && (await q('select name from entities where id = $1', [tribeCity.entity_id]))[0].name === 'Gniazdo Mew' && tribeCity.atheists === 1 && tribeCity.q === 0 && tribeCity.r === 1, 'the city is named; its first people are godless')
   const founded = (await q(`select * from actions_log where action_key = 'night_city_founded' and (outcome->>'city_id') = $1`, [tribeCity.entity_id]))[0]
   ok(founded.outcome.by === 'tribe' && founded.outcome.name === 'Gniazdo Mew' && founded.outcome.name_pending === false, 'the founding row remembers the name')
-  // the city on poor land: a 2 against fertility 1 with five people sends four away
-  st = (await q(`select * from chaos_step($1)`, [game.id]))[0]
+  // the city on poor land: 11 + fertility 1 - population 5 = 7 means a colony; the best land holds the wolves
+  // (the eaten tribe may still sit in the queue before the city: a step over it moves nothing)
+  const cityRowsBefore = (await q(`select count(*)::int as n from actions_log where action_key = 'night_city'`))[0].n
+  for (let i = 0; i < 3; i++) {
+    st = (await q(`select * from chaos_step($1)`, [game.id]))[0]
+    if ((await q(`select count(*)::int as n from actions_log where action_key = 'night_city'`))[0].n > cityRowsBefore) break
+  }
   const cityRow = (await q(`select * from actions_log where action_key = 'night_city' order by created_at desc limit 1`))[0]
-  ok(cityRow.roll.d1 === 2 && cityRow.outcome.fertility === 1 && cityRow.outcome.population === 5 && cityRow.outcome.result === 'exodus' && cityRow.outcome.overflow === 4 && cityRow.outcome.target_kind === 'found' && cityRow.outcome.target.q === 0 && cityRow.outcome.target.r === 1, 'the surplus leaves for the richest free field within two')
+  ok(cityRow.roll.d1 === 5 && cityRow.roll.d2 === 6 && cityRow.roll.total === 7 && cityRow.outcome.fertility === 1 && cityRow.outcome.population === 5 && cityRow.outcome.result === 'colony' && cityRow.outcome.overflow === 4 && cityRow.outcome.target_kind === 'beast' && cityRow.outcome.target.q === 0 && cityRow.outcome.target.r === 0, 'the surplus marches on the richest field within two, where a beast waits')
   ok(cityRow.outcome.groups.reduce((n, g) => n + g.n, 0) === 4 && cityRow.outcome.groups[0].player_id === null && cityRow.outcome.groups[0].n === 1, 'the godless leave first')
-  ok(st.status === 'naming' && st.pending.city_id === cityRow.outcome.new_city_id && [actor.id, otherP.id].includes(st.pending.namer_id), 'the new city waits for a name from the god with the most settlers')
+  ok(st.status === 'fight' && st.pending.scene === 'exodus_beast' && st.pending.left.mod === 4 && st.pending.right.entity_id === wolves, 'settlers against the beast: four of them, one beast of strength one')
   ok((await q('select city_dots($1) as d', [civ.entity_id]))[0].d === 1 && cityRow.outcome.source_destroyed === false, 'one stayed behind')
-  cityB = (await q('select * from cities where entity_id = $1', [cityRow.outcome.new_city_id]))[0]
-  ok(cityB.q === 0 && cityB.r === 1 && (await q('select city_dots($1) as d', [cityB.entity_id]))[0].d === 4 && cityB.atheists === 1, 'four settled: one godless and three faithful')
-  ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1 and q = 0 and r = 1', [sapient.entity_id]))[0].n === 1, 'the people of the mother city stand on the new field')
+  await fixDice(6)
+  st = (await q(`select * from chaos_fight_roll($1, 'left')`, [game.id]))[0]
+  await fixDice(1)
+  st = (await q(`select * from chaos_fight_roll($1, 'right')`, [game.id]))[0]
+  await fixDice(null)
+  const fight2 = (await q(`select * from actions_log where action_key = 'night_fight' order by created_at desc limit 1`))[0]
+  ok(st.status === 'verdict' && fight2.outcome.result === 'founded' && fight2.outcome.removed === true && fight2.outcome.new_city_id && st.pending.next && st.pending.next.kind === 'naming' && st.pending.next.city_id === fight2.outcome.new_city_id, 'the settlers win: the beast is gone and a city waits behind the verdict')
+  ok((await q('select status from entities where id = $1', [wolves]))[0].status === 'dead', 'the last of the wolves died there')
+  st = (await q(`select * from chaos_ack_fight($1)`, [game.id]))[0]
+  ok(st.status === 'naming' && st.pending.city_id === fight2.outcome.new_city_id && [actor.id, otherP.id].includes(st.pending.namer_id), 'the host read it for everyone: the new city waits for a name from the god with the most settlers')
+  cityB = (await q('select * from cities where entity_id = $1', [fight2.outcome.new_city_id]))[0]
+  ok(cityB.q === 0 && cityB.r === 0 && (await q('select city_dots($1) as d', [cityB.entity_id]))[0].d === 4 && cityB.atheists === 1, 'four settled: one godless and three faithful')
+  ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1 and q = 0 and r = 0', [sapient.entity_id]))[0].n === 1, 'the people of the mother city stand on the new field')
   ok((await q('select parent_civilization_id as p from entities where id = $1', [cityB.entity_id]))[0].p === civ.entity_id, 'the new city remembers its mother')
   st = (await q(`select * from chaos_name_city($1, 'Przystań')`, [game.id]))[0]
   // nothing left to move: the night ends the round
@@ -908,7 +960,7 @@ let cityB = null
   ok(st.status === 'done', 'the night is over')
   ok((await rpcErr(`select chaos_step($1)`, [game.id])) === 'Noc nie trwa.', 'no step after the night')
   ok((await q(`select count(*)::int as n from actions_log where action_key = 'cities_grow'`))[0].n === 0, 'no city grows for its ruler any more')
-  ok((await q(`select count(*)::int as n from actions_log where action_key = 'night_move'`))[0].n === 3 && (await q(`select count(*)::int as n from actions_log where action_key = 'night_fight'`))[0].n === 1 && (await q(`select count(*)::int as n from actions_log where action_key = 'night_city_founded'`))[0].n === 2, 'three moves, one fight, two cities in the book')
+  ok((await q(`select count(*)::int as n from actions_log where action_key = 'night_move'`))[0].n === 3 && (await q(`select count(*)::int as n from actions_log where action_key = 'night_fight'`))[0].n === 2 && (await q(`select count(*)::int as n from actions_log where action_key = 'night_city_founded'`))[0].n === 2, 'three moves, two fights, two cities in the book')
   ok((await q('select hp from entities where id = $1', [av.entity_id]))[0].hp === 2, 'a sleeping avatar heals one life')
   ok((await q(`select hold from prophecies where game_id = $1 and status = 'active'`, [game.id]))[0].hold === 2, 'an active prophecy ripens to two')
   ok((await q(`select count(*)::int as n from actions_log where action_key = 'avatars_heal'`))[0].n === 1, 'the healing is a book row')
@@ -936,12 +988,32 @@ let cityB = null
     await db.query('update cities set atheists = 0 where entity_id = $1', [cityB.entity_id])
     ok((await q('select destroy_city_if_empty($1, 2, 1::smallint) as d', [cityB.entity_id]))[0].d === true, 'an empty city becomes a ruin')
     ok((await q('select status from entities where id = $1', [cityB.entity_id]))[0].status === 'destroyed' && (await q('select count(*)::int as n from cities where entity_id = $1', [cityB.entity_id]))[0].n === 0, 'the ruin is gone from the map, the name stays in the book')
-    ok((await q('select attributes from entities where id = $1', [cityB.entity_id]))[0].attributes.ruin.r === 1, 'the ruin remembers where it stood')
+    ok((await q('select attributes from entities where id = $1', [cityB.entity_id]))[0].attributes.ruin.r === 0, 'the ruin remembers where it stood')
     ok((await q(`select count(*)::int as n from actions_log where action_key = 'city_destroyed' and entity_id = $1`, [cityB.entity_id]))[0].n === 1, 'the fall is written down')
   }
-  // the skip: a whole night at once, fights rolled by the book, placeholders kept
+  // famine: a 2 on the dice against fertility 1 with one soul left ruins the mother city
   await db.query(`update games set phase = 'chaos' where id = $1`, [game.id])
   await db.query('delete from test_dice')
+  await fixDice(1)
+  await db.query('select night_unit_city($1, $2)', [game.id, civ.entity_id])
+  await fixDice(null)
+  {
+    const famine = (await q(`select * from actions_log where action_key = 'night_city' order by created_at desc limit 1`))[0]
+    ok(famine.outcome.result === 'famine' && famine.roll.total === 2 + 1 - 1 && famine.outcome.lost && famine.outcome.source_destroyed === true, 'famine takes the last soul and the city falls')
+    ok((await q('select status from entities where id = $1', [civ.entity_id]))[0].status === 'destroyed', 'the mother city is a ruin')
+  }
+  // the skip of one phase: the rest of the herds at once, then the night waits again
+  await as(A)
+  st = (await q(`select * from start_chaos_night($1)`, [game.id]))[0]
+  ok(st.queue[0].t === 'herbivore' && st.queue.filter((u) => u.t === 'herbivore').length === 2, 'a new night: two herds first')
+  await as(B)
+  ok((await rpcErr(`select chaos_skip_phase($1)`, [game.id])) !== null, 'the phase is skipped by the host')
+  await as(A)
+  st = (await q(`select * from chaos_skip_phase($1)`, [game.id]))[0]
+  ok(st.status !== 'running' || st.cursor >= st.queue.length || st.queue[st.cursor].t !== 'herbivore', 'the herds are done; the night stands at the next phase or at a window that waits for the table')
+  await db.query('delete from chaos_nights where game_id = $1', [game.id])
+  await db.query(`update games set phase = 'chaos' where id = $1`, [game.id])
+  // the skip: a whole night at once, fights rolled by the book, placeholders kept
   await db.query('update cities set atheists = 0 where entity_id = $1', [civ.entity_id])
   await db.query('insert into city_followers (game_id, city_id, player_id, dots) values ($1, $2, $3, 4), ($1, $2, $4, 4) on conflict (city_id, player_id) do update set dots = excluded.dots', [game.id, civ.entity_id, actor.id, otherP.id])
   await as(B)

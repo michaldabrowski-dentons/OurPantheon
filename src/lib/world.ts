@@ -153,8 +153,9 @@ export function buildWorld(input: {
       if (neighbours({ q, r }).some((n) => hexAt(n.q, n.r)?.biome === 'woda')) f += 1
       if (riverAt(q, r)) f += h.biome === 'pustynia' ? 3 : 1
       const herd = herdAt(q, r)
-      if (herd && roleOf(entityById(herd.entity_id)) === 'herbivore') f += 1
-      if (h.resource) f += 1
+      const herdEnt = herd ? entityById(herd.entity_id) : undefined
+      if (herdEnt && roleOf(herdEnt) === 'herbivore') f += herdEnt.strength ?? 1
+      if (h.resource) f += h.resource_bonus ?? 1
       return f
     },
     resourceAt: (q, r) => hexAt(q, r)?.resource ?? null,

@@ -22,7 +22,7 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
    `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`, `0017_prices_and_ruins.sql`,
    `0018_verse_lock_avatars_prophecies.sql`, `0019_afterlife_avatar_hand.sql`, `0020_fertility_rivers_resources.sql`,
-   `0021_chaos_night.sql`.
+   `0021_chaos_night.sql`, `0022_night_2d6_ranks_mutations.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -88,8 +88,13 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   żyją też w górach, lecz nigdy na wodzie.
 - Żyzność (0020): każdy ląd ma liczbę u góry heksa (`hex_fertility`, lustro w `world.fertilityOf`). Baza
   biomu: trawa 2, puszcza 2, góry 1, dżungla 1, bagno 1, pustynia, śnieg, ugór, góry pustynne i śnieżne 0,
-  woda nic. Do tego +1 za sąsiednią wodę, +1 za rzekę (na pustyni +3: Nil), +1 za stado na polu, +1 za
-  surowiec. Bez przycinania.
+  woda nic. Do tego +1 za sąsiednią wodę, +1 za rzekę (na pustyni +3: Nil), ranga stada na polu
+  (`entities.strength` −1..+3) i ranga surowca (`hexes.resource_bonus` −1..+3). Bez przycinania.
+- Rangi (0022): stado i surowiec dostają przy tworzeniu rzut 2k6 + Łaska: 6- to −1 (szkodniki / przeklęte
+  złoże), 7..8 to 0 (dzika zwierzyna / pospolity surowiec), 9..10 to +1 (pożyteczne stado / cenne złoże),
+  11 to +2 (tuczne stado / żyła złota), 12+ to +3 (święte stado / boski surowiec). Ranga stada jest cechą
+  gatunku: wędruje z nim, dziedziczą ją kopie i odmiany; stada sprzed 0022 i te z Migracji mają +1. Karta pola
+  i plakietka przy znaku pokazują rangę.
 - Rzeki (`rivers`): koryto to lista pól od góry źródłowej przez lądy; ujście to krawędź pola wody
   (`mouth_kind` water), pole wspólne z inną rzeką (river) albo nic (none: rzeka urwana). Rysowane jako lekko
   falowana ścieżka przez środki pól (`RiverLayer` w `HexMap.tsx`). Woda postawiona na korycie czyni z tego
@@ -129,7 +134,9 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 
 - Kształtowanie Lądów: biom, potem do trzech sąsiadujących pól (trzeci klik kończy sam). Pola z miastem lub
   awatarem nie staną się Wodą ani Górami. Góra na rzece otwiera od razu krok „Nowe koryto”.
-- Pobłogosław ziemię (4 / 7 / 10): surowiec z listy, potem ląd bez surowca (góry też, woda nie); Żyzność +1.
+- Pobłogosław ziemię (4 / 7 / 10): surowiec z listy (💎 🌾 🪵 ⚙️ 🍇 🍋 🌽 🏺 🪙 🪨 🥔 ⭐ ✨ 🫒 🍄 🤢 ☣️, wszystkie
+  zawsze do wyboru), potem ląd (góry też, woda nie); nowe błogosławieństwo zastępuje stary surowiec. Księga
+  rzuca 2k6 + Łaska na rangę (okno kości), −1..+3 do Żyzności pola.
 - Wylej Rzekę (3 / 8 / 12, cena stała): klik w górę to źródło, potem kolejne sąsiednie pola (tryb mapy
   `river`: klik w ostatnie pole cofa je, woda albo cudza rzeka kończy); gdy nie ma dokąd płynąć, karta mapy
   każe przerwać. Przez awatara liczy się zasięg do źródła.
@@ -139,9 +146,10 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   gdy na polu nikt nie przeżył (`outcome.biome_after`). Najpierw
   toczy się kość w oknie, potem na polu spada ogień (błysk, komety, pierścienie), a okno akcji wraca dopiero po
   animacji z listą strat. Zniszczone miasto zostawia na polu czaszkę (`entities.attributes.ruin`).
-- Stworzenie Istoty: nazwa, emotikona i wybór stado / bestia; bestii księga rzuca siłę 2k6 + Gniew
-  (6-: −1 potulne, 7..8: 0 dzikie, 9..10: +1 niebezpieczne, 11..12: +2 krwiożercze, 13+: +3 niszczycielskie)
-  w oknie kości, potem ląd z wolnym miejscem jej roli. Istota Rozumna i Zesłanie Awatara: nazwa i emotikona,
+- Stworzenie Istoty: nazwa, wybór stado / bestia i emotikona z osobnej puli (`HERBIVORE_EMOJI` /
+  `BEAST_EMOJI`); bestii księga rzuca siłę 2k6 + Gniew (6-: −1 potulne, 7..8: 0 dzikie, 9..10: +1
+  niebezpieczne, 11..12: +2 krwiożercze, 13+: +3 niszczycielskie), stadu rangę 2k6 + Łaska, oba w oknie
+  kości; potem ląd z wolnym miejscem jej roli. Istota Rozumna i Zesłanie Awatara: nazwa i emotikona,
   potem ląd (nie woda, nie góry) z wolnym miejscem.
 - Zmiana Istoty: klik w jedną istotę na jednym polu; tam powstaje odmiana (nowy byt, `variant_of`).
 - Migracja (3 / 1 / 3 plus 1 za heks): istota, potem pole docelowe; gatunek mnoży się na nowe pole.
@@ -201,29 +209,39 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   ani cyfr: mówią o ziemiach i krainach, liczby piszą słowami. Frakcje i religie zniknęły z gry.
 - Faza Chaosu: kartę odwraca i losuje ponownie tylko gospodarz. Po karcie gospodarz klika „Rozpocznij noc”
   (`start_chaos_night`) albo „Pomiń noc i zakończ rundę” (`chaos_skip`).
-- Noc Chaosu (0021, tabela `chaos_nights`): serwer rozgrywa jedną jednostkę na wywołanie `chaos_step`
+- Noc Chaosu (0021, 0022; tabela `chaos_nights`): serwer rozgrywa jedną jednostkę na wywołanie `chaos_step`
   (gospodarz woła co ~1,5 s; po 20 s ciszy każdy może „Poprowadzić noc”), wszyscy patrzą na mapę (panel
-  `NightPanel` w prawym dolnym rogu, pierścień wokół tego, kto się rusza, miecze tam, gdzie czeka walka).
-  Kolejność: stada, bestie, plemiona, miasta (w grupie losowo), potem leczenie awatarów, proroctwa, ranking
-  wyznawców (+3/+2/+1 Logos) i koniec rundy; stary wzrost „+1 dla władcy” zniknął.
-  Stado k6: 1-2 stoi, 3 losowy sąsiad, 4-5 najżyźniejszy sąsiad bez stada, 6 nowa sztuka na najlepszym
-  sąsiedzie; przy plemieniu lub w mieście jest udomowione (nie rusza się, na 6 nadal się mnoży). Bestia k6:
-  1-2 stoi, 3 losowy sąsiad, 4-5 atak na sąsiednie słabsze miasto (siła > ludność) lub awatara (siła > życia),
-  inaczej krok ku najbliższemu stadu, 6 klon, który od razu robi krok polowania; bestia omija miasta, których
-  nie może zaatakować, a stada nie tyka. Plemię (lud bez miasta) k6: 1-2 obóz, 3 losowy sąsiad, 4-5
-  najżyźniejszy sąsiad, 6 na ziemi o Żyzności ≥ 1 zakłada miasto (1 bezbożny; nazwę nadaje jego bóstwo,
-  gospodarz za nieobecnych, po minucie każdy), inaczej dzieli się. Walka (bestia wchodzi na pole z bestią lub
-  plemieniem, bestia napada na miasto lub awatara, osadnicy na bestię lub miasto): obie strony 2k6 + siła
-  (plemię 0, miasto ludność, awatar życia, osadnicy liczba); klikają bogowie obu stron (lewa napastnik, prawa
-  obrońca, `chaos_fight_roll`; gospodarz za nieobecnych, po minucie każdy). Różnica 3+: przegrany zjedzony
-  (miasto traci grupy, awatar życia równe różnicy); 1..2: przegrany ucieka na wolne sąsiednie pole (ginie, gdy
-  nie ma gdzie); remis: napastnik wraca. Osadnicy rozstrzygają tabelą Świętej Wojny.
-  Miasto k6 przeciw Żyzności F przy ludności P: rzut < F to +1 bezbożny (sufit 10); rzut ≥ F i P ≤ F to
-  stagnacja; rzut ≥ F i P > F to exodus nadwyżki P−F (najpierw bezbożni, potem losowo): wolny ląd o
-  najwyższej Żyzności w zasięgu 2 (nowe miasto, nazwę nadaje bóstwo z największą liczbą odchodzących grup),
-  inaczej słabsza bestia, inaczej słabsze miasto, inaczej nadwyżka zostaje. Miasto na Żyzności 0 opuszcza
-  cała ludność. „Pomiń noc” dogrywa resztę: księga rzuca walki sama, miasta bez nazwy dostają „Osada <lud>”
-  (do zmiany w Edytuj). Cała noc to jeden werset w Świętej Księdze (`nightVerse`).
+  `NightPanel` w prawym dolnym rogu z nazwą fazy, pierścień wokół tego, kto się rusza, miecze tam, gdzie
+  czeka walka). Fazy: Zwierzęta, Bestie, Plemiona, Miasta (w fazie losowo), potem leczenie awatarów,
+  proroctwa, ranking wyznawców (+3/+2/+1 Logos) i koniec rundy; stary wzrost „+1 dla władcy” zniknął.
+  Gospodarz ma „Pomiń fazę” (`chaos_skip_phase`: reszta fazy od razu, ale walki, wyniki i nazwy nadal czekają)
+  i „Pomiń noc” (`chaos_skip`: księga rzuca walki sama, nadaje nazwy tymczasowe). Każdy rzut nocy to 2k6;
+  komunikaty mówią o jednostce po imieniu w liczbie mnogiej („Nyki migrują”, `nightLine`).
+  Stado 2k6: 2 wymiera, 3-5 migruje na losowy wolny sąsiedni heks, 6-8 pasie się, 9-10 migruje na
+  najżyźniejszy wolny sąsiedni heks, 11 mnoży się (kopia na najlepszym sąsiednim heksie), 12 mutacja; przy
+  plemieniu lub w mieście jest udomowione (3-10 nie rusza się). Bestia 2k6: 2 zdycha, 3-5 migruje, 6-8 leży
+  w leżach, 9-10 poluje (atak na sąsiednie słabsze miasto: siła > ludność, lub awatara: siła > życia; inaczej
+  krok ku najbliższemu stadu, a gdy stad brak, ku najbliższemu miastu, przy którym staje; nigdy nie wchodzi
+  na pole z miastem), 11 kopia na najlepszym sąsiednim heksie, która od razu poluje, 12 mutacja (nowa wataha
+  od razu poluje). Plemię 2k6: 2 przegrywa z naturą, 3-5 eksploruje, 6-8 obozuje, 9-10 idzie ku Ziemi
+  Obiecanej (najżyźniejszy wolny sąsiad), a gdy już stoi na najlepszej ziemi wokół (Żyzność ≥ 1, bez miasta),
+  osiada i zakłada miasto (1 bezbożny; nazwę nadaje jego bóstwo), 11 dzieli się (kopia rusza na najlepszy
+  sąsiedni heks), 12 mutacja (schizma). Mutacja (`chaos_name_mutation`): noc czeka, aż bóstwo stwórca gatunku
+  (gospodarz za nieobecnych, po minucie każdy) nada nowej odmianie nazwę i wolny znak; odmiana dziedziczy
+  rangę lub siłę, jest `variant_of` pierwowzoru i pojawia się na najlepszym sąsiednim heksie.
+  Walka (bestia wchodzi na pole z bestią lub plemieniem, bestia napada na miasto lub awatara, osadnicy na
+  bestię): obie strony 2k6 + siła (plemię 0, miasto ludność, awatar życia, osadnicy liczba); klikają bogowie
+  obu stron (lewa napastnik, prawa obrońca, `chaos_fight_roll`; gospodarz za nieobecnych, po minucie każdy).
+  Różnica 3+: przegrany zjedzony (miasto traci grupy, awatar życia równe różnicy); 1..2: przegrany ucieka na
+  wolne sąsiednie pole (ginie, gdy nie ma gdzie); remis: napastnik wraca. Osadnicy rozstrzygają tabelą Świętej
+  Wojny. Po kościach wynik zostaje na stole (`status` verdict), aż obaj bogowie walki klikną „Przeczytałem”
+  (`chaos_ack_fight`; gospodarz za wszystkich, po minucie każdy); dopiero potem noc rusza, a miasto założone
+  w tej walce czeka na nazwę.
+  Miasto 2k6 + Żyzność F − ludność P: 10+ rozkwit (+1 bezbożny, sufit 10); 7..9 przy P ≤ F lata spokoju,
+  przy P > F kolonia: nadwyżka P−F (najpierw bezbożni, potem losowo) idzie na najlepsze pole w odległości
+  1..2 bez miasta i cudzego plemienia; bestia na nim oznacza walkę, brak takiego pola oznacza, że nadwyżka
+  zostaje; nowe miasto nazywa bóstwo z największą liczbą odchodzących grup; 6- głód: miasto traci losowego
+  mieszkańca, a bez ostatniego obraca się w ruinę. Cała noc to jeden werset w Świętej Księdze (`nightVerse`).
 
 ## Zasady wdrożone w bazie
 

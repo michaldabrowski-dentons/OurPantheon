@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import type { Entity } from '@/lib/types'
 import type { WorldView } from '@/lib/world'
 import { BIOME_BY_KEY } from '@/data/biomes'
-import { resourceName, temperOf, strengthLabel } from '@/data/fertility'
+import { resourceName, resourceRankName, herdRankName, temperOf, strengthLabel } from '@/data/fertility'
 import { cityLevelLabel, followersWord } from '@/data/cities'
 import { godColor } from '@/data/pantheon'
 import { useGameStore, godLabel, selectMyPlayer, selectPendingContest } from '@/store/useGameStore'
@@ -81,7 +81,7 @@ export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect
       {fertility !== null && (
         <p className={styles.popupStatus}>
           Żyzność {fertility}
-          {hex?.resource ? ` · surowiec ${hex.resource} ${resourceName(hex.resource)}` : ''}
+          {hex?.resource ? ` · ${hex.resource} ${resourceName(hex.resource)}: ${resourceRankName(hex.resource_bonus)} (${hex.resource_bonus > 0 ? '+' : ''}${hex.resource_bonus})` : ''}
           {river ? ` · rzeka${river.mouth_kind === 'none' ? ' (urwana)' : ''}` : ''}
         </p>
       )}
@@ -129,7 +129,7 @@ export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect
       <div className={styles.popupSection}>
         <h5>Stado</h5>
         {herds.length === 0 && <span className={styles.popupEmpty}>Żadne stado tu nie pasie.</span>}
-        {herds.map((e) => <Row key={e.id} e={e} onOpen={onOpenEntity} extra={bottom.length > 0 || city ? 'udomowione' : undefined} />)}
+        {herds.map((e) => <Row key={e.id} e={e} onOpen={onOpenEntity} extra={`${herdRankName(e.strength)} (${strengthLabel(e.strength ?? 1)})${bottom.length > 0 || city ? ', udomowione' : ''}`} />)}
       </div>
       <div className={styles.popupSection}>
         <h5>Bestia albo plemię</h5>

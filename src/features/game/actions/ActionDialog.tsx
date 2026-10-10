@@ -6,8 +6,8 @@ import { hexDistance } from '@/lib/hex'
 import { AVATAR_REACH, costFor, viaAvatarAllowed, viaAvatarCost, type ActionDef, type Era, type FlowStep } from '@/data/actions'
 import { SAPIENT_TRAITS } from '@/data/traits'
 import { BIOMES, BIOME_BY_KEY, CATASTROPHE_TYPES } from '@/data/biomes'
-import { AVATAR_EMOJI, CREATURE_EMOJI, SAPIENT_EMOJI } from '@/data/emoji'
-import { RESOURCES, RESOURCE_NAMES, isMountain, temperOf } from '@/data/fertility'
+import { AVATAR_EMOJI, BEAST_EMOJI, CREATURE_EMOJI, HERBIVORE_EMOJI, SAPIENT_EMOJI } from '@/data/emoji'
+import { RESOURCES, RESOURCE_NAMES, isMountain, temperOf, herdRankName, resourceRankName } from '@/data/fertility'
 import { ATTRIBUTE_BY_KEY, scoreText, scoresFor } from '@/data/pantheon'
 import { composeVerse } from '@/data/chronicle'
 import { isWatchedRoll } from '@/data/dice'
@@ -223,7 +223,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
       case 'catastrophe':
         return { kind: 'hex', title: 'Kataklizm', instruction: `Kliknij heks, w który uderza: ${f.catastrophe.toLowerCase()}.`, valid: () => true }
       case 'bless_land':
-        return { kind: 'hex', title: 'Pobłogosław ziemię', instruction: `Kliknij ląd bez surowca, który dostanie ${f.resource} ${RESOURCE_NAMES[f.resource] ?? 'surowiec'}. Góry też, woda nie.`, valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' && !h.resource } }
+        return { kind: 'hex', title: 'Pobłogosław ziemię', instruction: `Kliknij ląd, który dostanie ${f.resource} ${RESOURCE_NAMES[f.resource] ?? 'surowiec'}. Góry też, woda nie; dotychczasowy surowiec zostanie zastąpiony.`, valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' } }
       case 'pour_river':
         return {
           kind: 'river',
@@ -820,14 +820,24 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           <span className={styles.hint}>{o.tier === 'strong' ? '10+: dwóch wyznawców' : o.tier === 'mixed' ? '7..9: jeden wyznawca' : '6-: dar odrzucony'}</span>
         </div>
       )}
-      {action.key === 'create_creature' && o.role === 'beast' && typeof o.d1 === 'number' && (
+      {action.key === 'create_creature' && (o.role === 'beast' || o.role === 'herbivore') && typeof o.d1 === 'number' && (
         <div className={styles.diceRow}>
           <Dice2d6 d1={Number(o.d1)} d2={Number(o.d2)} showTotal={false} animateKey={liveRow?.id} />
           <span className={styles.rollTotal}>
             <b className="engraved">{Number(o.strength) > 0 ? `+${o.strength}` : String(o.strength)}</b>
-            <small>{Number(o.d1)} + {Number(o.d2)} {Number(o.wrath) < 0 ? '−' : '+'} {Math.abs(Number(o.wrath))} (Gniew) = {Number(o.total)}</small>
+            <small>{Number(o.d1)} + {Number(o.d2)} {Number(o.role === 'beast' ? o.wrath : o.grace) < 0 ? '−' : '+'} {Math.abs(Number(o.role === 'beast' ? o.wrath : o.grace))} ({o.role === 'beast' ? 'Gniew' : 'Łaska'}) = {Number(o.total)}</small>
           </span>
-          <span className={styles.hint}>siła: bestie {temperOf(Number(o.strength))}</span>
+          <span className={styles.hint}>{o.role === 'beast' ? `siła: bestie ${temperOf(Number(o.strength))}` : `${herdRankName(Number(o.strength))}: Żyzność pola ${Number(o.strength) > 0 ? '+' : ''}${o.strength}`}</span>
+        </div>
+      )}
+      {action.key === 'bless_land' && typeof o.d1 === 'number' && (
+        <div className={styles.diceRow}>
+          <Dice2d6 d1={Number(o.d1)} d2={Number(o.d2)} showTotal={false} animateKey={liveRow?.id} />
+          <span className={styles.rollTotal}>
+            <b className="engraved">{Number(o.bonus) > 0 ? `+${o.bonus}` : String(o.bonus)}</b>
+            <small>{Number(o.d1)} + {Number(o.d2)} {Number(o.grace) < 0 ? '−' : '+'} {Math.abs(Number(o.grace))} (Łaska) = {Number(o.total)}</small>
+          </span>
+          <span className={styles.hint}>{resourceRankName(Number(o.bonus))}{o.replaced ? `, w miejsce ${String(o.replaced)}` : ''}</span>
         </div>
       )}
       {action.key === 'catastrophe' && typeof o.d1 === 'number' && (
@@ -935,7 +945,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           fields: (
             <div className={styles.fields}>
               <EmojiPicker label="Surowiec" options={[...RESOURCES]} used={new Set()} value={f.resource} onChange={(v) => set('resource', v)} />
-              <p className={styles.hint}>{f.resource ? `${f.resource} ${RESOURCE_NAMES[f.resource] ?? ''}: ` : ''}Jeden surowiec na pole, na zawsze. Żyzność pola rośnie o jeden.</p>
+              <p className={styles.hint}>{f.resource ? `${f.resource} ${RESOURCE_NAMES[f.resource] ?? ''}: ` : ''}Jeden surowiec na pole; nowe błogosławieństwo zastępuje stary. Jego rangę rzuca księga: 2k6 + Łaska ({scoreText(scores.grace)}), od przeklętego złoża (−1) po boski surowiec (+3) do Żyzności pola.</p>
             </div>
           ),
         }
@@ -953,7 +963,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
                     <input type="radio" name="diet" checked={f.diet === 'herbivore'} onChange={() => set('diet', 'herbivore')} />
                     <span className={styles.viaWho}>
                       <b>Stado (roślinożerne)</b>
-                      <small>Lewy górny róg heksa, jedno na pole. Karmi ziemię (+1 Żyzności), szuka pastwisk, mnoży się. Nigdy nie walczy.</small>
+                      <small>Lewy górny róg heksa, jedno na pole. Rangę rzuca księga: 2k6 + Łaska ({scoreText(scores.grace)}), od szkodników (−1) po święte stado (+3) do Żyzności pola, na którym się pasie. Szuka pastwisk, mnoży się, nigdy nie walczy.</small>
                     </span>
                   </label>
                   <label className={[styles.viaRow, f.diet === 'carnivore' ? styles.viaOn : ''].join(' ')}>
@@ -965,7 +975,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
                   </label>
                 </div>
               )}
-              <EmojiPicker label="Znak na mapie" options={key === 'create_sapient' ? SAPIENT_EMOJI : CREATURE_EMOJI} used={world.usedEmoji} value={f.emoji} onChange={(v) => set('emoji', v)} />
+              <EmojiPicker label="Znak na mapie" options={key === 'create_sapient' ? SAPIENT_EMOJI : f.diet === 'carnivore' ? BEAST_EMOJI : HERBIVORE_EMOJI} used={world.usedEmoji} value={f.emoji} onChange={(v) => set('emoji', v)} />
             </div>
           ),
         }
@@ -988,7 +998,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
             <div className={styles.fields}>
               {src && <p className={styles.hint}>Odmiana istot {src.emoji ?? ''} {src.name}: zmienia się tylko ta jedna, na swoim heksie. Czym różni się od pierwowzoru, opowiesz w wersecie.</p>}
               <TextField id="ent_name" label="Nazwa odmiany" value={f.name} onChange={(e) => set('name', e.target.value)} maxLength={80} />
-              <EmojiPicker label="Nowy znak na mapie" options={src && world.isSapient(src) ? SAPIENT_EMOJI : CREATURE_EMOJI} used={world.usedEmoji} value={f.emoji} onChange={(v) => set('emoji', v)} />
+              <EmojiPicker label="Nowy znak na mapie" options={src && world.isSapient(src) ? SAPIENT_EMOJI : world.roleOf(src) === 'beast' ? BEAST_EMOJI : world.roleOf(src) === 'herbivore' ? HERBIVORE_EMOJI : CREATURE_EMOJI} used={world.usedEmoji} value={f.emoji} onChange={(v) => set('emoji', v)} />
             </div>
           ),
         }
@@ -1193,7 +1203,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
       case 'great_miracle':
         return ['Coś WIELKIEGO na skalę całego świata. Opowiesz to w wersecie.']
       case 'bless_land':
-        return [`Surowiec: ${f.resource} ${RESOURCE_NAMES[f.resource] ?? ''}`, `Miejsce: ${at}`, 'Żyzność pola rośnie o jeden']
+        return [`Surowiec: ${f.resource} ${RESOURCE_NAMES[f.resource] ?? ''}`, `Miejsce: ${at}${f.target && world.resourceAt(f.target.q, f.target.r) ? ` (zastąpi ${world.resourceAt(f.target.q, f.target.r)})` : ''}`, `Rangę rzuci księga: 2k6 + Łaska (${scoreText(scores.grace)})`]
       case 'pour_river':
         return [
           `Źródło: ${f.path[0] ? `(${f.path[0].q}, ${f.path[0].r})` : ''}`,
@@ -1201,7 +1211,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           f.mouth ? `Ujście: woda (${f.mouth.q}, ${f.mouth.r})` : 'Wpada do innej rzeki',
         ]
       case 'create_creature':
-        return [`${f.emoji} ${f.name}`, f.diet === 'carnivore' ? `Bestia: siłę rzuci księga (2k6 + Gniew ${scoreText(scores.wrath)})` : 'Stado roślinożerne', `Miejsce: ${at}`]
+        return [`${f.emoji} ${f.name}`, f.diet === 'carnivore' ? `Bestia: siłę rzuci księga (2k6 + Gniew ${scoreText(scores.wrath)})` : `Stado: rangę rzuci księga (2k6 + Łaska ${scoreText(scores.grace)})`, `Miejsce: ${at}`]
       case 'create_sapient':
         return [`${f.emoji} ${f.name}`, `Miejsce: ${at}`]
       case 'create_avatar':

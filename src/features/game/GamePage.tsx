@@ -19,6 +19,7 @@ import { ContestVerseDialog } from './map/ContestVerseDialog'
 import { ChaosOverlay } from './chaos/ChaosOverlay'
 import { NightFightDialog } from './chaos/NightFightDialog'
 import { NightNamingDialog } from './chaos/NightNamingDialog'
+import { NightMutationDialog } from './chaos/NightMutationDialog'
 import { ChronicleDrawer } from './chronicle/ChronicleDrawer'
 import styles from './game.module.css'
 
@@ -94,6 +95,7 @@ export function GamePage() {
       {game.status === 'playing' && <ContestOverlay />}
       {game.status === 'playing' && <NightFightDialog />}
       {game.status === 'playing' && <NightNamingDialog />}
+      {game.status === 'playing' && <NightMutationDialog />}
       {game.status === 'playing' && <ContestVerseDialog />}
       {game.status === 'playing' && <DiceOverlay />}
       {chronicle && <ChronicleDrawer onClose={() => setChronicle(false)} />}

@@ -10,6 +10,7 @@ import styles from './chaos.module.css'
 
 const STEP_MS = 1500
 const NIGHT_KEYS = new Set(['night_begin', 'night_move', 'night_fight', 'night_city', 'night_city_founded'])
+const PHASE_NAMES: Record<string, string> = { herbivore: 'Zwierzęta', beast: 'Bestie', tribe: 'Plemiona', city: 'Miasta' }
 
 /**
  * The host's client walks the night: one unit, a moment for the table to see it on the map, the
@@ -64,7 +65,7 @@ export function NightPanel({ onError }: { onError: (m: string | null) => void })
   const world = useWorld()
   const isHost = game.host_id === user.id
   const [paused, setPaused] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
   const [lead, setLead] = useState(false)
   const [quietFor, setQuietFor] = useState(0)
 
@@ -106,17 +107,29 @@ export function NightPanel({ onError }: { onError: (m: string | null) => void })
     return e ? `${kind}: ${e.emoji ?? ''} ${e.name}` : `${kind} (już go nie ma)`
   })()
   const feed = log.filter((l) => NIGHT_KEYS.has(l.action_key) && l.round_number === game.round_number).slice(-6).reverse()
-  const waiting = night.status === 'fight' ? 'Walka: czekamy na rzuty.' : night.status === 'naming' ? 'Nowe miasto czeka na nazwę.' : null
+  const waiting =
+    night.status === 'fight' ? 'Walka: czekamy na rzuty.'
+    : night.status === 'verdict' ? 'Walka: bogowie czytają wynik.'
+    : night.status === 'naming' ? 'Nowe miasto czeka na nazwę.'
+    : night.status === 'mutation' ? 'Nowa odmiana czeka na nazwę i znak.'
+    : null
+  // the phase: the kind of the unit just moved (while something waits) or the next one to move
+  const nextUnit = night.queue[night.cursor] ?? null
+  const phaseUnit = night.status !== 'running' && unit ? unit : nextUnit ?? unit
+  const phaseName = phaseUnit ? PHASE_NAMES[phaseUnit.t] ?? '' : ''
+  const phaseLeft = phaseUnit ? night.queue.slice(night.cursor).filter((u) => u.t === phaseUnit.t).length : 0
+  // the unit on the map belongs to the phase that just ended: say so
+  const phaseLabel = unit && phaseUnit && unit.t !== phaseUnit.t && night.status === 'running' ? `Koniec fazy: ${PHASE_NAMES[unit.t] ?? ''} · dalej: ${phaseName}` : `Faza: ${phaseName}`
 
-  async function skip() {
-    setBusy(true)
+  async function call(fn: string) {
+    setBusy(fn)
     onError(null)
     try {
-      await rpc('chaos_skip', { p_game_id: game.id })
+      await rpc(fn, { p_game_id: game.id })
     } catch (err) {
       onError((err as Error).message)
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
 
@@ -129,6 +142,7 @@ export function NightPanel({ onError }: { onError: (m: string | null) => void })
       <div className={styles.nightBar} aria-hidden>
         <span style={{ width: `${total ? (done / total) * 100 : 100}%` }} />
       </div>
+      {phaseName && <p className={styles.nightPhase}>{phaseLabel}{phaseLeft > 0 && night.status === 'running' ? ` (zostało ${phaseLeft})` : ''}</p>}
       <p className={styles.nightNow}>{waiting ?? unitName}</p>
       <ol className={styles.nightFeed}>
         {feed.map((l) => (
@@ -138,10 +152,15 @@ export function NightPanel({ onError }: { onError: (m: string | null) => void })
       <div className={styles.nightBtns}>
         {isHost ? (
           <>
-            <StoneButton size="sm" disabled={busy || night.status !== 'running'} onClick={() => setPaused((v) => !v)}>
+            <StoneButton size="sm" disabled={!!busy || night.status !== 'running'} onClick={() => setPaused((v) => !v)}>
               {paused ? 'Wznów' : 'Wstrzymaj'}
             </StoneButton>
-            <StoneButton variant="gold" size="sm" disabled={busy} onClick={skip} title="Księga dogra resztę nocy sama: rzuci walki i nada miastom nazwy tymczasowe.">
+            {phaseName && (
+              <StoneButton size="sm" disabled={!!busy || night.status !== 'running'} onClick={() => call('chaos_skip_phase')} title="Reszta tej fazy od razu; walki, wyniki i nazwy nadal czekają na stół.">
+                {busy === 'chaos_skip_phase' ? 'Pomijam…' : `Pomiń fazę: ${phaseName.toLowerCase()}`}
+              </StoneButton>
+            )}
+            <StoneButton variant="gold" size="sm" disabled={!!busy} onClick={() => call('chaos_skip')} title="Księga dogra resztę nocy sama: rzuci walki i nada nazwy tymczasowe.">
               Pomiń noc
             </StoneButton>
           </>

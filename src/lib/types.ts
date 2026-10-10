@@ -141,6 +141,8 @@ export interface Hex {
   decor: HexDecor[]
   /** the one resource a god blessed this land with (an emoji from RESOURCES), top-right corner */
   resource: string | null
+  /** the rank of that resource (-1 przeklęte złoże .. +3 boski surowiec), rolled on 2k6 + Łaska */
+  resource_bonus: number
 }
 
 /** a river: its channel from the mountain source through land fields, and how it ends */
@@ -234,13 +236,39 @@ export interface NightNaming {
   r: number
 }
 
-export type NightPending = NightFight | NightNaming
+/** the dice fell: both gods of the fight read the verdict before the night goes on */
+export interface NightVerdict {
+  kind: 'verdict'
+  since: string
+  log_id: string
+  players: string[]
+  acks: string[]
+  /** a city founded by the fight waits for its name behind the verdict */
+  next: NightNaming | null
+}
+
+/** a 12: the god of the species names the new kind before it appears */
+export interface NightMutation {
+  kind: 'mutation'
+  since: string
+  parent_id: string
+  parent_name: string
+  parent_emoji: string | null
+  role: 'herbivore' | 'beast' | 'tribe'
+  at: HexRef
+  namer_id: string | null
+  log_id: string | null
+  placeholder: string
+  then_hunt: boolean
+}
+
+export type NightPending = NightFight | NightNaming | NightVerdict | NightMutation
 
 /** the night of Chaos as the server plays it, one unit at a time */
 export interface ChaosNight {
   game_id: string
   round_number: number
-  status: 'running' | 'fight' | 'naming' | 'done'
+  status: 'running' | 'fight' | 'verdict' | 'naming' | 'mutation' | 'done'
   queue: NightUnit[]
   cursor: number
   pending: NightPending | null

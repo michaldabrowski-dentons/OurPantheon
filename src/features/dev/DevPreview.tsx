@@ -137,7 +137,7 @@ const creationVotes = [
 const entities = [
   entity(1, { name: 'Manule stoickie', emoji: '🐱', traits: ['Rozumne', 'Łagodne', 'Długowieczne'] }),
   entity(2, { name: 'Rzeczne węże', emoji: '🐍', traits: ['Jadowite', 'Wędrowne'], diet: 'carnivore', strength: 1 }),
-  entity(12, { name: 'Jelenie mgielne', emoji: '🦌', diet: 'herbivore', created_by_player_id: P(4) }),
+  entity(12, { name: 'Jelenie mgielne', emoji: '🦌', diet: 'herbivore', strength: 2, created_by_player_id: P(4) }),
   entity(3, { name: 'Kałamarnice, co chodzą', emoji: '🦑', traits: ['Umysł roju', 'Płynne', 'Nocne'] }),
   entity(4, { kind: 'civilization', name: 'Stoicy Znad Rzeki', traits: ['Zachowawcza', 'Współpracująca'], specialties: ['Rolnictwo', 'Wiara/Religia'], flaws: ['Magia'], description: 'Spokojny lud manuli, który liczy pory roku po barwie wody.' }),
   entity(7, { kind: 'avatar', name: 'Posąg z Białego Kamienia', emoji: '🗿', hp: 2, max_hp: 3, conditions: ['Są nieożywionym przedmiotem, jak posąg, klejnot, góra.'], created_by_player_id: P(2) }),
@@ -169,7 +169,8 @@ function previewHexes(): Hex[] {
   return hexes.map((h) => {
     const b = fixed[`${h.q},${h.r}`]
     const resource = resources[`${h.q},${h.r}`] ?? null
-    return b ? { ...h, biome: b, decor: decorFor(b, rnd), resource } : { ...h, resource }
+    const resource_bonus = resource === '💎' ? 2 : 1
+    return b ? { ...h, biome: b, decor: decorFor(b, rnd), resource, resource_bonus } : { ...h, resource, resource_bonus }
   })
 }
 
@@ -264,13 +265,19 @@ function nightFor(pending: string | null): ChaosNight {
       ? { kind: 'fight', since, scene: 'creature', log_id: null, left: { label: 'Rzeczne węże', emoji: '🐍', entity_id: E(2), occupant_id: 'o4', player_id: P(1), mod: 1, roll: null }, right: { label: 'Kałamarnice, co chodzą', emoji: '🦑', entity_id: E(3), occupant_id: 'o8', player_id: P(2), mod: 0, roll: null }, at: { q: 0, r: 1 }, origin: { q: -1, r: 0 } }
       : pending === 'naming'
         ? { kind: 'naming', since, city_id: E(9), namer_id: P(1), log_id: null, placeholder: 'Osada Manuli', q: 1, r: -1 }
-        : null
-  return { game_id: G, round_number: 3, status: pending === 'fight' ? 'fight' : pending === 'naming' ? 'naming' : 'running', queue: NIGHT_QUEUE, cursor: 2, pending: pend, started_by: P(1), updated_at: since }
+        : pending === 'verdict'
+          ? { kind: 'verdict', since, log_id: 'n4', players: [P(1), P(2)], acks: [], next: null }
+          : pending === 'mutation'
+            ? { kind: 'mutation', since, parent_id: E(12), parent_name: 'Jelenie mgielne', parent_emoji: '🦌', role: 'herbivore', at: { q: 0, r: 0 }, namer_id: P(1), log_id: 'n2', placeholder: 'Odmiana Jelenie mgielne', then_hunt: false }
+            : null
+  const status = pending === 'fight' ? 'fight' : pending === 'naming' ? 'naming' : pending === 'verdict' ? 'verdict' : pending === 'mutation' ? 'mutation' : 'running'
+  return { game_id: G, round_number: 3, status, queue: NIGHT_QUEUE, cursor: 2, pending: pend, started_by: P(1), updated_at: since }
 }
 const nightLog = (): ActionLog[] => [
   row('n1', { action_key: 'night_begin', outcome: { herbivores: 1, beasts: 1, tribes: 1, cities: 2 }, created_at: '2026-01-10T10:20:00' }),
-  row('n2', { action_key: 'night_move', roll: { d1: 5, d2: 0, kind: 'd6' }, outcome: { unit: 'herbivore', occupant_id: 'o1', entity_id: E(12), name: 'Jelenie mgielne', emoji: '🦌', strength: 0, from: { q: 1, r: 0 }, result: 'move_best', to: { q: 0, r: 0 }, fertility_to: 4 }, created_at: '2026-01-10T10:20:02' }),
-  row('n3', { action_key: 'night_move', roll: { d1: 4, d2: 0, kind: 'd6' }, outcome: { unit: 'beast', occupant_id: 'o4', entity_id: E(2), name: 'Rzeczne węże', emoji: '🐍', strength: 1, from: { q: -1, r: 0 }, result: 'fight', fight_at: { q: 0, r: 1 }, scene: 'creature' }, created_at: '2026-01-10T10:20:04' }),
+  row('n2', { action_key: 'night_move', roll: { d1: 5, d2: 4, total: 9 }, outcome: { unit: 'herbivore', occupant_id: 'o1', entity_id: E(12), name: 'Jelenie mgielne', emoji: '🦌', strength: 2, from: { q: 1, r: 0 }, result: 'graze_best', to: { q: 0, r: 0 }, fertility_to: 5 }, created_at: '2026-01-10T10:20:02' }),
+  row('n3', { action_key: 'night_move', roll: { d1: 4, d2: 6, total: 10 }, outcome: { unit: 'beast', occupant_id: 'o4', entity_id: E(2), name: 'Rzeczne węże', emoji: '🐍', strength: 1, from: { q: -1, r: 0 }, result: 'fight', fight_at: { q: 0, r: 1 }, scene: 'creature' }, created_at: '2026-01-10T10:20:04' }),
+  row('n4', { action_key: 'night_fight', roll: { d1: 6, d2: 5, att: { d1: 6, d2: 5, modifier: 1, total: 12, attr: 'wrath' }, def: { d1: 2, d2: 3, modifier: 0, total: 5, attr: 'wrath' } }, outcome: { scene: 'creature', left: { label: 'Rzeczne węże', emoji: '🐍', entity_id: E(2), player_id: P(1), mod: 1, roll: { d1: 6, d2: 5, total: 12 } }, right: { label: 'Kałamarnice, co chodzą', emoji: '🦑', entity_id: E(3), player_id: P(2), mod: 0, roll: { d1: 2, d2: 3, total: 5 } }, at: { q: 0, r: 1 }, origin: { q: -1, r: 0 }, diff: 7, result: 'eaten', loser: 'right', removed: true, extinct: true }, created_at: '2026-01-10T10:20:06' }),
 ]
 
 /** answers the windows' calls locally so every flow can be walked through without a server */
@@ -371,23 +378,30 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       if (c && e) {
         const f = world.fertilityOf(c.q, c.r) ?? 0
         const pop = world.cityDots(c.entity_id)
-        const d = 1 + Math.floor(Math.random() * 6)
-        const grow = d < f
-        if (grow) useGameStore.setState((st) => ({ cities: st.cities.map((x) => (x.entity_id === c.entity_id ? { ...x, atheists: x.atheists + 1 } : x)) }))
-        add({ player_id: null, action_key: 'night_city', roll: { d1: d, d2: 0, kind: 'd6' }, outcome: { city_id: c.entity_id, name: e.name, q: c.q, r: c.r, roll: d, fertility: f, population: pop, result: grow ? 'grow' : pop <= f ? 'stagnate' : 'stay', overflow: 0, groups: [] } })
+        const d1 = 1 + Math.floor(Math.random() * 6)
+        const d2 = 1 + Math.floor(Math.random() * 6)
+        const t = d1 + d2 + f - pop
+        const res = t >= 10 ? 'bloom' : t >= 7 ? (pop <= f ? 'calm' : 'stay') : 'famine'
+        if (res === 'bloom') useGameStore.setState((st) => ({ cities: st.cities.map((x) => (x.entity_id === c.entity_id ? { ...x, atheists: x.atheists + 1 } : x)) }))
+        add({ player_id: null, action_key: 'night_city', roll: { d1, d2, total: t, modifier: f - pop }, outcome: { city_id: c.entity_id, name: e.name, q: c.q, r: c.r, roll: d1 + d2, fertility: f, population: pop, result: res, overflow: res === 'stay' ? pop - f : 0, groups: [] } })
       }
     } else {
       const occ = s.occupants.find((o) => o.id === unit.id)
       const e = occ ? world.entityById(occ.entity_id) : undefined
       if (occ && e) {
         const role = world.roleOf(e) ?? 'herbivore'
-        const d = 1 + Math.floor(Math.random() * 6)
+        const d1 = 1 + Math.floor(Math.random() * 6)
+        const d2 = 1 + Math.floor(Math.random() * 6)
+        const d = d1 + d2
         const targets = [{ q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }, { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }]
           .map((dd) => ({ q: occ.q + dd.q, r: occ.r + dd.r }))
           .filter((h) => { const hx = world.hexAt(h.q, h.r); return !!hx && hx.biome !== 'woda' && (role === 'herbivore' || !world.blocked(h.q, h.r) || role === 'beast') && world.slotFor(h.q, h.r, role) !== null })
-        const to = d >= 3 && targets.length ? targets[Math.floor(Math.random() * targets.length)] : null
+        const moves = (d >= 3 && d <= 5) || (d >= 9 && d <= 10)
+        const to = moves && targets.length ? targets[Math.floor(Math.random() * targets.length)] : null
         if (to) useGameStore.setState((st) => ({ occupants: st.occupants.map((o) => (o.id === occ.id ? { ...o, q: to.q, r: to.r } : o)) }))
-        add({ player_id: null, action_key: 'night_move', roll: { d1: d, d2: 0, kind: 'd6' }, outcome: { unit: role, occupant_id: occ.id, entity_id: e.id, name: e.name, emoji: e.emoji, strength: e.strength, from: { q: occ.q, r: occ.r }, result: to ? (d === 3 ? 'move' : 'move_best') : role === 'tribe' ? 'camp' : 'idle', to, fertility_to: to ? world.fertilityOf(to.q, to.r) : null } })
+        const stayWord = role === 'tribe' ? 'camp' : role === 'beast' ? 'sleep' : 'stay'
+        const moveWord = d <= 5 ? (role === 'tribe' ? 'explore' : 'wander') : role === 'tribe' ? 'promised' : role === 'beast' ? 'hunt' : 'graze_best'
+        add({ player_id: null, action_key: 'night_move', roll: { d1, d2, total: d }, outcome: { unit: role, occupant_id: occ.id, entity_id: e.id, name: e.name, emoji: e.emoji, strength: e.strength, from: { q: occ.q, r: occ.r }, result: to ? moveWord : stayWord, to, fertility_to: to ? world.fertilityOf(to.q, to.r) : null } })
       }
     }
     return useGameStore.getState().night
@@ -410,10 +424,45 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       } else if (loser === 'left' && next.left.occupant_id && result === 'eaten') {
         useGameStore.setState((st) => ({ occupants: st.occupants.filter((o) => o.id !== next.left.occupant_id) }))
       }
-      add({ player_id: null, action_key: 'night_fight', roll: { d1: next.left.roll.d1, d2: next.left.roll.d2, att: { d1: next.left.roll.d1, d2: next.left.roll.d2, modifier: next.left.mod, total: next.left.roll.total, attr: 'wrath' }, def: { d1: next.right.roll.d1, d2: next.right.roll.d2, modifier: next.right.mod, total: next.right.roll.total, attr: 'wrath' } }, outcome: { scene: pd.scene, left: next.left, right: next.right, at: pd.at, origin: pd.origin, diff, result, loser, removed: result === 'eaten', extinct: false } })
-      useGameStore.setState({ night: { ...n, status: 'running', pending: null, updated_at: new Date().toISOString() } })
+      const fr = add({ player_id: null, action_key: 'night_fight', roll: { d1: next.left.roll.d1, d2: next.left.roll.d2, att: { d1: next.left.roll.d1, d2: next.left.roll.d2, modifier: next.left.mod, total: next.left.roll.total, attr: 'wrath' }, def: { d1: next.right.roll.d1, d2: next.right.roll.d2, modifier: next.right.mod, total: next.right.roll.total, attr: 'wrath' } }, outcome: { scene: pd.scene, left: next.left, right: next.right, at: pd.at, origin: pd.origin, diff, result, loser, removed: result === 'eaten', extinct: false } })
+      useGameStore.setState({ night: { ...n, status: 'verdict', pending: { kind: 'verdict', since: new Date().toISOString(), log_id: fr.id, players: [next.left.player_id, next.right.player_id].filter((x): x is string => !!x), acks: [], next: null }, updated_at: new Date().toISOString() } })
     } else {
       useGameStore.setState({ night: { ...n, pending: next, updated_at: new Date().toISOString() } })
+    }
+    return useGameStore.getState().night
+  }
+  if (fn === 'chaos_ack_fight') {
+    const n = s.night
+    if (!n || n.status !== 'verdict' || n.pending?.kind !== 'verdict') return n
+    const nxt = n.pending.next
+    useGameStore.setState({ night: nxt ? { ...n, status: 'naming', pending: nxt, updated_at: new Date().toISOString() } : { ...n, status: 'running', pending: null, updated_at: new Date().toISOString() } })
+    return useGameStore.getState().night
+  }
+  if (fn === 'chaos_name_mutation') {
+    const n = s.night
+    if (!n || n.pending?.kind !== 'mutation') return n
+    const pd = n.pending
+    const parent = world.entityById(pd.parent_id)
+    const e = entity(0, { id: nextId('ent'), kind: 'creature', name: String(args.p_name ?? pd.placeholder), emoji: String(args.p_emoji ?? '🐾'), diet: parent?.diet ?? null, strength: parent?.strength ?? 0, traits: parent?.traits ?? [], created_round: g.round_number, created_by_player_id: pd.namer_id, created_at: new Date().toISOString() })
+    const slot = pd.role === 'herbivore' ? 0 : 1
+    useGameStore.setState((st) => ({
+      entities: [...st.entities, e],
+      entityLinks: [...st.entityLinks, { from_entity_id: e.id, to_entity_id: pd.parent_id, game_id: G, relation: 'variant_of' }],
+      occupants: [...st.occupants, { id: nextId('occ'), game_id: G, q: pd.at.q, r: pd.at.r, slot, entity_id: e.id, created_at: new Date().toISOString() }],
+      log: st.log.map((l) => (l.id === pd.log_id ? { ...l, outcome: { ...(l.outcome as Record<string, unknown>), mutation_name: e.name, mutation_emoji: e.emoji } } : l)),
+      night: { ...n, status: 'running', pending: null, updated_at: new Date().toISOString() },
+    }))
+    return useGameStore.getState().night
+  }
+  if (fn === 'chaos_skip_phase') {
+    const n = s.night
+    if (!n || n.status !== 'running') return n
+    const phase = n.queue[n.cursor]?.t
+    let guard = 0
+    while (guard++ < 50) {
+      const cur = useGameStore.getState().night
+      if (!cur || cur.status !== 'running' || cur.cursor >= cur.queue.length || cur.queue[cur.cursor].t !== phase) break
+      previewRpc('chaos_step', { p_game_id: G, p_expected_cursor: cur.cursor })
     }
     return useGameStore.getState().night
   }
@@ -617,10 +666,16 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       break
     }
     case 'bless_land': {
-      useGameStore.setState((st) => ({ hexes: st.hexes.map((h) => (h.q === at.q && h.r === at.r ? { ...h, resource: String(p.resource ?? '🌾') } : h)) }))
+      const graceB = me.attr_primary === 'grace' ? 2 : 1
+      const totalB = 4 + 4 + graceB
+      const bonus = totalB <= 6 ? -1 : totalB <= 8 ? 0 : totalB <= 10 ? 1 : totalB <= 12 ? 2 : 3
+      const replaced = world.hexAt(at.q, at.r)?.resource ?? null
+      useGameStore.setState((st) => ({ hexes: st.hexes.map((h) => (h.q === at.q && h.r === at.r ? { ...h, resource: String(p.resource ?? '🌾'), resource_bonus: bonus } : h)) }))
       const w = buildWorld({ ...useGameStore.getState() })
-      outcome = { q: at.q, r: at.r, resource: p.resource, biome: world.hexAt(at.q, at.r)?.biome, fertility: w.fertilityOf(at.q, at.r) }
-      break
+      outcome = { q: at.q, r: at.r, resource: p.resource, biome: world.hexAt(at.q, at.r)?.biome, fertility: w.fertilityOf(at.q, at.r), d1: 4, d2: 4, grace: graceB, total: totalB, bonus, replaced }
+      pay(cost)
+      lock(me.id)
+      return add({ action_key: key, logos_delta: -cost, entity_id, is_avatar_free_action: free, roll: { d1: 4, d2: 4, modifier: graceB, total: totalB, attr: 'grace' }, summary: p.summary ?? '', outcome })
     }
     case 'pour_river': {
       const path = (p.path ?? []) as HexRef[]
@@ -668,18 +723,20 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     case 'create_avatar': {
       const diet = key === 'create_creature' ? (p.entity?.diet ?? 'herbivore') : null
       const beast = diet === 'carnivore'
+      const herd = diet === 'herbivore'
       const wrath = me.attr_primary === 'wrath' ? 2 : -1
-      const total = 4 + 4 + wrath
-      const strength = beast ? (total <= 6 ? -1 : total <= 8 ? 0 : total <= 10 ? 1 : total <= 12 ? 2 : 3) : 0
+      const graceC = me.attr_primary === 'grace' ? 2 : 1
+      const total = 4 + 4 + (beast ? wrath : graceC)
+      const strength = beast || herd ? (total <= 6 ? -1 : total <= 8 ? 0 : total <= 10 ? 1 : total <= 12 ? 2 : 3) : 0
       const e = newEntity({ kind: key === 'create_avatar' ? 'avatar' : 'creature', name: p.entity?.name ?? 'Bez imienia', traits: p.entity?.traits ?? [], conditions: p.entity?.conditions ?? [], emoji: p.emoji ?? null, hp: key === 'create_avatar' ? 2 : null, max_hp: key === 'create_avatar' ? 2 : null, diet, strength })
       const slot = place(e.id, at)
       entity_id = e.id
       const role = key === 'create_avatar' ? 'avatar' : key === 'create_sapient' ? 'tribe' : beast ? 'beast' : 'herbivore'
-      outcome = { q: at.q, r: at.r, slot, emoji: p.emoji, biome: world.hexAt(at.q, at.r)?.biome, role, diet, strength, d1: beast ? 4 : null, d2: beast ? 4 : null, wrath: beast ? wrath : null, total: beast ? total : null }
-      if (beast) {
+      outcome = { q: at.q, r: at.r, slot, emoji: p.emoji, biome: world.hexAt(at.q, at.r)?.biome, role, diet, strength, d1: beast || herd ? 4 : null, d2: beast || herd ? 4 : null, wrath: beast ? wrath : null, grace: herd ? graceC : null, total: beast || herd ? total : null }
+      if (beast || herd) {
         pay(cost)
         lock(me.id)
-        return add({ action_key: key, logos_delta: -cost, entity_id, is_avatar_free_action: free, roll: { d1: 4, d2: 4, modifier: wrath, total, attr: 'wrath' }, summary: p.summary ?? '', outcome })
+        return add({ action_key: key, logos_delta: -cost, entity_id, is_avatar_free_action: free, roll: { d1: 4, d2: 4, modifier: beast ? wrath : graceC, total, attr: beast ? 'wrath' : 'grace' }, summary: p.summary ?? '', outcome })
       }
       break
     }
