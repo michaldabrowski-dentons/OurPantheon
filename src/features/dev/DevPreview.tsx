@@ -8,7 +8,7 @@ import { useSearchParams } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { AuthContext } from '@/features/auth/AuthGate'
 import { useGameStore } from '@/store/useGameStore'
-import type { ActionLog, ActionPayload, BiomeKey, City, CityFollower, CityGift, Contest, Entity, Game, Hex, HexOccupant, HexRef, Player, Prophecy } from '@/lib/types'
+import type { ActionLog, ActionPayload, BiomeKey, ChaosNight, City, CityFollower, CityGift, Contest, Entity, Game, Hex, HexOccupant, HexRef, NightPending, Player, Prophecy, River } from '@/lib/types'
 import { generatePreviewMap, hexDistance, decorFor } from '@/lib/hex'
 import { buildWorld } from '@/lib/world'
 import { GamePage } from '@/features/game/GamePage'
@@ -91,6 +91,8 @@ const entity = (n: number, over: Partial<Entity>): Entity => ({
   emoji: null,
   hp: null,
   max_hp: null,
+  diet: null,
+  strength: 0,
   created_at: `2026-01-0${n}`,
   updated_at: '',
   ...over,
@@ -134,7 +136,8 @@ const creationVotes = [
 
 const entities = [
   entity(1, { name: 'Manule stoickie', emoji: '🐱', traits: ['Rozumne', 'Łagodne', 'Długowieczne'] }),
-  entity(2, { name: 'Rzeczne węże', emoji: '🐍', traits: ['Jadowite', 'Wędrowne'] }),
+  entity(2, { name: 'Rzeczne węże', emoji: '🐍', traits: ['Jadowite', 'Wędrowne'], diet: 'carnivore', strength: 1 }),
+  entity(12, { name: 'Jelenie mgielne', emoji: '🦌', diet: 'herbivore', created_by_player_id: P(4) }),
   entity(3, { name: 'Kałamarnice, co chodzą', emoji: '🦑', traits: ['Umysł roju', 'Płynne', 'Nocne'] }),
   entity(4, { kind: 'civilization', name: 'Stoicy Znad Rzeki', traits: ['Zachowawcza', 'Współpracująca'], specialties: ['Rolnictwo', 'Wiara/Religia'], flaws: ['Magia'], description: 'Spokojny lud manuli, który liczy pory roku po barwie wody.' }),
   entity(7, { kind: 'avatar', name: 'Posąg z Białego Kamienia', emoji: '🗿', hp: 2, max_hp: 3, conditions: ['Są nieożywionym przedmiotem, jak posąg, klejnot, góra.'], created_by_player_id: P(2) }),
@@ -156,7 +159,8 @@ const entityGods = [
 /** the map: a seeded draw, with a known neighbourhood in the middle */
 function previewHexes(): Hex[] {
   const hexes = generatePreviewMap(G, 7)
-  const fixed: Record<string, BiomeKey> = { '0,0': 'trawa', '1,0': 'trawa', '1,-1': 'puszcza', '0,-1': 'zima', '-1,0': 'trawa', '-1,1': 'pustynia', '0,1': 'bagno', '2,-2': 'woda', '0,2': 'gory', '1,1': 'ziemia', '-2,1': 'gory_sniezne' }
+  const fixed: Record<string, BiomeKey> = { '0,0': 'trawa', '1,0': 'trawa', '1,-1': 'puszcza', '0,-1': 'zima', '-1,0': 'trawa', '-1,1': 'pustynia', '0,1': 'bagno', '2,-2': 'woda', '0,2': 'gory', '1,1': 'ziemia', '-2,1': 'gory_sniezne', '2,0': 'woda', '-1,2': 'pustynia' }
+  const resources: Record<string, string> = { '1,0': '🌾', '-1,1': '💎' }
   let seed = 11
   const rnd = () => {
     seed = (seed * 9301 + 49297) % 233280
@@ -164,22 +168,30 @@ function previewHexes(): Hex[] {
   }
   return hexes.map((h) => {
     const b = fixed[`${h.q},${h.r}`]
-    return b ? { ...h, biome: b, decor: decorFor(b, rnd) } : h
+    const resource = resources[`${h.q},${h.r}`] ?? null
+    return b ? { ...h, biome: b, decor: decorFor(b, rnd), resource } : { ...h, resource }
   })
 }
 
+/** two rivers: one from the eastern mountain to the sea through the badlands, one cut open in the snowy peaks */
+const rivers: River[] = [
+  { id: 'rv1', game_id: G, path: [{ q: 0, r: 2 }, { q: 1, r: 1 }], mouth_kind: 'water', mouth_q: 2, mouth_r: 0, into_river_id: null, reroute_by: null, created_round: 1, created_by_player_id: P(1), created_at: '2026-01-09T10:00:00' },
+  { id: 'rv2', game_id: G, path: [{ q: -2, r: 1 }, { q: -1, r: 0 }], mouth_kind: 'none', mouth_q: null, mouth_r: null, into_river_id: null, reroute_by: null, created_round: 2, created_by_player_id: P(2), created_at: '2026-01-09T11:00:00' },
+]
+
 const occupants: HexOccupant[] = [
-  { id: 'o1', game_id: G, q: 0, r: 0, slot: 0, entity_id: E(1), created_at: '' },
-  { id: 'o2', game_id: G, q: 0, r: 0, slot: 1, entity_id: E(3), created_at: '' },
-  { id: 'o3', game_id: G, q: 1, r: 0, slot: 0, entity_id: E(1), created_at: '' },
-  { id: 'o4', game_id: G, q: -1, r: 0, slot: 2, entity_id: E(2), created_at: '' },
-  { id: 'o5', game_id: G, q: 0, r: -1, slot: 1, entity_id: E(7), created_at: '' },
-  { id: 'o6', game_id: G, q: 1, r: -1, slot: 0, entity_id: E(1), created_at: '' },
-  { id: 'o7', game_id: G, q: 1, r: -1, slot: 1, entity_id: E(11), created_at: '' },
+  { id: 'o1', game_id: G, q: 0, r: 0, slot: 0, entity_id: E(12), created_at: '' },
+  { id: 'o2', game_id: G, q: 0, r: 0, slot: 1, entity_id: E(1), created_at: '' },
+  { id: 'o3', game_id: G, q: 1, r: 0, slot: 0, entity_id: E(12), created_at: '' },
+  { id: 'o4', game_id: G, q: -1, r: 0, slot: 1, entity_id: E(2), created_at: '' },
+  { id: 'o5', game_id: G, q: 1, r: -1, slot: 2, entity_id: E(7), created_at: '' },
+  { id: 'o6', game_id: G, q: 1, r: -1, slot: 1, entity_id: E(1), created_at: '' },
+  { id: 'o7', game_id: G, q: 1, r: -1, slot: 3, entity_id: E(11), created_at: '' },
+  { id: 'o8', game_id: G, q: 0, r: 1, slot: 1, entity_id: E(3), created_at: '' },
 ]
 const cities: City[] = [
-  { entity_id: E(4), game_id: G, q: 0, r: 0 },
-  { entity_id: E(9), game_id: G, q: 1, r: -1 },
+  { entity_id: E(4), game_id: G, q: 0, r: 0, atheists: 2 },
+  { entity_id: E(9), game_id: G, q: 1, r: -1, atheists: 0 },
 ]
 const followers: CityFollower[] = [
   { game_id: G, city_id: E(4), player_id: P(1), dots: 4 },
@@ -244,12 +256,29 @@ const contestFor = (state: string): Contest[] => {
 let seq = 0
 const nextId = (p: string) => `${p}-${Date.now()}-${seq++}`
 
+const NIGHT_QUEUE = [{ t: 'herbivore' as const, id: 'o1' }, { t: 'beast' as const, id: 'o4' }, { t: 'tribe' as const, id: 'o8' }, { t: 'city' as const, id: E(4) }, { t: 'city' as const, id: E(9) }]
+function nightFor(pending: string | null): ChaosNight {
+  const since = new Date().toISOString()
+  const pend: NightPending | null =
+    pending === 'fight'
+      ? { kind: 'fight', since, scene: 'creature', log_id: null, left: { label: 'Rzeczne węże', emoji: '🐍', entity_id: E(2), occupant_id: 'o4', player_id: P(1), mod: 1, roll: null }, right: { label: 'Kałamarnice, co chodzą', emoji: '🦑', entity_id: E(3), occupant_id: 'o8', player_id: P(2), mod: 0, roll: null }, at: { q: 0, r: 1 }, origin: { q: -1, r: 0 } }
+      : pending === 'naming'
+        ? { kind: 'naming', since, city_id: E(9), namer_id: P(1), log_id: null, placeholder: 'Osada Manuli', q: 1, r: -1 }
+        : null
+  return { game_id: G, round_number: 3, status: pending === 'fight' ? 'fight' : pending === 'naming' ? 'naming' : 'running', queue: NIGHT_QUEUE, cursor: 2, pending: pend, started_by: P(1), updated_at: since }
+}
+const nightLog = (): ActionLog[] => [
+  row('n1', { action_key: 'night_begin', outcome: { herbivores: 1, beasts: 1, tribes: 1, cities: 2 }, created_at: '2026-01-10T10:20:00' }),
+  row('n2', { action_key: 'night_move', roll: { d1: 5, d2: 0, kind: 'd6' }, outcome: { unit: 'herbivore', occupant_id: 'o1', entity_id: E(12), name: 'Jelenie mgielne', emoji: '🦌', strength: 0, from: { q: 1, r: 0 }, result: 'move_best', to: { q: 0, r: 0 }, fertility_to: 4 }, created_at: '2026-01-10T10:20:02' }),
+  row('n3', { action_key: 'night_move', roll: { d1: 4, d2: 0, kind: 'd6' }, outcome: { unit: 'beast', occupant_id: 'o4', entity_id: E(2), name: 'Rzeczne węże', emoji: '🐍', strength: 1, from: { q: -1, r: 0 }, result: 'fight', fight_at: { q: 0, r: 1 }, scene: 'creature' }, created_at: '2026-01-10T10:20:04' }),
+]
+
 /** answers the windows' calls locally so every flow can be walked through without a server */
 function previewRpc(fn: string, args: Record<string, unknown>): unknown {
   const s = useGameStore.getState()
   const me = s.players.find((p) => p.user_id === U1)!
   const g = s.game!
-  const world = buildWorld({ hexes: s.hexes, occupants: s.occupants, cities: s.cities, followers: s.followers, gifts: s.gifts, entities: s.entities, entityGods: s.entityGods })
+  const world = buildWorld({ hexes: s.hexes, occupants: s.occupants, cities: s.cities, followers: s.followers, gifts: s.gifts, entities: s.entities, entityGods: s.entityGods, rivers: s.rivers })
   const add = (over: Partial<ActionLog>): ActionLog => {
     const r = row(nextId('log'), { round_number: g.round_number, era: g.era, player_id: me.id, created_at: new Date().toISOString(), ...over })
     useGameStore.setState((st) => ({ log: [...st.log, r] }))
@@ -301,6 +330,114 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     return { hp, dead }
   }
 
+  const finishNight = () => {
+    add({ player_id: null, action_key: 'round_end', summary: `I minęła runda ${g.round_number}. Bóstwa zapadają w sen, a świat toczy się dalej.` })
+    useGameStore.setState((st) => ({
+      night: st.night ? { ...st.night, status: 'done', pending: null, updated_at: new Date().toISOString() } : st.night,
+      game: st.game ? { ...st.game, round_number: st.game.round_number + 1, phase: 'rolling', current_turn_player_id: null } : st.game,
+      players: st.players.map((p) => ({ ...p, has_rolled: false, is_resting: false })),
+    }))
+  }
+  if (fn === 'start_chaos_night') {
+    const w = world
+    const units: ChaosNight['queue'] = []
+    for (const role of ['herbivore', 'beast', 'tribe'] as const) {
+      for (const o of s.occupants) {
+        const e = w.entityById(o.entity_id)
+        if (w.roleOf(e) !== role) continue
+        if (role === 'tribe' && w.cityAt(o.q, o.r)) continue
+        units.push({ t: role, id: o.id })
+      }
+    }
+    for (const c of s.cities) units.push({ t: 'city', id: c.entity_id })
+    const night: ChaosNight = { game_id: G, round_number: g.round_number, status: 'running', queue: units, cursor: 0, pending: null, started_by: me.id, updated_at: new Date().toISOString() }
+    useGameStore.setState({ night })
+    add({ player_id: null, action_key: 'night_begin', outcome: { herbivores: units.filter((u) => u.t === 'herbivore').length, beasts: units.filter((u) => u.t === 'beast').length, tribes: units.filter((u) => u.t === 'tribe').length, cities: units.filter((u) => u.t === 'city').length } })
+    return night
+  }
+  if (fn === 'chaos_step') {
+    const n = s.night
+    if (!n || n.status !== 'running') return n
+    if (args.p_expected_cursor !== null && args.p_expected_cursor !== undefined && args.p_expected_cursor !== n.cursor) return n
+    if (n.cursor >= n.queue.length) {
+      finishNight()
+      return useGameStore.getState().night
+    }
+    const unit = n.queue[n.cursor]
+    useGameStore.setState({ night: { ...n, cursor: n.cursor + 1, updated_at: new Date().toISOString() } })
+    if (unit.t === 'city') {
+      const c = s.cities.find((x) => x.entity_id === unit.id)
+      const e = world.entityById(unit.id)
+      if (c && e) {
+        const f = world.fertilityOf(c.q, c.r) ?? 0
+        const pop = world.cityDots(c.entity_id)
+        const d = 1 + Math.floor(Math.random() * 6)
+        const grow = d < f
+        if (grow) useGameStore.setState((st) => ({ cities: st.cities.map((x) => (x.entity_id === c.entity_id ? { ...x, atheists: x.atheists + 1 } : x)) }))
+        add({ player_id: null, action_key: 'night_city', roll: { d1: d, d2: 0, kind: 'd6' }, outcome: { city_id: c.entity_id, name: e.name, q: c.q, r: c.r, roll: d, fertility: f, population: pop, result: grow ? 'grow' : pop <= f ? 'stagnate' : 'stay', overflow: 0, groups: [] } })
+      }
+    } else {
+      const occ = s.occupants.find((o) => o.id === unit.id)
+      const e = occ ? world.entityById(occ.entity_id) : undefined
+      if (occ && e) {
+        const role = world.roleOf(e) ?? 'herbivore'
+        const d = 1 + Math.floor(Math.random() * 6)
+        const targets = [{ q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }, { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }]
+          .map((dd) => ({ q: occ.q + dd.q, r: occ.r + dd.r }))
+          .filter((h) => { const hx = world.hexAt(h.q, h.r); return !!hx && hx.biome !== 'woda' && (role === 'herbivore' || !world.blocked(h.q, h.r) || role === 'beast') && world.slotFor(h.q, h.r, role) !== null })
+        const to = d >= 3 && targets.length ? targets[Math.floor(Math.random() * targets.length)] : null
+        if (to) useGameStore.setState((st) => ({ occupants: st.occupants.map((o) => (o.id === occ.id ? { ...o, q: to.q, r: to.r } : o)) }))
+        add({ player_id: null, action_key: 'night_move', roll: { d1: d, d2: 0, kind: 'd6' }, outcome: { unit: role, occupant_id: occ.id, entity_id: e.id, name: e.name, emoji: e.emoji, strength: e.strength, from: { q: occ.q, r: occ.r }, result: to ? (d === 3 ? 'move' : 'move_best') : role === 'tribe' ? 'camp' : 'idle', to, fertility_to: to ? world.fertilityOf(to.q, to.r) : null } })
+      }
+    }
+    return useGameStore.getState().night
+  }
+  if (fn === 'chaos_fight_roll') {
+    const n = s.night
+    if (!n || n.status !== 'fight' || n.pending?.kind !== 'fight') return n
+    const side = String(args.p_side) as 'left' | 'right'
+    const pd = n.pending
+    if (pd[side].roll) return n
+    const d1 = 1 + Math.floor(Math.random() * 6)
+    const d2 = 1 + Math.floor(Math.random() * 6)
+    const next = { ...pd, [side]: { ...pd[side], roll: { d1, d2, total: d1 + d2 + pd[side].mod } } }
+    if (next.left.roll && next.right.roll) {
+      const diff = next.left.roll.total - next.right.roll.total
+      const loser = diff > 0 ? 'right' : diff < 0 ? 'left' : null
+      const result = diff === 0 ? 'return' : Math.abs(diff) >= 3 ? 'eaten' : 'flee'
+      if (loser === 'right' && next.right.occupant_id) {
+        useGameStore.setState((st) => ({ occupants: st.occupants.filter((o) => o.id !== next.right.occupant_id).map((o) => (o.id === next.left.occupant_id ? { ...o, q: next.at.q, r: next.at.r } : o)) }))
+      } else if (loser === 'left' && next.left.occupant_id && result === 'eaten') {
+        useGameStore.setState((st) => ({ occupants: st.occupants.filter((o) => o.id !== next.left.occupant_id) }))
+      }
+      add({ player_id: null, action_key: 'night_fight', roll: { d1: next.left.roll.d1, d2: next.left.roll.d2, att: { d1: next.left.roll.d1, d2: next.left.roll.d2, modifier: next.left.mod, total: next.left.roll.total, attr: 'wrath' }, def: { d1: next.right.roll.d1, d2: next.right.roll.d2, modifier: next.right.mod, total: next.right.roll.total, attr: 'wrath' } }, outcome: { scene: pd.scene, left: next.left, right: next.right, at: pd.at, origin: pd.origin, diff, result, loser, removed: result === 'eaten', extinct: false } })
+      useGameStore.setState({ night: { ...n, status: 'running', pending: null, updated_at: new Date().toISOString() } })
+    } else {
+      useGameStore.setState({ night: { ...n, pending: next, updated_at: new Date().toISOString() } })
+    }
+    return useGameStore.getState().night
+  }
+  if (fn === 'chaos_name_city') {
+    const n = s.night
+    if (!n || n.pending?.kind !== 'naming') return n
+    const cityId = n.pending.city_id
+    useGameStore.setState((st) => ({ entities: st.entities.map((e) => (e.id === cityId ? { ...e, name: String(args.p_name ?? e.name) } : e)), night: { ...n, status: 'running', pending: null, updated_at: new Date().toISOString() } }))
+    return useGameStore.getState().night
+  }
+  if (fn === 'chaos_skip' || fn === 'end_chaos_phase') {
+    if (!s.night || s.night.round_number !== g.round_number || s.night.status === 'done') {
+      useGameStore.setState({ night: { game_id: G, round_number: g.round_number, status: 'running', queue: [], cursor: 0, pending: null, started_by: me.id, updated_at: new Date().toISOString() } })
+    }
+    finishNight()
+    return null
+  }
+  if (fn === 'continue_river') {
+    const id = String(args.p_river_id)
+    const nodes = (args.p_nodes ?? []) as HexRef[]
+    const mouth = (args.p_mouth ?? null) as HexRef | null
+    useGameStore.setState((st) => ({ rivers: st.rivers.map((rv) => (rv.id === id ? { ...rv, path: [...rv.path, ...nodes], mouth_kind: (mouth ? 'water' : 'river') as 'water' | 'river', mouth_q: mouth?.q ?? null, mouth_r: mouth?.r ?? null, reroute_by: null } : rv)) }))
+    return useGameStore.getState().rivers.find((rv) => rv.id === id) ?? null
+  }
   if (fn === 'log_dice_roll') {
     const mod = Number(args.p_modifier ?? 0)
     const total = 8 + mod
@@ -437,7 +574,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
   const p = (args.p_payload ?? {}) as ActionPayload
   const viaAv = p.via_avatar_id ? world.entityById(p.via_avatar_id) : undefined
   const free = !!viaAv
-  const costs: Record<string, number> = { shape_land: 2, catastrophe: 10, great_miracle: 15, create_creature: 10, create_sapient: 15, change_creature: 5, migrate: 0, create_civilization: 22, develop_civilization: 12, exodus: 0, create_avatar: 10, pilgrimage: 0, resurrect_avatar: 12, prophecy: 10 }
+  const costs: Record<string, number> = { shape_land: 2, catastrophe: 10, great_miracle: 15, bless_land: 4, pour_river: 3, create_creature: 10, create_sapient: 15, change_creature: 5, migrate: 0, create_civilization: 22, develop_civilization: 12, exodus: 0, create_avatar: 10, pilgrimage: 0, resurrect_avatar: 12, prophecy: 10 }
   let cost = costs[key] ?? 0
   let entity_id: string | null = null
   let outcome: Record<string, unknown> = {}
@@ -449,15 +586,50 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
   }
   const place = (entityId: string, h: HexRef) => {
     const w = buildWorld({ ...useGameStore.getState(), gifts: useGameStore.getState().gifts })
-    const slot = (w.freeSlot(h.q, h.r) ?? 0) as 0 | 1 | 2
+    const slot = (w.slotFor(h.q, h.r, w.roleOf(w.entityById(entityId)) ?? 'herbivore') ?? 0) as 0 | 1 | 2 | 3
     useGameStore.setState((st) => ({ occupants: [...st.occupants, { id: nextId('occ'), game_id: G, q: h.q, r: h.r, slot, entity_id: entityId, created_at: new Date().toISOString() }] }))
     return slot
   }
   switch (key) {
     case 'shape_land': {
       const hexes = (p.hexes ?? []).map((h) => ({ q: h.q, r: h.r, from: world.hexAt(h.q, h.r)?.biome ?? 'trawa' }))
-      useGameStore.setState((st) => ({ hexes: st.hexes.map((h) => (hexes.some((x) => x.q === h.q && x.r === h.r) ? { ...h, biome: p.biome as BiomeKey, decor: decorFor(p.biome as BiomeKey, Math.random) } : h)) }))
-      outcome = { biome: p.biome, hexes }
+      const toBiome = p.biome as BiomeKey
+      useGameStore.setState((st) => ({ hexes: st.hexes.map((h) => (hexes.some((x) => x.q === h.q && x.r === h.r) ? { ...h, biome: toBiome, decor: decorFor(toBiome, Math.random), resource: toBiome === 'woda' ? null : h.resource } : h)) }))
+      // a mountain cuts a river: the word asks for the new bed
+      const cuts: Record<string, unknown>[] = []
+      let reroute: Record<string, unknown> | null = null
+      const mountain = toBiome === 'gory' || toBiome === 'gory_pustynne' || toBiome === 'gory_sniezne'
+      for (const h of hexes) {
+        for (const rv of useGameStore.getState().rivers) {
+          const k = rv.path.findIndex((n) => n.q === h.q && n.r === h.r)
+          if (k < 0) continue
+          if (toBiome === 'woda') {
+            useGameStore.setState((st) => ({ rivers: st.rivers.map((x) => (x.id === rv.id ? { ...x, path: x.path.slice(0, k), mouth_kind: 'water' as const, mouth_q: h.q, mouth_r: h.r } : x)).filter((x) => x.path.length > 0) }))
+            cuts.push({ river_id: rv.id, kind: 'water', q: h.q, r: h.r })
+          } else if (mountain && k > 0) {
+            useGameStore.setState((st) => ({ rivers: st.rivers.map((x) => (x.id === rv.id ? { ...x, path: x.path.slice(0, k), mouth_kind: 'none' as const, mouth_q: null, mouth_r: null, reroute_by: me.id } : x)) }))
+            cuts.push({ river_id: rv.id, kind: 'mountain', q: h.q, r: h.r, from: rv.path[k - 1] })
+            reroute = reroute ?? { river_id: rv.id, from: rv.path[k - 1] }
+          }
+        }
+      }
+      outcome = { biome: p.biome, hexes, rivers_cut: cuts, reroute }
+      break
+    }
+    case 'bless_land': {
+      useGameStore.setState((st) => ({ hexes: st.hexes.map((h) => (h.q === at.q && h.r === at.r ? { ...h, resource: String(p.resource ?? '🌾') } : h)) }))
+      const w = buildWorld({ ...useGameStore.getState() })
+      outcome = { q: at.q, r: at.r, resource: p.resource, biome: world.hexAt(at.q, at.r)?.biome, fertility: w.fertilityOf(at.q, at.r) }
+      break
+    }
+    case 'pour_river': {
+      const path = (p.path ?? []) as HexRef[]
+      const mouth = (p.mouth ?? null) as HexRef | null
+      const last = path[path.length - 1]
+      const into = !mouth && last ? world.riverAt(last.q, last.r) : undefined
+      const rv: River = { id: nextId('rv'), game_id: G, path, mouth_kind: mouth ? 'water' : 'river', mouth_q: mouth?.q ?? last?.q ?? null, mouth_r: mouth?.r ?? last?.r ?? null, into_river_id: into?.id ?? null, reroute_by: null, created_round: g.round_number, created_by_player_id: me.id, created_at: new Date().toISOString() }
+      useGameStore.setState((st) => ({ rivers: [...st.rivers, rv] }))
+      outcome = { river_id: rv.id, path, mouth_kind: rv.mouth_kind, mouth: { q: rv.mouth_q, r: rv.mouth_r }, length: Math.max(0, path.length - 1), source_biome: path[0] ? world.hexAt(path[0].q, path[0].r)?.biome : null, biomes: path.map((n) => world.hexAt(n.q, n.r)?.biome ?? 'trawa') }
       break
     }
     case 'catastrophe': {
@@ -494,10 +666,21 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     case 'create_creature':
     case 'create_sapient':
     case 'create_avatar': {
-      const e = newEntity({ kind: key === 'create_avatar' ? 'avatar' : 'creature', name: p.entity?.name ?? 'Bez imienia', traits: p.entity?.traits ?? [], conditions: p.entity?.conditions ?? [], emoji: p.emoji ?? null, hp: key === 'create_avatar' ? 2 : null, max_hp: key === 'create_avatar' ? 2 : null })
+      const diet = key === 'create_creature' ? (p.entity?.diet ?? 'herbivore') : null
+      const beast = diet === 'carnivore'
+      const wrath = me.attr_primary === 'wrath' ? 2 : -1
+      const total = 4 + 4 + wrath
+      const strength = beast ? (total <= 6 ? -1 : total <= 8 ? 0 : total <= 10 ? 1 : total <= 12 ? 2 : 3) : 0
+      const e = newEntity({ kind: key === 'create_avatar' ? 'avatar' : 'creature', name: p.entity?.name ?? 'Bez imienia', traits: p.entity?.traits ?? [], conditions: p.entity?.conditions ?? [], emoji: p.emoji ?? null, hp: key === 'create_avatar' ? 2 : null, max_hp: key === 'create_avatar' ? 2 : null, diet, strength })
       const slot = place(e.id, at)
       entity_id = e.id
-      outcome = { q: at.q, r: at.r, slot, emoji: p.emoji, biome: world.hexAt(at.q, at.r)?.biome }
+      const role = key === 'create_avatar' ? 'avatar' : key === 'create_sapient' ? 'tribe' : beast ? 'beast' : 'herbivore'
+      outcome = { q: at.q, r: at.r, slot, emoji: p.emoji, biome: world.hexAt(at.q, at.r)?.biome, role, diet, strength, d1: beast ? 4 : null, d2: beast ? 4 : null, wrath: beast ? wrath : null, total: beast ? total : null }
+      if (beast) {
+        pay(cost)
+        lock(me.id)
+        return add({ action_key: key, logos_delta: -cost, entity_id, is_avatar_free_action: free, roll: { d1: 4, d2: 4, modifier: wrath, total, attr: 'wrath' }, summary: p.summary ?? '', outcome })
+      }
       break
     }
     case 'change_creature': {
@@ -519,7 +702,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     }
     case 'create_civilization': {
       const e = newEntity({ kind: 'civilization', name: p.entity?.name ?? 'Bez imienia', traits: p.entity?.traits ?? [], specialties: p.entity?.specialties ?? [], flaws: p.entity?.flaws ?? [] })
-      useGameStore.setState((st) => ({ cities: [...st.cities, { entity_id: e.id, game_id: G, q: at.q, r: at.r }], entityLinks: [...st.entityLinks, { from_entity_id: e.id, to_entity_id: String(p.species_id), game_id: G, relation: 'member_species' }] }))
+      useGameStore.setState((st) => ({ cities: [...st.cities, { entity_id: e.id, game_id: G, q: at.q, r: at.r, atheists: 0 }], entityLinks: [...st.entityLinks, { from_entity_id: e.id, to_entity_id: String(p.species_id), game_id: G, relation: 'member_species' }] }))
       addDots(e.id, me.id, 1)
       entity_id = e.id
       outcome = { q: at.q, r: at.r, species_id: p.species_id, species_name: world.entityById(p.species_id)?.name, biome: world.hexAt(at.q, at.r)?.biome }
@@ -549,7 +732,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       else {
         const mother = world.entityById(p.city_id)
         target = newEntity({ kind: 'civilization', name: p.name ?? 'Nowe miasto', description: p.description ?? '', traits: mother?.traits ?? [], specialties: mother?.specialties ?? [], flaws: mother?.flaws ?? [], parent_civilization_id: mother?.id ?? null })
-        useGameStore.setState((st) => ({ cities: [...st.cities, { entity_id: target.id, game_id: G, q: to.q, r: to.r }] }))
+        useGameStore.setState((st) => ({ cities: [...st.cities, { entity_id: target.id, game_id: G, q: to.q, r: to.r, atheists: 0 }] }))
       }
       const added = addDots(target.id, me.id, moved)
       if (!useGameStore.getState().occupants.some((o) => o.q === to.q && o.r === to.r && o.entity_id === p.species_id)) place(String(p.species_id), to)
@@ -564,7 +747,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       if (p.to && occ) {
         const to = p.to
         const w = buildWorld({ ...s })
-        const slot = (w.freeSlot(to.q, to.r) ?? 0) as 0 | 1 | 2
+        const slot = (w.slotFor(to.q, to.r, 'avatar') ?? 2) as 0 | 1 | 2 | 3
         useGameStore.setState((st) => ({ occupants: st.occupants.map((o) => (o.id === occ.id ? { ...o, q: to.q, r: to.r, slot } : o)) }))
       }
       entity_id = String(p.avatar_id)
@@ -599,8 +782,8 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       const to = p.to
       const occ = useGameStore.getState().occupants.find((o) => o.entity_id === viaAv!.id)
       const w = buildWorld({ ...useGameStore.getState() })
-      const slot = w.freeSlot(to.q, to.r)
-      if (occ && slot !== null) useGameStore.setState((st) => ({ occupants: st.occupants.map((o) => (o.id === occ.id ? { ...o, q: to.q, r: to.r, slot: slot as 0 | 1 | 2 } : o)) }))
+      const slot = w.slotFor(to.q, to.r, 'avatar')
+      if (occ && slot !== null) useGameStore.setState((st) => ({ occupants: st.occupants.map((o) => (o.id === occ.id ? { ...o, q: to.q, r: to.r, slot: slot as 0 | 1 | 2 | 3 } : o)) }))
       outcome = { ...outcome, avatar_moved: !!occ && slot !== null, avatar_name: viaAv!.name, avatar_emoji: viaAv!.emoji }
     }
   }
@@ -628,9 +811,21 @@ export function DevPreview() {
       ],
       creationOptions: [] as typeof creationOptions, creationVotes: [] as typeof creationVotes,
       hexes: previewHexes(), occupants, cities, followers, gifts, contests: contestFor(params.get('contest') ?? ''), prophecies,
+      rivers, night: null,
       connected: true, loading: false, error: null,
     }
     switch (screen) {
+      case 'night': {
+        // &pending=fight|naming: the night waits for rolls or for a name; &host=0: I am not the host
+        useGameStore.setState({
+          ...base,
+          game: game({ phase: 'chaos', current_turn_player_id: null, host_id: params.get('host') === '0' ? 'u2' : U1 }),
+          players: players.map((p) => ({ ...p, is_resting: true })),
+          log: [...log, ...nightLog()],
+          night: nightFor(params.get('pending')),
+        })
+        break
+      }
       case 'chaos': {
         const chosenDraw = params.get('draw') === 'chosen'
         useGameStore.setState({
@@ -695,7 +890,7 @@ export function DevPreview() {
       {screen === 'room' && <RoomWaiting />}
       {screen === 'palette' && <PalettePage />}
       {screen === 'creation' && <WorldCreationPage />}
-      {(screen === 'game' || screen === 'chaos' || screen === 'rolling') && <GamePage />}
+      {(screen === 'game' || screen === 'chaos' || screen === 'rolling' || screen === 'night') && <GamePage />}
     </AuthContext.Provider>
   )
 }

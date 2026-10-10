@@ -6,7 +6,8 @@ import { KIND_ACC } from '@/data/chronicle'
 import { godPortraitSrc, GodPortrait } from '@/features/pantheon/GodPortrait'
 import type { Entity, EntityKind, Player } from '@/lib/types'
 import { useUser } from '@/features/auth/AuthGate'
-import { useGameStore, selectMyPlayer, selectCurrentChaosDraw, godLabel } from '@/store/useGameStore'
+import { useGameStore, selectMyPlayer, selectCurrentChaosDraw, selectNight, godLabel } from '@/store/useGameStore'
+import { NightPanel } from './NightPanel'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { Dice2d6, MarblePanel, inputClass } from '@/components/ui/Primitives'
 import { kindLabel } from '../actions/ActionDialog'
@@ -21,6 +22,7 @@ export function ChaosOverlay({ onError }: { onError: (m: string | null) => void 
   const entities = useGameStore((s) => s.entities)
   const log = useGameStore((s) => s.log)
   const draw = useGameStore(selectCurrentChaosDraw)
+  const night = useGameStore(selectNight)
   const me = useGameStore(selectMyPlayer(user.id))
   const isHost = game.host_id === user.id
   const [busy, setBusy] = useState(false)
@@ -75,6 +77,9 @@ export function ChaosOverlay({ onError }: { onError: (m: string | null) => void 
 
   // answers of this card only: those logged after it was dealt
   const answers = log.filter((l) => l.action_key === 'chaos_answer' && l.round_number === game.round_number && (!draw || l.created_at >= draw.revealed_at))
+
+  // the night has begun: the veil lifts so the table can watch the map
+  if (night) return <NightPanel onError={onError} />
 
   return (
     <div className={['veil-in', styles.overlay].join(' ')} role="dialog" aria-modal="true" aria-label="Faza Chaosu">
@@ -194,14 +199,19 @@ export function ChaosOverlay({ onError }: { onError: (m: string | null) => void 
               {chosen ? 'Kolejna Karta Chaosu' : 'Losuj jeszcze raz'}
             </StoneButton>
           )}
-          {(chosen || isHost) && (
-            <StoneButton variant="gold" size="lg" disabled={busy} onClick={() => call('end_chaos_phase', { p_game_id: game.id })}>
-              {chosen ? 'Zakończ rundę' : draw ? 'Zakończ rundę bez wyboru' : 'Pomiń Chaos i zakończ rundę'}
-            </StoneButton>
+          {isHost && (
+            <>
+              <StoneButton variant="gold" size="lg" disabled={busy} onClick={() => call('start_chaos_night', { p_game_id: game.id })} title="Stada, bestie, plemiona i miasta ruszają krok po kroku; wszyscy patrzą na mapę.">
+                Rozpocznij noc
+              </StoneButton>
+              <StoneButton size="sm" disabled={busy} onClick={() => call('chaos_skip', { p_game_id: game.id })} title="Księga dogra noc sama i zamknie rundę.">
+                Pomiń noc i zakończ rundę
+              </StoneButton>
+            </>
           )}
-          {!chosen && !isHost && <p className={styles.skip}>Kartę odwraca i rundę zamyka gospodarz.</p>}
+          {!isHost && <p className={styles.skip}>Kartę odwraca i noc rozpoczyna gospodarz.</p>}
         </div>
-        {!draw && <p className={styles.skip}>Każda runda w Erze {game.era} to {game.era === 1 ? 'tysiące lat' : game.era === 2 ? 'setki lat' : 'dekady'}. Chaos jest opcjonalny.</p>}
+        {!draw && <p className={styles.skip}>Każda runda w Erze {game.era} to {game.era === 1 ? 'tysiące lat' : game.era === 2 ? 'setki lat' : 'dekady'}. Karta Chaosu jest opcjonalna; noc, w której świat żyje sam, przychodzi zawsze.</p>}
       </div>
     </div>
   )

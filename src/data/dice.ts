@@ -4,6 +4,7 @@ import type { ActionLog } from '@/lib/types'
 import { ACTION_BY_KEY, type ActionKey } from './actions'
 import { logosWords } from './chronicle'
 import { ATTRIBUTE_BY_KEY } from './pantheon'
+import { temperOf } from './fertility'
 import type { AttrKey } from '@/lib/types'
 
 export interface ShownRoll {
@@ -28,6 +29,10 @@ export function rollOf(l: ActionLog): ShownRoll | null {
     const score = Number(o.score)
     const tier = o.tier === 'strong' ? 'Dwóch nowych wyznawców.' : o.tier === 'mixed' ? 'Jeden nowy wyznawca.' : 'Dar odrzucony.'
     return { kind: '2d6', d1: Number(o.d1), d2: Number(o.d2), total: Number(o.total), label: `Rozwój Cywilizacji, ${score < 0 ? '−' : '+'}${Math.abs(score)}${o.avatar ? ' − 2' : ''}${hold ? ` + ${hold} (proroctwo)` : ''}`, verdict: tier }
+  }
+  if (l.action_key === 'create_creature' && r && o.role === 'beast') {
+    const wrath = Number(o.wrath ?? r.modifier ?? 0)
+    return { kind: '2d6', d1: r.d1, d2: r.d2, total: r.total ?? r.d1 + r.d2, label: `Siła bestii, 2k6 ${wrath < 0 ? '−' : '+'} ${Math.abs(wrath)} Gniew`, verdict: `Bestie są ${temperOf(Number(o.strength))} (siła ${Number(o.strength) > 0 ? '+' : ''}${o.strength}).` }
   }
   if (l.action_key === 'catastrophe' && typeof o.d1 === 'number') {
     const wrath = Number(o.wrath)

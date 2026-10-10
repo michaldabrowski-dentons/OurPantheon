@@ -11,8 +11,9 @@ export function useWorld(): WorldView {
   const gifts = useGameStore((s) => s.gifts)
   const entities = useGameStore((s) => s.entities)
   const entityGods = useGameStore((s) => s.entityGods)
+  const rivers = useGameStore((s) => s.rivers)
   return useMemo(
-    () => buildWorld({ hexes, occupants, cities, followers, gifts, entities, entityGods }),
-    [hexes, occupants, cities, followers, gifts, entities, entityGods],
+    () => buildWorld({ hexes, occupants, cities, followers, gifts, entities, entityGods, rivers }),
+    [hexes, occupants, cities, followers, gifts, entities, entityGods, rivers],
   )
 }

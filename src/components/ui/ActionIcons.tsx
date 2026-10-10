@@ -27,6 +27,23 @@ const SHAPES: Record<ActionKey, ReactNode> = {
     </>
   ),
 
+  // a sheaf of grain: three stalks rising from the ground
+  bless_land: (
+    <>
+      <path d="M3 21h18" />
+      <path d="M12 21V8M12 8c-2 0-3.5-1.5-3.5-3.5C10.5 4.5 12 6 12 8zM12 8c2 0 3.5-1.5 3.5-3.5C13.5 4.5 12 6 12 8z" />
+      <path d="M7.5 21V12M7.5 12c-1.8 0-3-1.3-3-3 1.8 0 3 1.3 3 3zM16.5 21V12M16.5 12c1.8 0 3-1.3 3-3-1.8 0-3 1.3-3 3z" />
+    </>
+  ),
+  // a river winding down from a peak
+  pour_river: (
+    <>
+      <path d="M3 9 7 3l3 4" />
+      <path d="M7 3c0 4 2 5 4 7s3 4 1 7c-1.5 2.2-1 3.5 1 4.5" />
+      <path d="M12 12c2-1 4 0 5 2M14 17c2-1 4 0 5 1.5" />
+    </>
+  ),
+
   // ---------- Tworzenie Życia ----------
   // a paw print: the pad and four toes
   create_creature: (

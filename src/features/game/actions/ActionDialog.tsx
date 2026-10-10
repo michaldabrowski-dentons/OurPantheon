@@ -7,6 +7,7 @@ import { AVATAR_REACH, costFor, viaAvatarAllowed, viaAvatarCost, type ActionDef,
 import { SAPIENT_TRAITS } from '@/data/traits'
 import { BIOMES, BIOME_BY_KEY, CATASTROPHE_TYPES } from '@/data/biomes'
 import { AVATAR_EMOJI, CREATURE_EMOJI, SAPIENT_EMOJI } from '@/data/emoji'
+import { RESOURCES, RESOURCE_NAMES, isMountain, temperOf } from '@/data/fertility'
 import { ATTRIBUTE_BY_KEY, scoreText, scoresFor } from '@/data/pantheon'
 import { composeVerse } from '@/data/chronicle'
 import { isWatchedRoll } from '@/data/dice'
@@ -63,6 +64,13 @@ interface FormState {
   enemyAvatarId: string
   /** prophecy: what is foretold */
   text: string
+  /** create_creature: a herd or a beast */
+  diet: 'herbivore' | 'carnivore'
+  /** bless_land */
+  resource: string
+  /** pour_river: the channel from the source, and the water it ends in */
+  path: HexRef[]
+  mouth: HexRef | null
 }
 
 const initial = (): FormState => ({
@@ -94,6 +102,10 @@ const initial = (): FormState => ({
   prophecyId: null,
   enemyAvatarId: '',
   text: '',
+  diet: 'herbivore',
+  resource: '',
+  path: [],
+  mouth: null,
 })
 
 const avatarAt = (w: WorldView, q: number, r: number) => w.occupantsAt(q, r).some((o) => w.entityById(o.entity_id)?.kind === 'avatar')
@@ -133,6 +145,8 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   const [row, setRow] = useState<ActionLog | null>(null)
   const [verse, setVerse] = useState('')
   const [verseEdited, setVerseEdited] = useState(false)
+  /** a mountain cut a river in this word: the map asks for the new bed before the verse */
+  const [reroute, setReroute] = useState<{ riverId: string; from: HexRef } | null>(null)
   // the verse step waits until the table has seen the dice; a cataclysm then plays on the map
   const waitingDice = useDiceWait(row && isWatchedRoll(row) ? row.id : null)
   const [curtain, setCurtain] = useState(false)
@@ -208,12 +222,28 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         }
       case 'catastrophe':
         return { kind: 'hex', title: 'Kataklizm', instruction: `Kliknij heks, w który uderza: ${f.catastrophe.toLowerCase()}.`, valid: () => true }
+      case 'bless_land':
+        return { kind: 'hex', title: 'Pobłogosław ziemię', instruction: `Kliknij ląd bez surowca, który dostanie ${f.resource} ${RESOURCE_NAMES[f.resource] ?? 'surowiec'}. Góry też, woda nie.`, valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' && !h.resource } }
+      case 'pour_river':
+        return {
+          kind: 'river',
+          title: 'Wylej Rzekę',
+          instruction: 'Kliknij górę, z której wypływa rzeka, potem kolejne sąsiednie pola. Klik w wodę albo w inną rzekę kończy rzekę. Klik w ostatnie pole cofa je.',
+          valid: (q, r, w, sel) => {
+            const b = w.hexAt(q, r)?.biome
+            if (!b) return false
+            if (sel.length === 0) return isMountain(b) && !w.riverAt(q, r)
+            return !isMountain(b)
+          },
+          isTerminal: (q, r, w) => w.hexAt(q, r)?.biome === 'woda' || !!w.riverAt(q, r),
+        }
       case 'create_creature':
+        return { kind: 'hex', title: action.name, instruction: `Kliknij ląd (także góry) z wolnym miejscem ${f.diet === 'carnivore' ? 'na dole heksa' : 'w lewym górnym rogu heksa'}, na którym pojawią się ${f.name.trim() || 'nowe istoty'}. Nie wodę.`, valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' && w.slotFor(q, r, f.diet === 'carnivore' ? 'beast' : 'herbivore') !== null } }
       case 'create_sapient':
-        return { kind: 'hex', title: action.name, instruction: `Kliknij ląd z wolnym miejscem, na którym pojawią się ${f.name.trim() || 'nowe istoty'}. Nie Wodę, nie Góry.`, valid: (q, r, w) => w.freeSlot(q, r) !== null && !w.blocked(q, r) }
+        return { kind: 'hex', title: action.name, instruction: `Kliknij ląd z wolnym dołem heksa, na którym pojawią się ${f.name.trim() || 'nowe istoty'}. Nie Wodę, nie Góry.`, valid: (q, r, w) => w.slotFor(q, r, 'tribe') !== null && !w.blocked(q, r) }
       case 'create_avatar':
       case 'resurrect_avatar':
-        return { kind: 'hex', title: action.name, instruction: 'Kliknij heks, na którym staje awatar: wolne miejsce, nie Woda, nie Góry.', valid: (q, r, w) => w.freeSlot(q, r) !== null && !w.blocked(q, r) }
+        return { kind: 'hex', title: action.name, instruction: 'Kliknij heks, na którym staje awatar: wolny dolny róg, nie Woda, nie Góry.', valid: (q, r, w) => w.slotFor(q, r, 'avatar') !== null && !w.blocked(q, r) }
       case 'change_creature':
         return {
           kind: 'occupant',
@@ -236,7 +266,12 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           kind: 'hex',
           title: 'Migracja',
           instruction: `Kliknij ląd, na który rozejdą się ${world.entityById(f.speciesId)?.name ?? 'istoty'}: wolne miejsce, bez tego gatunku. 1 Logos za każdy heks; świecą tylko te, na które cię stać.`,
-          valid: (q, r, w) => !w.blocked(q, r) && w.freeSlot(q, r) !== null && !w.occupantsAt(q, r).some((o) => o.entity_id === f.speciesId) && reach(f.from ?? undefined, q, r),
+          valid: (q, r, w) => {
+            const role = w.roleOf(w.entityById(f.speciesId)) ?? 'herbivore'
+            const h = w.hexAt(q, r)
+            const landOk = role === 'tribe' ? !w.blocked(q, r) : !!h && h.biome !== 'woda'
+            return landOk && w.slotFor(q, r, role) !== null && !w.occupantsAt(q, r).some((o) => o.entity_id === f.speciesId) && reach(f.from ?? undefined, q, r)
+          },
           costFor: (sel) => (f.from && sel[0] ? hexDistance(f.from, sel[0]) : null),
         }
       case 'create_civilization':
@@ -256,7 +291,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           kind: 'hex',
           title: 'Exodus',
           instruction: `Kliknij ląd, dokąd idzie ${followersWord(f.dots)}: na wolne pole albo do innego miasta. 1 Logos za każdy heks; świecą tylko te, na które cię stać.`,
-          valid: (q, r, w) => !w.blocked(q, r) && reach(srcCity, q, r) && (!!w.cityAt(q, r) || w.freeSlot(q, r) !== null || w.occupantsAt(q, r).some((o) => o.entity_id === f.speciesId)),
+          valid: (q, r, w) => !w.blocked(q, r) && reach(srcCity, q, r) && (!!w.cityAt(q, r) || w.slotFor(q, r, 'tribe') !== null || w.occupantsAt(q, r).some((o) => o.entity_id === f.speciesId)),
           costFor: (sel) => (srcCity && sel[0] ? hexDistance(srcCity, sel[0]) : null),
         }
       case 'convert':
@@ -321,7 +356,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           kind: 'hex',
           title: 'Pielgrzymka Awatara',
           instruction: 'Kliknij heks, na który idzie awatar: wolne miejsce, nie Woda, nie Góry. 1 Logos za każdy heks; świecą tylko te, na które cię stać.',
-          valid: (q, r, w) => !w.blocked(q, r) && w.freeSlot(q, r) !== null && !!avatarOcc && reach(avatarOcc, q, r),
+          valid: (q, r, w) => !w.blocked(q, r) && w.slotFor(q, r, 'avatar') !== null && !!avatarOcc && reach(avatarOcc, q, r),
           costFor: (sel) => (avatarOcc && sel[0] ? hexDistance(avatarOcc, sel[0]) : null),
         }
       }
@@ -338,6 +373,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     const unlimited = (key === 'migrate' && mapOrdinal === 0) || ((key === 'exodus' || key === 'holy_war') && mapOrdinal === 1)
     if (unlimited) return spec
     const valid = spec.valid
+    if (key === 'pour_river') return { ...spec, instruction: `${spec.instruction} Źródło w zasięgu awatara: do dwóch heksów od niego.`, valid: (q, r, w, sel) => (sel.length > 0 || inReach(q, r)) && valid(q, r, w, sel) }
     return { ...spec, instruction: `${spec.instruction} W zasięgu awatara: do dwóch heksów od niego.`, valid: (q, r, w, sel) => inReach(q, r) && valid(q, r, w, sel) }
   }
 
@@ -349,6 +385,13 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         case 'shape_land':
           n.hexes = picks.map(({ q, r }) => ({ q, r }))
           break
+        case 'pour_river': {
+          const last = picks[picks.length - 1]
+          const water = !!last && world.hexAt(last.q, last.r)?.biome === 'woda'
+          n.path = (water ? picks.slice(0, -1) : picks).map(({ q, r }) => ({ q, r }))
+          n.mouth = water && last ? { q: last.q, r: last.r } : null
+          break
+        }
         case 'change_creature': {
           n.occupantId = p.occupantId ?? ''
           const occ = world.occupantsAt(p.q, p.r).find((o) => o.id === p.occupantId)
@@ -444,6 +487,42 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   }, [step, stepIdx])
   useEffect(() => () => setMode(null), [setMode])
 
+  useEffect(() => {
+    if (!reroute) return
+    const { riverId, from } = reroute
+    const done = () => {
+      setReroute(null)
+      advance(stepIdx)
+    }
+    setMode({
+      kind: 'river',
+      start: from,
+      title: 'Nowe koryto',
+      instruction: 'Góra przecięła rzekę. Kliknij, którędy popłynie dalej: kolejne sąsiednie pola, aż do wody albo innej rzeki. Przerwij, a rzeka zostanie urwana.',
+      valid: (q, r, w) => {
+        const b = w.hexAt(q, r)?.biome
+        return !!b && !isMountain(b) && w.riverAt(q, r)?.id !== riverId
+      },
+      isTerminal: (q, r, w) => {
+        const rv = w.riverAt(q, r)
+        return w.hexAt(q, r)?.biome === 'woda' || (!!rv && rv.id !== riverId)
+      },
+      onFinish: async (picks) => {
+        const last = picks[picks.length - 1]
+        const water = !!last && world.hexAt(last.q, last.r)?.biome === 'woda'
+        const nodes = (water ? picks.slice(0, -1) : picks).map(({ q, r }) => ({ q, r }))
+        try {
+          await rpc('continue_river', { p_game_id: game.id, p_river_id: riverId, p_nodes: nodes, p_mouth: water && last ? { q: last.q, r: last.r } : null })
+        } catch (err) {
+          setError((err as Error).message)
+        }
+        done()
+      },
+      onCancel: done,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reroute])
+
   // ---------- the payload ----------
   function buildPayload(): ActionPayload {
     const base: ActionPayload = { via_avatar_id: f.viaAvatarId || undefined, summary: '' }
@@ -455,8 +534,12 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         return { ...base, type: f.catastrophe.trim(), q: t.q, r: t.r, prophecy_id: f.prophecyId ?? undefined, after: f.after || undefined }
       case 'great_miracle':
         return base
+      case 'bless_land':
+        return { ...base, q: t.q, r: t.r, resource: f.resource }
+      case 'pour_river':
+        return { ...base, path: f.path, mouth: f.mouth }
       case 'create_creature':
-        return { ...base, entity: { op: 'create', name: f.name, traits: [], co_god_ids: f.co_god_ids }, emoji: f.emoji, q: t.q, r: t.r }
+        return { ...base, entity: { op: 'create', name: f.name, traits: [], co_god_ids: f.co_god_ids, diet: f.diet }, emoji: f.emoji, q: t.q, r: t.r }
       case 'create_sapient':
         return { ...base, entity: { op: 'create', name: f.name, traits: [SAPIENT_TRAITS[0]], co_god_ids: f.co_god_ids }, emoji: f.emoji, q: t.q, r: t.r }
       case 'create_avatar':
@@ -501,7 +584,10 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     try {
       const r = await rpc<ActionLog>('perform_action', { p_game_id: game.id, p_action_key: action.key, p_payload: buildPayload() })
       setRow(r)
-      advance(stepIdx)
+      const o = r.outcome && !Array.isArray(r.outcome) ? (r.outcome as Record<string, unknown>) : null
+      const cut = action.key === 'shape_land' && o && o.reroute && typeof o.reroute === 'object' ? (o.reroute as { river_id: string; from: HexRef }) : null
+      if (cut && cut.river_id && cut.from) setReroute({ riverId: cut.river_id, from: cut.from })
+      else advance(stepIdx)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -599,7 +685,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   )
 
   // the map is asking, or the wrath is playing: the window steps aside
-  if (step === 'map' || curtain || (step === 'verse' && waitingDice)) return null
+  if (step === 'map' || curtain || reroute || (step === 'verse' && waitingDice)) return null
 
   // ---------- via: who speaks the word ----------
   if (step === 'via') {
@@ -734,6 +820,16 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           <span className={styles.hint}>{o.tier === 'strong' ? '10+: dwóch wyznawców' : o.tier === 'mixed' ? '7..9: jeden wyznawca' : '6-: dar odrzucony'}</span>
         </div>
       )}
+      {action.key === 'create_creature' && o.role === 'beast' && typeof o.d1 === 'number' && (
+        <div className={styles.diceRow}>
+          <Dice2d6 d1={Number(o.d1)} d2={Number(o.d2)} showTotal={false} animateKey={liveRow?.id} />
+          <span className={styles.rollTotal}>
+            <b className="engraved">{Number(o.strength) > 0 ? `+${o.strength}` : String(o.strength)}</b>
+            <small>{Number(o.d1)} + {Number(o.d2)} {Number(o.wrath) < 0 ? '−' : '+'} {Math.abs(Number(o.wrath))} (Gniew) = {Number(o.total)}</small>
+          </span>
+          <span className={styles.hint}>siła: bestie {temperOf(Number(o.strength))}</span>
+        </div>
+      )}
       {action.key === 'catastrophe' && typeof o.d1 === 'number' && (
         <div className={styles.diceRow}>
           <Dice2d6 d1={Number(o.d1)} d2={Number(o.d2)} showTotal={false} animateKey={liveRow?.id} />
@@ -833,6 +929,16 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
             </div>
           ),
         }
+      case 'bless_land':
+        return {
+          ready: !!f.resource,
+          fields: (
+            <div className={styles.fields}>
+              <EmojiPicker label="Surowiec" options={[...RESOURCES]} used={new Set()} value={f.resource} onChange={(v) => set('resource', v)} />
+              <p className={styles.hint}>{f.resource ? `${f.resource} ${RESOURCE_NAMES[f.resource] ?? ''}: ` : ''}Jeden surowiec na pole, na zawsze. Żyzność pola rośnie o jeden.</p>
+            </div>
+          ),
+        }
       case 'create_creature':
       case 'create_sapient':
         return {
@@ -840,6 +946,25 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           fields: (
             <div className={styles.fields}>
               <TextField id="ent_name" label="Nazwa" value={f.name} onChange={(e) => set('name', e.target.value)} maxLength={80} />
+              {key === 'create_creature' && (
+                <div className={styles.viaPick} role="radiogroup" aria-label="Stado czy bestia">
+                  <span className={labelClass}>Stado czy bestia</span>
+                  <label className={[styles.viaRow, f.diet === 'herbivore' ? styles.viaOn : ''].join(' ')}>
+                    <input type="radio" name="diet" checked={f.diet === 'herbivore'} onChange={() => set('diet', 'herbivore')} />
+                    <span className={styles.viaWho}>
+                      <b>Stado (roślinożerne)</b>
+                      <small>Lewy górny róg heksa, jedno na pole. Karmi ziemię (+1 Żyzności), szuka pastwisk, mnoży się. Nigdy nie walczy.</small>
+                    </span>
+                  </label>
+                  <label className={[styles.viaRow, f.diet === 'carnivore' ? styles.viaOn : ''].join(' ')}>
+                    <input type="radio" name="diet" checked={f.diet === 'carnivore'} onChange={() => set('diet', 'carnivore')} />
+                    <span className={styles.viaWho}>
+                      <b>Bestia</b>
+                      <small>Dół heksa, jedna bestia albo plemię na pole. Siłę rzuca księga: 2k6 + Gniew ({scoreText(scores.wrath)}), od potulnej (−1) po niszczycielską (+3). Poluje, mnoży się i walczy.</small>
+                    </span>
+                  </label>
+                </div>
+              )}
               <EmojiPicker label="Znak na mapie" options={key === 'create_sapient' ? SAPIENT_EMOJI : CREATURE_EMOJI} used={world.usedEmoji} value={f.emoji} onChange={(v) => set('emoji', v)} />
             </div>
           ),
@@ -1067,7 +1192,16 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         return [`Kataklizm: ${f.catastrophe}`, `Cel: ${at}`, `Obrażenia: połowa z 2k6 + Gniew (${scoreText(scores.wrath)}), najmniej 1`, f.after ? `Gdy nikt nie przeżyje: ${BIOME_BY_KEY[f.after].name}` : 'Teren bez zmian']
       case 'great_miracle':
         return ['Coś WIELKIEGO na skalę całego świata. Opowiesz to w wersecie.']
+      case 'bless_land':
+        return [`Surowiec: ${f.resource} ${RESOURCE_NAMES[f.resource] ?? ''}`, `Miejsce: ${at}`, 'Żyzność pola rośnie o jeden']
+      case 'pour_river':
+        return [
+          `Źródło: ${f.path[0] ? `(${f.path[0].q}, ${f.path[0].r})` : ''}`,
+          `Koryto: ${Math.max(0, f.path.length - 1)} ${f.path.length - 1 === 1 ? 'pole' : f.path.length - 1 >= 2 && f.path.length - 1 <= 4 ? 'pola' : 'pól'} za źródłem`,
+          f.mouth ? `Ujście: woda (${f.mouth.q}, ${f.mouth.r})` : 'Wpada do innej rzeki',
+        ]
       case 'create_creature':
+        return [`${f.emoji} ${f.name}`, f.diet === 'carnivore' ? `Bestia: siłę rzuci księga (2k6 + Gniew ${scoreText(scores.wrath)})` : 'Stado roślinożerne', `Miejsce: ${at}`]
       case 'create_sapient':
         return [`${f.emoji} ${f.name}`, `Miejsce: ${at}`]
       case 'create_avatar':

@@ -394,3 +394,78 @@
   color: var(--marble-vein);
   font-size: 0.95rem;
 }
+
+/* ---------- the night over the world ---------- */
+.nightPanel {
+  position: fixed;
+  right: var(--gutter, 16px);
+  bottom: var(--gutter, 16px);
+  z-index: 25;
+  width: min(360px, calc(100vw - 32px));
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+}
+.nightHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.nightHead h4 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.nightCount {
+  font-family: var(--font-display);
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+.nightBar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+.nightBar span {
+  display: block;
+  height: 100%;
+  background: var(--ember-light, #ffb347);
+  transition: width 0.6s ease;
+}
+.nightNow {
+  margin: 0;
+  font-weight: 600;
+}
+.nightFeed {
+  margin: 0;
+  padding: 0 0 0 1.1em;
+  display: grid;
+  gap: 3px;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  max-height: 150px;
+  overflow: hidden;
+}
+.nightFeed li:first-child {
+  color: var(--ink, inherit);
+}
+.nightBtns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+.nightHint {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+.nightLead {
+  margin: 0;
+  line-height: 1.5;
+}
+.nightSideGod {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}

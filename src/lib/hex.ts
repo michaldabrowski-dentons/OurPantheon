@@ -49,12 +49,25 @@ export function hexCorners(cx: number, cy: number, R: number, inset = 0): string
   return pts.join(' ')
 }
 
-/** the three corner slots of a field, in units of R: top-left, top-right, bottom */
+/** the role slots of a field, in units of R: herd top-left, beast or tribe bottom, avatars in the lower corners */
 export const SLOT_OFFSETS: { x: number; y: number }[] = [
   { x: -0.5, y: -0.42 },
-  { x: 0.5, y: -0.42 },
   { x: 0, y: 0.62 },
+  { x: -0.58, y: 0.4 },
+  { x: 0.58, y: 0.4 },
 ]
+/** the resource sits top-right, the fertility number above the centre */
+export const RESOURCE_OFFSET = { x: 0.5, y: -0.42 }
+export const FERTILITY_OFFSET = { x: 0, y: -0.8 }
+
+export const isNeighbour = (a: HexRef, b: HexRef) => hexDistance(a, b) === 1
+
+/** the middle of the edge between two neighbouring fields (where a river meets the sea) */
+export function hexEdgeMidpoint(a: HexRef, b: HexRef, R: number): { x: number; y: number } {
+  const pa = axialToPixel(a.q, a.r, R)
+  const pb = axialToPixel(b.q, b.r, R)
+  return { x: (pa.x + pb.x) / 2, y: (pa.y + pb.y) / 2 }
+}
 
 /** the drawing box that holds the whole map with a small margin */
 export function mapViewBox(R: number, radius = MAP_RADIUS): { x: number; y: number; w: number; h: number } {
@@ -99,6 +112,6 @@ export function generatePreviewMap(gameId: string, seed = 7): Hex[] {
   return allHexes().map(({ q, r }) => {
     const d = hexDistance({ q, r }, { q: 0, r: 0 })
     const biome: BiomeKey = d >= 4 && rnd() < 0.8 ? 'woda' : landBiome(rnd())
-    return { game_id: gameId, q, r, biome, decor: decorFor(biome, rnd) }
+    return { game_id: gameId, q, r, biome, decor: decorFor(biome, rnd), resource: null }
   })
 }

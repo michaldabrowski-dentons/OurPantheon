@@ -3,11 +3,15 @@
 import type { Entity, Player } from '@/lib/types'
 import type { WorldView } from '@/lib/world'
 import { SAPIENT_TRAITS } from './traits'
+import { isMountain } from './fertility'
+import { neighbours } from '@/lib/hex'
 
 export type ActionKey =
   | 'shape_land'
   | 'catastrophe'
   | 'great_miracle'
+  | 'bless_land'
+  | 'pour_river'
   | 'create_creature'
   | 'create_sapient'
   | 'change_creature'
@@ -97,6 +101,9 @@ const sapientCanSettle = (w: WorldView) =>
 const myCities = (w: WorldView, me: Player | null) => (me ? w.cities.filter((c) => w.dotsOf(c.entity_id, me.id) > 0) : [])
 const rivalCities = (w: WorldView, me: Player | null) => (me ? w.cities.filter((c) => w.followersOf(c.entity_id).some((f) => f.player_id !== me.id)) : [])
 const aliveAvatar = (w: WorldView, me: Player | null) => !!me && w.avatarsOf(me.id).length > 0
+const unblessedLand = (w: WorldView) => w.hexes.some((h) => h.biome !== 'woda' && !h.resource)
+const riverSource = (w: WorldView) =>
+  w.hexes.some((h) => isMountain(h.biome) && !w.riverAt(h.q, h.r) && neighbours(h).some((n) => { const b = w.hexAt(n.q, n.r)?.biome; return !!b && !isMountain(b) }))
 
 export const ACTIONS: ActionDef[] = [
   // ---------- Terraformacja ----------
@@ -143,6 +150,36 @@ export const ACTIONS: ActionDef[] = [
       'Jeśli Wielkiego Cudu użyje awatar, ulega on zniszczeniu i musi zostać wskrzeszony.',
     ],
   },
+  {
+    key: 'bless_land',
+    name: 'Pobłogosław ziemię',
+    category: 'terraform',
+    costs: [4, 7, 10],
+    requiresRoll: false,
+    flow: ['form', 'map', 'confirm', 'verse'],
+    summary: 'Wybierz surowiec i kliknij ląd. Pole dostaje go na zawsze, a jego Żyzność rośnie o jeden.',
+    details: [
+      'Każdy ląd ma Żyzność: liczbę u góry heksa. Trawa i puszcza dają dwa, góry, dżungla i bagno jeden, pustynia, śnieg, ugór i góry pustynne lub śnieżne nic. Sąsiedztwo wody dodaje jeden, rzeka jeden (na pustyni trzy), stado jeden, surowiec jeden.',
+      'Błogosławieństwo kładzie na polu jeden surowiec: klejnoty, zboże, drewno, żelazo, winorośl, owoce, kukurydzę, glinę, złoto, kamień albo bulwy. Jeden surowiec na pole, na zawsze; góry też go przyjmą, woda nie.',
+      'Żyzność karmi stada i miasta: w nocy Chaosu miasto rzuca k6 przeciw Żyzności swojego pola i rośnie, gdy wyrzuci mniej.',
+    ],
+    requirement: { text: 'ląd bez surowca', check: (w) => unblessedLand(w) },
+  },
+  {
+    key: 'pour_river',
+    name: 'Wylej Rzekę',
+    category: 'terraform',
+    costs: [3, 8, 12],
+    requiresRoll: false,
+    flow: ['map', 'confirm', 'verse'],
+    summary: 'Kliknij górę, potem kolejne sąsiednie pola, aż do wody albo innej rzeki. Każde pole z rzeką ma Żyzność większą o jeden, pustynia o trzy.',
+    details: [
+      'Rzeka wypływa z góry: kliknij ją jako źródło, a potem kolejne pola, każde sąsiadujące z poprzednim. Rzeka nie płynie pod górę ani nie zawraca. Klik w wodę kończy ją ujściem, klik w pole z inną rzeką czyni ją dopływem.',
+      'Gdy rzeka nie ma dokąd płynąć, przerwij słowo i zacznij od innej góry. Cena jest stała, niezależna od długości.',
+      'Każde pole, przez które płynie rzeka, ma Żyzność większą o jeden (dwie rzeki nie dodają się). Rzeka na pustyni to Nil: trzy zamiast jednego. Góra, którą ktoś potem wypiętrzy na jej drodze, przecina rzekę; ten, kto ją wypiętrzył, od razu wyklikuje nowe koryto.',
+    ],
+    requirement: { text: 'góra z lądem obok', check: (w) => riverSource(w) },
+  },
 
   // ---------- Tworzenie Życia ----------
   {
@@ -154,11 +191,11 @@ export const ACTIONS: ActionDef[] = [
     entityKind: 'creature',
     entityOp: 'create',
     flow: ['form', 'map', 'confirm', 'verse'],
-    summary: 'Nowy gatunek z własną emotikoną. Potem kliknij ląd, na którym się pojawia.',
+    summary: 'Nowy gatunek z własną emotikoną: stado albo bestia. Bestii księga rzuca siłę: 2k6 + Gniew. Potem kliknij ląd, na którym się pojawia.',
     details: [
-      'Zwierzęta i rośliny wszelkiego rodzaju powstają same wskutek kształtowania lądów, ale czasem chcesz stworzyć coś bardziej konkretnego: cały gatunek z własnym znakiem na mapie. Nazwij go i wybierz emotikonę, której nikt jeszcze nie nosi.',
-      'Potem kliknij heks: istota zajmuje jedno z trzech miejsc w jego rogach. Na Wodzie ani w Górach nikt nie zamieszka.',
-      'Istoty nierozumne nie założą cywilizacji. Do tego służy Stworzenie Istoty Rozumnej.',
+      'Zwierzęta i rośliny wszelkiego rodzaju powstają same wskutek kształtowania lądów, ale czasem chcesz stworzyć coś bardziej konkretnego: cały gatunek z własnym znakiem na mapie. Nazwij go, wybierz emotikonę, której nikt jeszcze nie nosi, i zdecyduj, czy to stado (roślinożerne), czy bestia.',
+      'Stado stoi w lewym górnym rogu heksa (jedno na pole), karmi ziemię (Żyzność +1) i w nocy Chaosu szuka pastwisk albo się mnoży. Nigdy nie walczy. Bestia stoi na dole heksa (jedna bestia albo plemię na pole); księga rzuca jej siłę: 2k6 + Gniew, od potulnej (−1) po niszczycielską (+3). W nocy poluje, mnoży się i walczy z tym, co spotka.',
+      'Stada i bestie żyją też w górach, lecz nie na wodzie. Istoty nierozumne nie założą cywilizacji. Do tego służy Stworzenie Istoty Rozumnej.',
     ],
   },
   {
@@ -170,10 +207,11 @@ export const ACTIONS: ActionDef[] = [
     entityKind: 'creature',
     entityOp: 'create',
     flow: ['form', 'map', 'confirm', 'verse'],
-    summary: 'Lud zdolny do kultury: swój znak i miejsce na lądzie. Tam, gdzie żyje, można założyć cywilizację.',
+    summary: 'Lud zdolny do kultury: swój znak i miejsce na lądzie. Dopóki nie ma miasta, jest plemieniem, które wędruje i w końcu osiada.',
     details: [
       'Tak jak Stworzenie Istoty, ale to, co powstaje, ma świadomość, język i zdolność do kultury. Od tej pory na heksie, gdzie żyje, można założyć cywilizację.',
-      'Nazwij lud, wybierz emotikonę i kliknij heks (nie Wodę, nie Góry). Zastanów się, jak myślą i co uznają za święte.',
+      'Nazwij lud, wybierz emotikonę i kliknij heks (nie Wodę, nie Góry). Lud stoi na dole heksa, tam gdzie bestia: jedno z dwojga na pole.',
+      'Bez miasta lud jest plemieniem: w nocy Chaosu obozuje, wędruje ku żyznej ziemi, udomawia stada, walczy z bestiami (siła 0), a na szóstce na ziemi o Żyzności co najmniej jeden zakłada miasto, które nazywa jego bóstwo. Lud w mieście nie wędruje.',
     ],
   },
   {
@@ -455,6 +493,11 @@ export const LOG_LABELS: Record<string, string> = {
   entity_removed: 'Usunięcie',
   city_destroyed: 'Ruina',
   cities_grow: 'Miasta rosną',
+  night_begin: 'Noc Chaosu',
+  night_move: 'Noc: wędrówka',
+  night_fight: 'Noc: walka',
+  night_city: 'Noc: miasto',
+  night_city_founded: 'Noc: nowe miasto',
   dots_reward: 'Dary wyznawców',
   contest_declared: 'Starcie',
   contest_cancelled: 'Starcie odwołane',
@@ -468,7 +511,7 @@ export const LOG_LABELS: Record<string, string> = {
 }
 
 /** the words an avatar may speak for its god: half the price, the target within two fields */
-const VIA_AVATAR = new Set<ActionKey>(['shape_land', 'catastrophe', 'great_miracle', 'create_creature', 'create_sapient', 'change_creature', 'migrate', 'create_civilization', 'develop_civilization', 'exodus', 'convert', 'holy_war'])
+const VIA_AVATAR = new Set<ActionKey>(['shape_land', 'catastrophe', 'great_miracle', 'bless_land', 'pour_river', 'create_creature', 'create_sapient', 'change_creature', 'migrate', 'create_civilization', 'develop_civilization', 'exodus', 'convert', 'holy_war'])
 export function viaAvatarAllowed(key: ActionKey): boolean {
   return VIA_AVATAR.has(key)
 }

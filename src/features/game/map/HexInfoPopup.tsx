@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import type { Entity } from '@/lib/types'
 import type { WorldView } from '@/lib/world'
 import { BIOME_BY_KEY } from '@/data/biomes'
+import { resourceName, temperOf, strengthLabel } from '@/data/fertility'
 import { cityLevelLabel, followersWord } from '@/data/cities'
 import { godColor } from '@/data/pantheon'
 import { useGameStore, godLabel, selectMyPlayer, selectPendingContest } from '@/store/useGameStore'
@@ -46,9 +47,11 @@ export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect
   const hex = world.hexAt(at.q, at.r)
   const biome = hex ? BIOME_BY_KEY[hex.biome] : null
   const occupants = world.occupantsAt(at.q, at.r).map((o) => world.entityById(o.entity_id)).filter((e): e is Entity => !!e)
-  const creatures = occupants.filter((e) => e.kind === 'creature' && !world.isSapient(e))
-  const sapients = occupants.filter((e) => world.isSapient(e))
+  const herds = occupants.filter((e) => world.roleOf(e) === 'herbivore')
+  const bottom = occupants.filter((e) => world.roleOf(e) === 'beast' || world.roleOf(e) === 'tribe')
   const avatars = occupants.filter((e) => e.kind === 'avatar')
+  const fertility = world.fertilityOf(at.q, at.r)
+  const river = world.riverAt(at.q, at.r)
   const city = world.cityAt(at.q, at.r)
   const cityEnt = city ? world.entityById(city.entity_id) : undefined
   const followers = city ? world.followersOf(city.entity_id) : []
@@ -73,14 +76,27 @@ export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect
       <p className={styles.popupStatus}>
         {cityEnt && city ? `${cityLevelLabel(world.cityDots(city.entity_id))} · ${biome?.name.toLowerCase() ?? ''}` : biome?.name ?? ''}
         {' · '}
-        <span className={biome?.blocked ? styles.popupBlocked : ''}>{biome?.blocked ? 'zablokowany: ani miasta, ani istot, ani wyznawców' : 'dostępny'}</span>
+        <span className={biome?.blocked ? styles.popupBlocked : ''}>{biome?.blocked ? (hex?.biome === 'woda' ? 'woda: ani miasta, ani istot' : 'góry: bez miast, plemion i awatarów; stada i bestie tak') : 'dostępny'}</span>
       </p>
+      {fertility !== null && (
+        <p className={styles.popupStatus}>
+          Żyzność {fertility}
+          {hex?.resource ? ` · surowiec ${hex.resource} ${resourceName(hex.resource)}` : ''}
+          {river ? ` · rzeka${river.mouth_kind === 'none' ? ' (urwana)' : ''}` : ''}
+        </p>
+      )}
 
       {cityEnt && city && (
         <>
           <div className={styles.popupSection}>
             <h5>Wyznawcy</h5>
-            {followers.length === 0 && <span className={styles.popupEmpty}>Nikt tu nie wierzy.</span>}
+            {followers.length === 0 && city.atheists === 0 && <span className={styles.popupEmpty}>Nikt tu nie mieszka.</span>}
+            {city.atheists > 0 && (
+              <div className={styles.followerRow}>
+                <span className={styles.swatch} style={{ background: '#9b9b9b', boxShadow: '0 0 0 1.5px #4a4a4a' }} />
+                <span>Bezbożni: {city.atheists}</span>
+              </div>
+            )}
             {followers.map((f) => {
               const p = byId(f.player_id)
               const c = godColor(p)
@@ -111,14 +127,14 @@ export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect
       )}
 
       <div className={styles.popupSection}>
-        <h5>Istoty rozumne</h5>
-        {sapients.length === 0 && <span className={styles.popupEmpty}>Nikt rozumny tu nie mieszka.</span>}
-        {sapients.map((e) => <Row key={e.id} e={e} onOpen={onOpenEntity} />)}
+        <h5>Stado</h5>
+        {herds.length === 0 && <span className={styles.popupEmpty}>Żadne stado tu nie pasie.</span>}
+        {herds.map((e) => <Row key={e.id} e={e} onOpen={onOpenEntity} extra={bottom.length > 0 || city ? 'udomowione' : undefined} />)}
       </div>
       <div className={styles.popupSection}>
-        <h5>Istoty</h5>
-        {creatures.length === 0 && <span className={styles.popupEmpty}>Pusto.</span>}
-        {creatures.map((e) => <Row key={e.id} e={e} onOpen={onOpenEntity} />)}
+        <h5>Bestia albo plemię</h5>
+        {bottom.length === 0 && <span className={styles.popupEmpty}>Pusto.</span>}
+        {bottom.map((e) => <Row key={e.id} e={e} onOpen={onOpenEntity} extra={world.roleOf(e) === 'beast' ? `bestia ${temperOf(e.strength)}, siła ${strengthLabel(e.strength)}` : city ? 'lud miasta' : 'plemię'} />)}
       </div>
       {avatars.length > 0 && (
         <div className={styles.popupSection}>

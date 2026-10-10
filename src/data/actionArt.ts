@@ -7,6 +7,8 @@ const ART_FILE: Partial<Record<ActionKey, string>> = {
   convert: 'create_orthodoxy',
   avatar_duel: 'avatar_fight',
   pilgrimage: 'command_avatar',
+  bless_land: 'create_faction',
+  pour_river: 'change_biome',
 }
 
 /** Painted plates for the words, in public/actions: 512px squares and 160px thumbnails. */

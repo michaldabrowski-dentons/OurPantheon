@@ -1,14 +1,14 @@
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
 import type {
-  ActionLog, ChaosDraw, City, CityFollower, CityGift, Contest, CreationOption, CreationVote, Entity, EntityGod, EntityLink, EraVote, Game,
-  Hex, HexOccupant, PaletteEntry, Player, Profile, Prophecy,
+  ActionLog, ChaosDraw, ChaosNight, City, CityFollower, CityGift, Contest, CreationOption, CreationVote, Entity, EntityGod, EntityLink, EraVote, Game,
+  Hex, HexOccupant, PaletteEntry, Player, Profile, Prophecy, River,
 } from '@/lib/types'
 
 export type RealtimeTable =
   | 'games' | 'players' | 'palette_entries' | 'entities' | 'entity_gods' | 'entity_links'
   | 'actions_log' | 'chaos_draws' | 'era_votes' | 'logos_rolls' | 'creation_options' | 'creation_votes'
-  | 'hexes' | 'hex_occupants' | 'cities' | 'city_followers' | 'city_gifts' | 'contests' | 'prophecies'
+  | 'hexes' | 'hex_occupants' | 'cities' | 'city_followers' | 'city_gifts' | 'contests' | 'prophecies' | 'rivers' | 'chaos_nights'
 
 interface GameState {
   gameId: string | null
@@ -31,6 +31,9 @@ interface GameState {
   gifts: CityGift[]
   contests: Contest[]
   prophecies: Prophecy[]
+  rivers: River[]
+  /** the night of Chaos being played (or the last one played) */
+  night: ChaosNight | null
   loading: boolean
   error: string | null
   connected: boolean
@@ -62,6 +65,8 @@ const empty = {
   gifts: [],
   contests: [],
   prophecies: [],
+  rivers: [],
+  night: null,
   loading: false,
   error: null,
   connected: false,
@@ -94,14 +99,14 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   async load(gameId) {
     set({ loading: true, error: null, gameId })
-    const [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes, hexes, occupants, cities, followers, gifts, contests, prophecies] = await Promise.all([
+    const [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes, hexes, occupants, cities, followers, gifts, contests, prophecies, rivers, nights] = await Promise.all([
       supabase.from('games').select('*').eq('id', gameId).single(),
       supabase.from('players').select('*').eq('game_id', gameId).order('seat_order'),
       supabase.from('palette_entries').select('*').eq('game_id', gameId).order('created_at'),
       supabase.from('entities').select('*').eq('game_id', gameId).order('created_at'),
       supabase.from('entity_gods').select('*').eq('game_id', gameId),
       supabase.from('entity_links').select('*').eq('game_id', gameId),
-      supabase.from('actions_log').select('*').eq('game_id', gameId).order('created_at').limit(500),
+      supabase.from('actions_log').select('*').eq('game_id', gameId).order('created_at').limit(1500),
       supabase.from('chaos_draws').select('*').eq('game_id', gameId).order('round_number'),
       supabase.from('era_votes').select('*').eq('game_id', gameId),
       supabase.from('creation_options').select('*').eq('game_id', gameId).order('created_at'),
@@ -113,8 +118,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       supabase.from('city_gifts').select('*').eq('game_id', gameId).order('created_at'),
       supabase.from('contests').select('*').eq('game_id', gameId).order('created_at'),
       supabase.from('prophecies').select('*').eq('game_id', gameId).order('created_at'),
+      supabase.from('rivers').select('*').eq('game_id', gameId).order('created_at'),
+      supabase.from('chaos_nights').select('*').eq('game_id', gameId),
     ])
-    const firstError = [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes, hexes, occupants, cities, followers, gifts, contests, prophecies].find((r) => r.error)?.error
+    const firstError = [game, players, palette, entities, gods, links, log, chaos, votes, cOptions, cVotes, hexes, occupants, cities, followers, gifts, contests, prophecies, rivers, nights].find((r) => r.error)?.error
     if (firstError) {
       set({ loading: false, error: firstError.message })
       return
@@ -148,6 +155,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       gifts: (gifts.data ?? []) as CityGift[],
       contests: (contests.data ?? []) as Contest[],
       prophecies: (prophecies.data ?? []) as Prophecy[],
+      rivers: (rivers.data ?? []) as River[],
+      night: ((nights.data ?? []) as ChaosNight[])[0] ?? null,
     })
   },
 
@@ -257,6 +266,17 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ prophecies })
         break
       }
+      case 'rivers': {
+        const r = (isDelete ? old : row) as River
+        const rivers = isDelete ? remove(s.rivers, r, byId) : upsert(s.rivers, r, byId)
+        rivers.sort((a, b) => a.created_at.localeCompare(b.created_at))
+        set({ rivers })
+        break
+      }
+      case 'chaos_nights': {
+        set({ night: isDelete ? null : (row as ChaosNight) })
+        break
+      }
       default:
         break
     }
@@ -307,6 +327,9 @@ export const selectEntitiesOf = (playerId: string) => (s: GameState): { entity: 
 
 /** a god's prophecies, the living ones first */
 export const selectPropheciesOf = (playerId: string | undefined) => (s: GameState) => s.prophecies.filter((p) => p.player_id === playerId)
+
+/** the night of this round, while it is being played */
+export const selectNight = (s: GameState) => (s.night && s.night.round_number === s.game?.round_number && s.night.status !== 'done' ? s.night : null)
 
 /** the contest still waiting for its defender, if any */
 export const selectPendingContest = (s: GameState) => s.contests.find((c) => c.status === 'pending') ?? null

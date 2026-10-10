@@ -1,26 +1,45 @@
 // A read-only view of the map and the cities, built from the store's rows. Everything the map, the
 // action dialog and the requirements of actions ask about the world goes through it.
-import type { City, CityFollower, CityGift, Entity, Hex, HexOccupant, HexRef, Player } from '@/lib/types'
-import { hexKey, inMap } from '@/lib/hex'
+import type { City, CityFollower, CityGift, Entity, Hex, HexOccupant, HexRef, OccupantRole, Player, River } from '@/lib/types'
+import { hexKey, inMap, neighbours } from '@/lib/hex'
 import { BIOME_BY_KEY } from '@/data/biomes'
 import { SAPIENT_TRAITS } from '@/data/traits'
+import { FERTILITY_BASE } from '@/data/fertility'
 
 export interface WorldView {
   hexes: Hex[]
   entities: Entity[]
+  rivers: River[]
   hexAt: (q: number, r: number) => Hex | undefined
   blocked: (q: number, r: number) => boolean
   occupantsAt: (q: number, r: number) => HexOccupant[]
   occupantsOf: (entityId: string) => HexOccupant[]
   entityById: (id: string | null | undefined) => Entity | undefined
   isSapient: (e: Entity | undefined) => boolean
-  freeSlot: (q: number, r: number) => number | null
+  /** what a thing is on the map: herd, beast, tribe or avatar */
+  roleOf: (e: Entity | undefined) => OccupantRole | null
+  /** the slot this kind of thing would take on the field, null when there is no room */
+  slotFor: (q: number, r: number, role: OccupantRole) => number | null
+  /** the herd standing on the field (top-left), if any */
+  herdAt: (q: number, r: number) => HexOccupant | undefined
+  /** the beast or tribe standing on the field (bottom), if any */
+  bottomAt: (q: number, r: number) => HexOccupant | undefined
+  avatarsAt: (q: number, r: number) => HexOccupant[]
+  /** the first river flowing through the field */
+  riverAt: (q: number, r: number) => River | undefined
+  /** żyzność of the field; null on water */
+  fertilityOf: (q: number, r: number) => number | null
+  resourceAt: (q: number, r: number) => string | null
   cityAt: (q: number, r: number) => City | undefined
   cityOf: (cityId: string) => City | undefined
   cities: City[]
   followersOf: (cityId: string) => CityFollower[]
   dotsOf: (cityId: string, playerId: string) => number
+  /** the whole population: believers and the godless */
   cityDots: (cityId: string) => number
+  /** believers only */
+  cityBelievers: (cityId: string) => number
+  atheistsOf: (cityId: string) => number
   /** the god with the most dots; null when nobody or when the top is shared */
   majorityOf: (cityId: string) => string | null
   /** true when the god has strictly more dots than anyone else there */
@@ -36,6 +55,15 @@ export function isSapientEntity(e: Entity | undefined): boolean {
   return !!e && e.kind === 'creature' && e.traits.some((t) => SAPIENT_TRAITS.includes(t))
 }
 
+export function roleOfEntity(e: Entity | undefined): OccupantRole | null {
+  if (!e) return null
+  if (e.kind === 'avatar') return 'avatar'
+  if (e.kind !== 'creature') return null
+  if (isSapientEntity(e)) return 'tribe'
+  if (e.diet === 'carnivore') return 'beast'
+  return 'herbivore'
+}
+
 export function buildWorld(input: {
   hexes: Hex[]
   occupants: HexOccupant[]
@@ -44,7 +72,9 @@ export function buildWorld(input: {
   gifts: CityGift[]
   entities: Entity[]
   entityGods: { entity_id: string; player_id: string }[]
+  rivers?: River[]
 }): WorldView {
+  const rivers = input.rivers ?? []
   const hexMap = new Map<string, Hex>()
   for (const h of input.hexes) hexMap.set(hexKey(h.q, h.r), h)
   const entMap = new Map<string, Entity>()
@@ -72,15 +102,25 @@ export function buildWorld(input: {
   for (const g of input.gifts) giftsByCity.set(g.city_id, [...(giftsByCity.get(g.city_id) ?? []), g])
   const used = new Set<string>()
   for (const e of input.entities) if (e.emoji) used.add(e.emoji)
+  const riverByHex = new Map<string, River>()
+  for (const rv of rivers) for (const n of rv.path) if (!riverByHex.has(hexKey(n.q, n.r))) riverByHex.set(hexKey(n.q, n.r), rv)
 
   const hexAt = (q: number, r: number) => hexMap.get(hexKey(q, r))
   const occupantsAt = (q: number, r: number) => occByHex.get(hexKey(q, r)) ?? []
   const followersOf = (cityId: string) => folByCity.get(cityId) ?? []
-  const cityDots = (cityId: string) => followersOf(cityId).reduce((n, f) => n + f.dots, 0)
+  const atheistsOf = (cityId: string) => cityById.get(cityId)?.atheists ?? 0
+  const cityBelievers = (cityId: string) => followersOf(cityId).reduce((n, f) => n + f.dots, 0)
+  const cityDots = (cityId: string) => cityBelievers(cityId) + atheistsOf(cityId)
+  const entityById = (id: string | null | undefined) => (id ? entMap.get(id) : undefined)
+  const roleOf = (e: Entity | undefined) => roleOfEntity(e)
+  const herdAt = (q: number, r: number) => occupantsAt(q, r).find((o) => o.slot === 0)
+  const bottomAt = (q: number, r: number) => occupantsAt(q, r).find((o) => o.slot === 1)
+  const riverAt = (q: number, r: number) => riverByHex.get(hexKey(q, r))
 
   return {
     hexes: input.hexes,
     entities: input.entities,
+    rivers,
     hexAt,
     blocked: (q, r) => {
       const h = hexAt(q, r)
@@ -88,20 +128,44 @@ export function buildWorld(input: {
     },
     occupantsAt,
     occupantsOf: (entityId) => occByEntity.get(entityId) ?? [],
-    entityById: (id) => (id ? entMap.get(id) : undefined),
+    entityById,
     isSapient: isSapientEntity,
-    freeSlot: (q, r) => {
+    roleOf,
+    slotFor: (q, r, role) => {
       if (!inMap(q, r)) return null
       const taken = new Set(occupantsAt(q, r).map((o) => o.slot))
-      for (const s of [0, 1, 2]) if (!taken.has(s as 0 | 1 | 2)) return s
+      if (role === 'herbivore') return taken.has(0) ? null : 0
+      if (role === 'beast' || role === 'tribe') return taken.has(1) ? null : 1
+      if (!taken.has(2)) return 2
+      if (!taken.has(3)) return 3
       return null
     },
+    herdAt,
+    bottomAt,
+    avatarsAt: (q, r) => occupantsAt(q, r).filter((o) => o.slot >= 2),
+    riverAt,
+    fertilityOf: (q, r) => {
+      const h = hexAt(q, r)
+      if (!h) return null
+      const base = FERTILITY_BASE[h.biome]
+      if (base === null || base === undefined) return null
+      let f = base
+      if (neighbours({ q, r }).some((n) => hexAt(n.q, n.r)?.biome === 'woda')) f += 1
+      if (riverAt(q, r)) f += h.biome === 'pustynia' ? 3 : 1
+      const herd = herdAt(q, r)
+      if (herd && roleOf(entityById(herd.entity_id)) === 'herbivore') f += 1
+      if (h.resource) f += 1
+      return f
+    },
+    resourceAt: (q, r) => hexAt(q, r)?.resource ?? null,
     cityAt: (q, r) => cityByHex.get(hexKey(q, r)),
     cityOf: (cityId) => cityById.get(cityId),
     cities: input.cities.filter((c) => cityById.has(c.entity_id)),
     followersOf,
     dotsOf: (cityId, playerId) => followersOf(cityId).find((f) => f.player_id === playerId)?.dots ?? 0,
     cityDots,
+    cityBelievers,
+    atheistsOf,
     majorityOf: (cityId) => {
       const list = followersOf(cityId)
       if (list.length === 0) return null
@@ -137,6 +201,6 @@ export interface MapPick extends HexRef {
 }
 
 /** an empty world for places that render before the map loads */
-export const EMPTY_WORLD: WorldView = buildWorld({ hexes: [], occupants: [], cities: [], followers: [], gifts: [], entities: [], entityGods: [] })
+export const EMPTY_WORLD: WorldView = buildWorld({ hexes: [], occupants: [], cities: [], followers: [], gifts: [], entities: [], entityGods: [], rivers: [] })
 
 export type PlayerRef = Pick<Player, 'id'>

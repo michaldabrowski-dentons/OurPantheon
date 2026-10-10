@@ -115,6 +115,10 @@ export interface Entity {
   hp: number | null
   /** avatars: the life it returns to (grows by one with every incarnation) */
   max_hp: number | null
+  /** creatures: a herd (herbivore) or a beast (carnivore); null for old rows, sapients and avatars */
+  diet: 'herbivore' | 'carnivore' | null
+  /** beasts: -1 potulne .. +3 niszczycielskie, rolled on 2k6 + Gniew when created */
+  strength: number
   created_at: string
   updated_at: string
 }
@@ -135,19 +139,42 @@ export interface Hex {
   r: number
   biome: BiomeKey
   decor: HexDecor[]
+  /** the one resource a god blessed this land with (an emoji from RESOURCES), top-right corner */
+  resource: string | null
 }
 
-/** a creature, sapient species or avatar standing in one of the three corner slots of a field */
+/** a river: its channel from the mountain source through land fields, and how it ends */
+export interface River {
+  id: string
+  game_id: string
+  /** the source first; land fields only (the water mouth is not part of it) */
+  path: HexRef[]
+  /** water: ends at the edge of mouth_q/r; river: the last node is shared with another river; none: cut, open */
+  mouth_kind: 'water' | 'river' | 'none'
+  mouth_q: number | null
+  mouth_r: number | null
+  into_river_id: string | null
+  /** the god who may lead an open river on right now (a mountain cut it in their word) */
+  reroute_by: string | null
+  created_round: number
+  created_by_player_id: string | null
+  created_at: string
+}
+
+/** a creature, sapient species or avatar standing in one of the role slots of a field */
 export interface HexOccupant {
   id: string
   game_id: string
   q: number
   r: number
-  /** 0 top-left, 1 top-right, 2 bottom */
-  slot: 0 | 1 | 2
+  /** 0 herd (top-left), 1 beast or tribe (bottom), 2 avatar (bottom-left), 3 avatar (bottom-right) */
+  slot: 0 | 1 | 2 | 3
   entity_id: string
   created_at: string
 }
+
+/** what a thing on the map is */
+export type OccupantRole = 'herbivore' | 'beast' | 'tribe' | 'avatar'
 
 /** a civilization's place on the map: one city per field */
 export interface City {
@@ -155,6 +182,70 @@ export interface City {
   game_id: string
   q: number
   r: number
+  /** groups of people without a god (grey in the pyramid); they count as population, never as believers */
+  atheists: number
+}
+
+/** one unit of the night of Chaos: a thing on the map or a city */
+export interface NightUnit {
+  t: 'herbivore' | 'beast' | 'tribe' | 'city'
+  id: string
+}
+
+/** a side of a night fight as the window shows it */
+export interface NightSide {
+  label: string
+  emoji: string | null
+  entity_id: string | null
+  occupant_id?: string | null
+  clone_of?: string | null
+  city_id?: string | null
+  avatar_id?: string | null
+  player_id: string | null
+  mod: number
+  roll: { d1: number; d2: number; total: number; by?: string } | null
+}
+
+export type NightScene = 'creature' | 'beast_city' | 'beast_avatar' | 'exodus_beast' | 'exodus_city'
+
+export interface NightFight {
+  kind: 'fight'
+  since: string
+  scene: NightScene
+  log_id: string | null
+  left: NightSide
+  right: NightSide
+  at: HexRef
+  origin: HexRef
+  groups?: { player_id: string | null; n: number }[]
+  source_city_id?: string | null
+  species_id?: string | null
+  namer_id?: string | null
+}
+
+export interface NightNaming {
+  kind: 'naming'
+  since: string
+  city_id: string
+  namer_id: string | null
+  log_id: string | null
+  placeholder: string
+  q: number
+  r: number
+}
+
+export type NightPending = NightFight | NightNaming
+
+/** the night of Chaos as the server plays it, one unit at a time */
+export interface ChaosNight {
+  game_id: string
+  round_number: number
+  status: 'running' | 'fight' | 'naming' | 'done'
+  queue: NightUnit[]
+  cursor: number
+  pending: NightPending | null
+  started_by: string | null
+  updated_at: string
 }
 
 /** a god's followers in a city: the dots of the pyramid */
@@ -264,6 +355,8 @@ export interface DiceRoll {
   def?: SideRoll
   bonus_streak?: number
   bonus_orthodoxy?: number
+  /** a single die (the night of Chaos) */
+  kind?: 'd6'
   category?: string
   entry?: number
   /** which chaos card of the round (chaos_reveal rows) */
@@ -350,6 +443,8 @@ export interface EntityPayload {
   is_chaos?: boolean
   co_god_ids?: string[]
   species_ids?: string[]
+  /** create_creature: a herd or a beast */
+  diet?: 'herbivore' | 'carnivore'
 }
 
 export interface HexRef {
@@ -397,4 +492,9 @@ export interface ActionPayload {
   text?: string
   /** a prophecy spent on this roll */
   prophecy_id?: string
+  /** bless_land */
+  resource?: string
+  /** pour_river: the channel from the source, and the water it ends in (null when it joins a river) */
+  path?: HexRef[]
+  mouth?: HexRef | null
 }

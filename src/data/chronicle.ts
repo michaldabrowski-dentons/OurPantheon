@@ -8,6 +8,7 @@ import { ACTION_BY_KEY, ERA_NAMES, type ActionKey, type Era } from './actions'
 import { CHAOS_BY_KEY, QUESTION_LEADS, type ChaosCategoryKey } from './chaosTables'
 import { BIOME_ACC, BIOME_BY_KEY, BIOME_GEN, BIOME_LOC } from './biomes'
 import { followersInWords } from './cities'
+import { RESOURCE_ACC, temperOf } from './fertility'
 
 export interface GodRef {
   name: string
@@ -148,6 +149,16 @@ const OPENERS: Record<ActionKey, Opener[]> = {
     (G, p) => `Stało się to, czego nikt nie śmiał wypowiedzieć: ${G} ${p('uczyni')} Wielki Cud.`,
     (G, p) => `I ${p('wypowiedzia')} ${G} Słowo, jakiego świat nie słyszał, i ${p('uczyni')} Wielki Cud.`,
   ],
+  bless_land: [
+    (G, p) => `I ${p('pobłogosławi')} ${G} ziemię.`,
+    (G, p) => `${cap(p('pochyli'))} się ${G} nad polem i ${p('pobłogosławi')} je.`,
+    (G, p) => `${cap(p('rzek'))} ${G}: niech ta ziemia rodzi. I rodziła.`,
+  ],
+  pour_river: [
+    (G, p) => `I ${p('wyla')} ${G} rzekę z gór.`,
+    (G, p) => `${cap(p('uderzy'))} ${G} w górę, i wytrysnęła z niej rzeka.`,
+    (G, p) => `${cap(p('rzek'))} ${G}: niech płynie woda. I popłynęła rzeka.`,
+  ],
   create_creature: [
     (G, p, n) => `I ${p('stworzy')} ${G} istoty, i ${p('nazwa')} je ${n}.`,
     (G, p, n) => `${cap(p('rzek'))} ${G}: niech powstaną ${n}. I powstały.`,
@@ -258,6 +269,29 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
             : `I utrwaliła się ${to} na tych ziemiach.`,
         )
       }
+      const cuts = (Array.isArray(o.rivers_cut) ? o.rivers_cut : []) as O[]
+      if (cuts.some((c) => str(c, 'kind') === 'water' || str(c, 'kind') === 'drowned')) parts.push('I pochłonęła woda rzekę, która tamtędy płynęła.')
+      if (cuts.some((c) => str(c, 'kind') === 'mountain')) {
+        const rr = o.rerouted && typeof o.rerouted === 'object' ? (o.rerouted as O) : null
+        parts.push(rr ? (str(rr, 'mouth_kind') === 'river' ? 'Góra przecięła rzekę, a ta znalazła nowe koryto i wpadła do innej rzeki.' : 'Góra przecięła rzekę, a ta znalazła nowe koryto aż do morza.') : 'Góra przecięła rzekę, i urwała się ona u jej stóp.')
+      }
+      if (cuts.some((c) => str(c, 'kind') === 'dry')) parts.push('A ujście rzeki wyschło, bo nie było już tam wody.')
+      break
+    }
+    case 'bless_land': {
+      const res = str(o, 'resource')
+      const loc = biomeLoc(str(o, 'biome'))
+      parts.push(pick(id + 'o', [`I zrodziła ta ziemia${loc ? `, ${loc},` : ''} ${RESOURCE_ACC[res] ?? 'dary'}.`, `I było odtąd ${loc ? `${loc} ` : ''}${RESOURCE_ACC[res] ?? 'dobro'}, i ziemia stała się żyźniejsza.`]))
+      break
+    }
+    case 'pour_river': {
+      const biomes = (Array.isArray(o.biomes) ? o.biomes : []) as string[]
+      const through = Array.from(new Set(biomes.slice(1))).map((b) => BIOME_ACC[b as BiomeKey] ?? b)
+      const len = num(o, 'length')
+      const kind = str(o, 'mouth_kind')
+      const end = kind === 'river' ? 'aż złączyła się z inną rzeką' : 'aż wpadła do morza'
+      parts.push(through.length ? `Płynęła ${journeyWord(len)}, przez ${joinAnd(through)}, ${end}.` : `Płynęła ${journeyWord(len)}, ${end}.`)
+      if (biomes.some((b) => b === 'pustynia')) parts.push('A pustynia przy jej brzegach rozkwitła.')
       break
     }
     case 'catastrophe': {
@@ -294,6 +328,10 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
     case 'create_avatar': {
       const loc = biomeLoc(str(o, 'biome'))
       if (loc) parts.push(l.action_key === 'create_avatar' ? `I stanął awatar ${loc}.` : pick(id + 'o', [`Zamieszkały ${loc}.`, `A dom ich był ${loc}.`]))
+      if (l.action_key === 'create_creature') {
+        if (str(o, 'role') === 'beast') parts.push(pick(id + 'b', [`Były to bestie ${temperOf(num(o, 'strength'))}, i polowały.`, `A były ${temperOf(num(o, 'strength'))} i głodne, i nikt nie był przy nich bezpieczny.`]))
+        else if (str(o, 'role') === 'herbivore') parts.push(pick(id + 'b', ['Były to stada łagodne, i pasły się.', 'A pasły się spokojnie, i ziemia była przy nich żyźniejsza.']))
+      }
       break
     }
     case 'change_creature': {
@@ -321,6 +359,7 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       else if (gained === 1) parts.push(pick(id + 'o', ['Przyjęli go, i urosło miasto.', 'I przyjął lud ten dar, i przybyło wyznawców.']))
       else parts.push(pick(id + 'o', ['Lecz nie przyjęli daru, i nic się nie zmieniło.', `Odwrócili się jednak od daru, i ${G} ${p('odesz')} z niczym.`]))
       if (gained > added) parts.push('Miasto było już pełne i nie pomieściło wszystkich.')
+      if (num(o, 'converted_atheists') > 0) parts.push(num(o, 'converted_atheists') === 1 ? 'Pierwszy uwierzył ten, który nie miał boga.' : 'Pierwsi uwierzyli ci, którzy nie mieli boga.')
       break
     }
     case 'exodus': {
@@ -337,8 +376,10 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
     case 'convert': {
       const def = ctx.god(str(o, 'defender_id')).name
       const k = num(o, 'converted')
+      const fromA = num(o, 'from_atheists')
       parts.push(`Byli to wyznawcy bóstwa ${def}.`)
       parts.push(k >= 2 ? `I zwróciło się ku ${G} dwóch z nich.` : k === 1 ? `I zwrócił się ku ${G} jeden z nich.` : 'Lecz nikt nie odstąpił od swego boga.')
+      if (fromA > 0) parts.push(fromA === 1 ? 'Jeden z nich nie miał dotąd boga.' : 'Ci nie mieli dotąd boga.')
       break
     }
     case 'holy_war': {
@@ -562,9 +603,98 @@ export function chronicleVerse(l: ActionLog, ctx: VerseContext): string {
     case 'chaos_notes':
     case 'entity_edit':
       return soften(sentence(l.summary), l.id)
+    case 'night_begin':
+    case 'night_move':
+    case 'night_fight':
+    case 'night_city':
+    case 'night_city_founded':
+      return ''
     default:
       return sentence(l.summary)
   }
+}
+
+const NIGHT_KEYS = new Set(['night_begin', 'night_move', 'night_fight', 'night_city', 'night_city_founded'])
+
+const thing = (o: O, emojiKey = 'emoji', nameKey = 'name') => `${str(o, emojiKey) ? `${str(o, emojiKey)} ` : ''}${str(o, nameKey)}`.trim()
+
+/**
+ * The night of Chaos as one verse: the world lived its own life. Only what mattered is told
+ * (births, fights, cities), the wanderings in one breath. No digits, no fields.
+ */
+export function nightVerse(rows: ActionLog[], ctx: VerseContext): string {
+  const first = rows[0]
+  if (!first) return ''
+  const parts: string[] = [pick(first.id, ['I zapadła noc, a świat żył własnym życiem.', 'Spały bóstwa, a pod gwiazdami świat szedł swoją drogą.', 'I przyszła noc, w której nikt nie rzekł Słowa, a jednak wiele się stało.'])]
+  const born: string[] = []
+  const wandered = new Set<string>()
+  const grew: string[] = []
+  const settled: string[] = []
+  for (const l of rows) {
+    const o = (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as O
+    switch (l.action_key) {
+      case 'night_move': {
+        const res = str(o, 'result')
+        const name = thing(o)
+        if (res === 'reproduce' || res === 'pack' || res === 'split') born.push(name)
+        else if (res === 'move' || res === 'move_best' || res === 'hunt') wandered.add(name)
+        break
+      }
+      case 'night_fight': {
+        const L = (o.left ?? {}) as O
+        const R = (o.right ?? {}) as O
+        const a = thing(L, 'emoji', 'label')
+        const d = thing(R, 'emoji', 'label')
+        const res = str(o, 'result')
+        const scene = str(o, 'scene')
+        if (scene === 'creature') {
+          if (res === 'eaten' && str(o, 'loser') === 'right') parts.push(`Rzuciły się ${a} na ${d} i ${o.extinct ? 'pożarły je do ostatniego' : 'pożarły je'}.`)
+          else if (res === 'eaten') parts.push(`Rzuciły się ${a} na ${d}, lecz ${d} ${o.extinct ? 'starły je z ziemi' : 'rozszarpały napastnika'}.`)
+          else if (res === 'flee' && str(o, 'loser') === 'right') parts.push(`Napadły ${a} na ${d}, a te uciekły na sąsiednie ziemie.`)
+          else if (res === 'flee' || res === 'fled_nowhere' || res === 'vanished') parts.push(`Napadły ${a} na ${d}, lecz zostały odparte i uciekły.`)
+          else parts.push(`Stanęły ${a} przeciw ${d}, i nikt nie ustąpił.`)
+        } else if (scene === 'beast_city') {
+          const lost = ((Array.isArray(o.city_lost) ? o.city_lost : []) as O[]).reduce((n, g) => n + num(g, 'n'), 0)
+          if (res === 'city_hit') parts.push(`Napadły ${a} na miasto ${d}, i ${lost === 1 ? 'zginął jeden z jego mieszkańców' : `zginęło ${followersInWords(lost)}`}.${o.city_destroyed ? ` I nie zostało z miasta ${d} nic prócz ruin.` : ''}`)
+          else if (res === 'return') parts.push(`Napadły ${a} na miasto ${d}, lecz mury wytrzymały.`)
+          else parts.push(`Napadły ${a} na miasto ${d}, lecz lud je odpędził${res === 'eaten' ? ' i wybił' : ''}.`)
+        } else if (scene === 'beast_avatar') {
+          if (res === 'avatar_hit') parts.push(`Napadły ${a} na awatara ${d} i ${num(o, 'avatar_hp') === 0 ? 'zabiły go' : 'raniły go'}.`)
+          else parts.push(`Napadły ${a} na awatara ${d}, lecz ten je odparł.`)
+        } else {
+          const n = ((Array.isArray(o.groups_settled) ? o.groups_settled : []) as O[]).reduce((k, g) => k + num(g, 'n'), 0)
+          const dead = ((Array.isArray(o.groups_dead) ? o.groups_dead : []) as O[]).reduce((k, g) => k + num(g, 'n'), 0)
+          if (res === 'founded') parts.push(`Wyszli ${a.toLowerCase()} przeciw ${d}, pokonali je${dead ? `, choć ${followersInWords(dead)} legło` : ''}, i osiedli na tej ziemi.`)
+          else if (res === 'joined') parts.push(`Wyszli ${a.toLowerCase()} na miasto ${d} i zdobyli je${dead ? `, choć ${followersInWords(dead)} legło` : ''}; ${n === 1 ? 'jeden' : followersInWords(n).split(' ')[0]} zamieszkał w nim.`)
+          else if (res === 'returned') parts.push(`Wyszli ${a.toLowerCase()} na ${d}, lecz wrócili do domu${dead ? ` bez ${followersInWords(dead)}` : ''}.`)
+          else parts.push(`Wyszli ${a.toLowerCase()} na ${d}, i nikt z nich nie wrócił.`)
+        }
+        break
+      }
+      case 'night_city': {
+        const res = str(o, 'result')
+        const name = str(o, 'name')
+        if (res === 'grow') grew.push(name)
+        else if (res === 'exodus' && str(o, 'target_kind') === 'found') {
+          const n = ((Array.isArray(o.groups) ? o.groups : []) as O[]).reduce((k, g) => k + num(g, 'n'), 0)
+          const newName = ctx.entity(str(o, 'new_city_id'))?.name ?? 'bez imienia'
+          parts.push(`Zabrakło chleba w mieście ${name}: ${followersInWords(n)} ${n === 1 ? 'wyszedł' : 'wyszło'} w drogę i ${n === 1 ? 'założył' : 'założyło'} miasto ${newName}.${o.source_destroyed ? ` A ${name} opustoszało.` : ''}`)
+        } else if (res === 'stay' && num(o, 'overflow') > 0) parts.push(`Głód zajrzał do miasta ${name}, lecz nie było dokąd pójść.`)
+        break
+      }
+      case 'night_city_founded': {
+        if (str(o, 'by') === 'tribe') settled.push(`${thing(o, 'emoji', 'species_name')} osiadły i założyły miasto ${ctx.entity(str(o, 'city_id'))?.name ?? str(o, 'name')}`)
+        break
+      }
+      default:
+        break
+    }
+  }
+  if (born.length) parts.push(`Rozmnożyły się ${joinAnd(Array.from(new Set(born)))}.`)
+  if (settled.length) parts.push(`A ${joinAnd(settled)}.`)
+  if (grew.length) parts.push(`Rosły miasta: ${joinAnd(Array.from(new Set(grew)))}.`)
+  if (wandered.size) parts.push(pick(first.id + 'w', [`A ${joinAnd(Array.from(wandered))} wędrowały po ziemi.`, `Stada i bestie szły za trawą i za krwią: ${joinAnd(Array.from(wandered))}.`]))
+  return parts.join(' ')
 }
 
 /** The verse the window shows at its end, for the player to keep or rewrite: the row with no summary yet. */
@@ -602,11 +732,15 @@ export function buildChapters(log: ActionLog[], ctx: VerseContext): Chapter[] {
   let openTurn: { verse: Verse; playerId: string | null } | null = null
   // the dice are thrown before the deed: a fate line waits for the action of the same god
   let pendingFate: { text: string; playerId: string | null } | null = null
+  // the night is told as one verse once all its rows are in
+  let nightRows: ActionLog[] = []
+  let nightVerseRef: Verse | null = null
 
   for (const l of log) {
     if (l.action_key === 'prologue') continue
-    const text = chronicleVerse(l, ctx)
-    if (!text) continue
+    const isNight = NIGHT_KEYS.has(l.action_key)
+    const text = isNight ? '' : chronicleVerse(l, ctx)
+    if (!text && !isNight) continue
 
     let ch = chapters[chapters.length - 1]
     if (!ch || ch.round !== l.round_number || ch.era !== l.era) {
@@ -615,6 +749,20 @@ export function buildChapters(log: ActionLog[], ctx: VerseContext): Chapter[] {
       chaosVerse = null
       openTurn = null
       pendingFate = null
+      nightRows = []
+      nightVerseRef = null
+    }
+
+    if (isNight) {
+      nightRows.push(l)
+      if (!nightVerseRef) {
+        nightVerseRef = { id: l.id, text: '' }
+        ch.verses.push(nightVerseRef)
+      }
+      nightVerseRef.text = nightVerse(nightRows, ctx)
+      openTurn = null
+      pendingFate = null
+      continue
     }
 
     if (CHAOS_KEYS.has(l.action_key)) {

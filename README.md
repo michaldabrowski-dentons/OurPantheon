@@ -21,7 +21,8 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
    `0001_schema.sql`, `0002_rls.sql`, `0003_functions.sql`, `0004_realtime.sql`, `0005_world_creation.sql`,
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
    `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`, `0017_prices_and_ruins.sql`,
-   `0018_verse_lock_avatars_prophecies.sql`, `0019_afterlife_avatar_hand.sql`.
+   `0018_verse_lock_avatars_prophecies.sql`, `0019_afterlife_avatar_hand.sql`, `0020_fertility_rivers_resources.sql`,
+   `0021_chaos_night.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -83,16 +84,31 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   wybór biomu). Bez emotikon, bez szwów, bez linii brzegu. Znaki istot i piramidy wyznawców leżą na ciemnych
   płytkach z cieniem, pod miastem stoi jego nazwa. Mapa przewija się, gdy nie mieści się w oknie; przybliżenie
   przyciskami w rogu albo Ctrl i kółkiem myszy.
-- Woda i Góry są zablokowane: nie powstanie tam miasto, nie dojdzie Exodus, nie stanie awatar ani istota
-  (także przez Migrację).
-- Każde pole ma trzy miejsca w rogach (`hex_occupants`): istoty, istoty rozumne i awatary stoją tam jako
-  emotikony (`entities.emoji`, unikalne w grze; pule w `src/data/emoji.ts`). Awatar ma 3 punkty życia
+- Woda i Góry są zablokowane dla miast, plemion i awatarów (także przez Exodus i Migrację). Stada i bestie
+  żyją też w górach, lecz nigdy na wodzie.
+- Żyzność (0020): każdy ląd ma liczbę u góry heksa (`hex_fertility`, lustro w `world.fertilityOf`). Baza
+  biomu: trawa 2, puszcza 2, góry 1, dżungla 1, bagno 1, pustynia, śnieg, ugór, góry pustynne i śnieżne 0,
+  woda nic. Do tego +1 za sąsiednią wodę, +1 za rzekę (na pustyni +3: Nil), +1 za stado na polu, +1 za
+  surowiec. Bez przycinania.
+- Rzeki (`rivers`): koryto to lista pól od góry źródłowej przez lądy; ujście to krawędź pola wody
+  (`mouth_kind` water), pole wspólne z inną rzeką (river) albo nic (none: rzeka urwana). Rysowane jako lekko
+  falowana ścieżka przez środki pól (`RiverLayer` w `HexMap.tsx`). Woda postawiona na korycie czyni z tego
+  pola ujście, góra przecina rzekę, a ten, kto ją wypiętrzył, od razu wyklikuje nowe koryto (`continue_river`,
+  bez dopłaty, w tym samym słowie); gdy przerwie, rzeka zostaje urwana i dalej karmi swoje pola.
+- Surowiec (`hexes.resource`): jedna emotikona z listy 💎 🌾 🪵 ⚙️ 🍇 🍋 🌽 🏺 🪙 🪨 🥔 w prawym górnym rogu
+  heksa, na zawsze; pole zalane wodą traci surowiec.
+- Miejsca na polu mają role (`hex_occupants.slot`): 0 stado (lewy górny róg), 1 bestia albo plemię (dół),
+  2 i 3 awatary (dolne rogi); jedno stado, jedna bestia lub plemię, dwa awatary na pole. Istoty
+  (`entities.diet` herbivore/carnivore, `entities.strength` −1..+3) stoją tam jako emotikony (`entities.emoji`,
+  unikalne w grze; pule w `src/data/emoji.ts`); bestia nosi plakietkę siły. Awatar ma punkty życia
   (`entities.hp`). Każde bóstwo wybiera w przedsionku jeden z trzech odcieni swojej domeny
   (`players.god_color`, `DOMAIN_COLOR_OPTIONS`); w tekstach gry wyznawcy to zawsze „wyznawcy”, nigdy kropki.
 - Miasto (`cities`, jedno na pole) leży na środku jako piramida kropek; każda kropka to wyznawca jednego
   bóstwa (`city_followers`), w kolorze jego domeny (`DOMAIN_COLORS` w `src/data/pantheon.ts`). Poziom miasta
   to liczba kropek (1 Koczowisko … 10 Wielkie imperium, `src/data/cities.ts`); dziesięć to sufit. Miasto bez
-  kropek obraca się w ruinę (`destroy_city_if_empty`). Rządzi nim bóstwo z największą liczbą kropek.
+  kropek obraca się w ruinę (`destroy_city_if_empty`). Rządzi nim bóstwo z największą liczbą kropek. Bezbożni
+  (`cities.atheists`, szare kropki) liczą się do ludności, lecz nie do wyznawców ani do władcy; Nawracanie
+  i Rozwój biorą ich najpierw, a gdy giną, nikt ich nie opłakuje.
 - Mysz słyszą tylko wielokąty pól; emotikony i kropki mają `pointer-events: none`. Klik poza akcją otwiera
   kartę pola przy myszce, jedną płaską płytę: tytułem jest nazwa miasta (albo biom), pod nim poziom, dostępność,
   wyznawcy z portretem rządzącego, dary, opis, istoty rozumne, istoty, awatary. W trakcie akcji dozwolone pola
@@ -112,14 +128,21 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 ## Słowa na mapie
 
 - Kształtowanie Lądów: biom, potem do trzech sąsiadujących pól (trzeci klik kończy sam). Pola z miastem lub
-  awatarem nie staną się Wodą ani Górami.
+  awatarem nie staną się Wodą ani Górami. Góra na rzece otwiera od razu krok „Nowe koryto”.
+- Pobłogosław ziemię (4 / 7 / 10): surowiec z listy, potem ląd bez surowca (góry też, woda nie); Żyzność +1.
+- Wylej Rzekę (3 / 8 / 12, cena stała): klik w górę to źródło, potem kolejne sąsiednie pola (tryb mapy
+  `river`: klik w ostatnie pole cofa je, woda albo cudza rzeka kończy); gdy nie ma dokąd płynąć, karta mapy
+  każe przerwać. Przez awatara liczy się zasięg do źródła.
 - Kataklizm (domyślnie deszcz ognia): rodzaj, pole i co zostanie po zniszczeniu (bez zmian, pustynia, ugór,
   woda); obrażenia to połowa (w dół) z 2k6 + Gniew, najmniej 1, każde losowo w wyznawcę miasta, istotę
   nierozumną albo awatara (−1 życia); istoty rozumne giną dopiero bez miasta. Biom zmienia się tylko wtedy,
   gdy na polu nikt nie przeżył (`outcome.biome_after`). Najpierw
   toczy się kość w oknie, potem na polu spada ogień (błysk, komety, pierścienie), a okno akcji wraca dopiero po
   animacji z listą strat. Zniszczone miasto zostawia na polu czaszkę (`entities.attributes.ruin`).
-- Stworzenie Istoty / Istoty Rozumnej / Zesłanie Awatara: nazwa i emotikona, potem ląd z wolnym miejscem.
+- Stworzenie Istoty: nazwa, emotikona i wybór stado / bestia; bestii księga rzuca siłę 2k6 + Gniew
+  (6-: −1 potulne, 7..8: 0 dzikie, 9..10: +1 niebezpieczne, 11..12: +2 krwiożercze, 13+: +3 niszczycielskie)
+  w oknie kości, potem ląd z wolnym miejscem jej roli. Istota Rozumna i Zesłanie Awatara: nazwa i emotikona,
+  potem ląd (nie woda, nie góry) z wolnym miejscem.
 - Zmiana Istoty: klik w jedną istotę na jednym polu; tam powstaje odmiana (nowy byt, `variant_of`).
 - Migracja (3 / 1 / 3 plus 1 za heks): istota, potem pole docelowe; gatunek mnoży się na nowe pole.
 - Stworzenie Cywilizacji: pole z istotą rozumną i nazwa; miasto rodzi się z jedną kropką twórcy.
@@ -176,8 +199,31 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   2k6 + Gniew = 9 | Obrońca: 2k6 + Łaska = 7”) z przyciskiem „Kontynuuj” / „Zobacz wynik”; okna z wynikiem
   i decyzjami (werset, podział sukcesów, obrona) pokazują się dopiero po tym kliknięciu (`diceGate.ts`). Wersety nie znają słów „heks” ani „pole”
   ani cyfr: mówią o ziemiach i krainach, liczby piszą słowami. Frakcje i religie zniknęły z gry.
-- Faza Chaosu: kartę odwraca, losuje ponownie i zamyka rundę bez wyboru tylko gospodarz; po wyborze
-  zdarzenia rundę może zamknąć każdy.
+- Faza Chaosu: kartę odwraca i losuje ponownie tylko gospodarz. Po karcie gospodarz klika „Rozpocznij noc”
+  (`start_chaos_night`) albo „Pomiń noc i zakończ rundę” (`chaos_skip`).
+- Noc Chaosu (0021, tabela `chaos_nights`): serwer rozgrywa jedną jednostkę na wywołanie `chaos_step`
+  (gospodarz woła co ~1,5 s; po 20 s ciszy każdy może „Poprowadzić noc”), wszyscy patrzą na mapę (panel
+  `NightPanel` w prawym dolnym rogu, pierścień wokół tego, kto się rusza, miecze tam, gdzie czeka walka).
+  Kolejność: stada, bestie, plemiona, miasta (w grupie losowo), potem leczenie awatarów, proroctwa, ranking
+  wyznawców (+3/+2/+1 Logos) i koniec rundy; stary wzrost „+1 dla władcy” zniknął.
+  Stado k6: 1-2 stoi, 3 losowy sąsiad, 4-5 najżyźniejszy sąsiad bez stada, 6 nowa sztuka na najlepszym
+  sąsiedzie; przy plemieniu lub w mieście jest udomowione (nie rusza się, na 6 nadal się mnoży). Bestia k6:
+  1-2 stoi, 3 losowy sąsiad, 4-5 atak na sąsiednie słabsze miasto (siła > ludność) lub awatara (siła > życia),
+  inaczej krok ku najbliższemu stadu, 6 klon, który od razu robi krok polowania; bestia omija miasta, których
+  nie może zaatakować, a stada nie tyka. Plemię (lud bez miasta) k6: 1-2 obóz, 3 losowy sąsiad, 4-5
+  najżyźniejszy sąsiad, 6 na ziemi o Żyzności ≥ 1 zakłada miasto (1 bezbożny; nazwę nadaje jego bóstwo,
+  gospodarz za nieobecnych, po minucie każdy), inaczej dzieli się. Walka (bestia wchodzi na pole z bestią lub
+  plemieniem, bestia napada na miasto lub awatara, osadnicy na bestię lub miasto): obie strony 2k6 + siła
+  (plemię 0, miasto ludność, awatar życia, osadnicy liczba); klikają bogowie obu stron (lewa napastnik, prawa
+  obrońca, `chaos_fight_roll`; gospodarz za nieobecnych, po minucie każdy). Różnica 3+: przegrany zjedzony
+  (miasto traci grupy, awatar życia równe różnicy); 1..2: przegrany ucieka na wolne sąsiednie pole (ginie, gdy
+  nie ma gdzie); remis: napastnik wraca. Osadnicy rozstrzygają tabelą Świętej Wojny.
+  Miasto k6 przeciw Żyzności F przy ludności P: rzut < F to +1 bezbożny (sufit 10); rzut ≥ F i P ≤ F to
+  stagnacja; rzut ≥ F i P > F to exodus nadwyżki P−F (najpierw bezbożni, potem losowo): wolny ląd o
+  najwyższej Żyzności w zasięgu 2 (nowe miasto, nazwę nadaje bóstwo z największą liczbą odchodzących grup),
+  inaczej słabsza bestia, inaczej słabsze miasto, inaczej nadwyżka zostaje. Miasto na Żyzności 0 opuszcza
+  cała ludność. „Pomiń noc” dogrywa resztę: księga rzuca walki sama, miasta bez nazwy dostają „Osada <lud>”
+  (do zmiany w Edytuj). Cała noc to jeden werset w Świętej Księdze (`nightVerse`).
 
 ## Zasady wdrożone w bazie
 
@@ -216,7 +262,7 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 - Kości rzuca serwer (`log_dice_roll`, `roll_logos`, `reveal_chaos`), więc wszyscy widzą to samo.
 - Era: głosowanie w dowolnej rundzie; decyduje większość bóstw. Każdą nową Erę (i pierwszą) otwiera kurtyna
   z rysunkiem epoki; to, którą już widziano, pamięta `localStorage` na danym urządzeniu.
-- Akcje w panelu: Terraformacja (Kształtowanie Lądów, Kataklizm, Wielki Cud), Tworzenie Życia (Stworzenie
+- Akcje w panelu: Terraformacja (Kształtowanie Lądów, Kataklizm, Wielki Cud, Pobłogosław ziemię, Wylej Rzekę), Tworzenie Życia (Stworzenie
   Istoty, Stworzenie Istoty Rozumnej, Zmiana Istoty, Migracja), Śmiertelnicy (Stworzenie Cywilizacji, Rozwój
   Cywilizacji, Exodus, Nawracanie, Święta Wojna), Działania Awatara (Zesłanie, Rozkaz, Wskrzeszenie), Proroctwa
   i Słowa (Przekaż Logos); zawsze w tej kolejności, nigdy wg ceny. Akcje z warunkiem (np. „musi istnieć miasto”) są nieaktywne, póki mapa go nie spełnia.

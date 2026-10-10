@@ -10,7 +10,8 @@ import { godColor } from '@/data/pantheon'
 import { useUser } from '@/features/auth/AuthGate'
 import { useGameStore, godLabel, playerLabel, selectMyPlayer, selectPendingContest } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
-import { useMapMode } from './mapMode'
+import { useMapMode, riverStuck } from './mapMode'
+import { neighbours } from '@/lib/hex'
 import styles from './map.module.css'
 
 /** The question the map is asking, with the running cost and the two buttons the brief wants. */
@@ -22,6 +23,7 @@ export function MapInstructionCard({ world }: { world: WorldView }) {
   if (!mode) return null
   const cost = mode.costFor ? mode.costFor(selection, world) : null
   const canFinish = mode.kind === 'hexes' ? selection.length > 0 : false
+  const stuck = riverStuck(mode, selection, world, neighbours)
   return (
     <div className={['marble', 'emerge-from-dark', styles.railPanel, styles.instruction].join(' ')} role="status" aria-live="polite">
       <h4>{mode.title}</h4>
@@ -31,6 +33,12 @@ export function MapInstructionCard({ world }: { world: WorldView }) {
           {selection.length === 0 ? 'Nic jeszcze nie zaznaczono.' : `Zaznaczono ${selection.length}${mode.max ? ` z ${mode.max}` : ''}`}
         </div>
       )}
+      {mode.kind === 'river' && (
+        <div className={styles.picked}>
+          {selection.length === 0 ? (mode.start ? 'Rzeka czeka na nowe koryto.' : 'Najpierw źródło: kliknij górę.') : `Koryto: ${selection.length} ${selection.length === 1 ? 'pole' : selection.length <= 4 ? 'pola' : 'pól'}`}
+        </div>
+      )}
+      {stuck && <Notice tone="error">Rzeka nie ma dokąd płynąć. Przerwij i zacznij od innej góry.</Notice>}
       {cost !== null && <div className={styles.instructionCost}>Koszt: {cost} Logos</div>}
       <div className={styles.instructionBtns}>
         {mode.kind === 'hexes' && (

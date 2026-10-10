@@ -676,3 +676,84 @@
   border-radius: 3px;
   cursor: pointer;
 }
+
+/* ---------- rivers ---------- */
+.river {
+  pointer-events: none;
+}
+.riverBase {
+  fill: none;
+  stroke: #0f2d44;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+.riverTop {
+  fill: none;
+  stroke: #4f9bcf;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.95;
+}
+.riverOpen .riverTop {
+  stroke-dasharray: 6 4;
+  opacity: 0.7;
+}
+.riverDraft .riverBase {
+  opacity: 0.5;
+}
+.riverDraft .riverTop {
+  stroke: #9fd3f5;
+  stroke-dasharray: 5 5;
+}
+
+/* ---------- fertility and resources ---------- */
+.fertPlate {
+  fill: rgba(10, 8, 7, 0.6);
+  stroke: rgba(255, 225, 170, 0.28);
+  stroke-width: 0.6;
+}
+.fertility {
+  fill: #f3e9c8;
+  font-family: var(--font-display);
+  font-weight: 700;
+  pointer-events: none;
+  user-select: none;
+}
+.strength {
+  fill: #ffd56b;
+  font-family: var(--font-display);
+  font-weight: 700;
+  paint-order: stroke fill;
+  stroke: rgba(5, 4, 3, 0.9);
+  stroke-width: 1.2px;
+}
+
+/* ---------- the night ---------- */
+.nightRing {
+  fill: none;
+  stroke: #ffd56b;
+  stroke-width: 2;
+  pointer-events: none;
+  animation: nightPulse 1.4s ease-in-out infinite;
+}
+@keyframes nightPulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.95; }
+}
+.fightMark {
+  pointer-events: none;
+  animation: fightPulse 0.9s ease-in-out infinite;
+}
+@keyframes fightPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+.fightLine {
+  fill: none;
+  stroke: #ff9a4a;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
+  opacity: 0.85;
+}

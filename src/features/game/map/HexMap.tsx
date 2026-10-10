@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type WheelEvent } from 'react'
-import type { ActionLog, Entity, HexOccupant, Player } from '@/lib/types'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import type { ActionLog, Entity, HexOccupant, HexRef, Player, River } from '@/lib/types'
 import type { MapPick, WorldView } from '@/lib/world'
-import { allHexes, axialToPixel, hexCorners, hexKey, mapViewBox, SLOT_OFFSETS } from '@/lib/hex'
+import { allHexes, axialToPixel, hexCorners, hexEdgeMidpoint, hexKey, mapViewBox, FERTILITY_OFFSET, RESOURCE_OFFSET, SLOT_OFFSETS } from '@/lib/hex'
 import { BIOME_BY_KEY } from '@/data/biomes'
 import { PYRAMID, cityLevel } from '@/data/cities'
 import { godColor } from '@/data/pantheon'
-import { useGameStore } from '@/store/useGameStore'
+import { strengthLabel } from '@/data/fertility'
+import { useGameStore, selectNight } from '@/store/useGameStore'
 import { canPick, useMapMode } from './mapMode'
 import { useDiceGate } from '../diceGate'
 import styles from './map.module.css'
@@ -16,6 +18,8 @@ const VIEW = mapViewBox(R)
 /** the painted tiles are 128 px high for a hex 2R high: one tile is 2R by 2R */
 const TILE = 2 * R
 const ZOOMS = [1, 1.35, 1.8, 2.4, 3.2]
+/** the godless: grey, no god's shade */
+const GODLESS = { fill: '#9b9b9b', stroke: '#4a4a4a' }
 
 export interface Inspect {
   q: number
@@ -27,14 +31,19 @@ export interface Inspect {
 /**
  * The map itself: 91 painted hexagonal tiles in an SVG. Only the transparent polygons on top hear
  * the mouse; everything painted lets clicks through. In a map mode a click is an answer; otherwise
- * it opens the field's card beside the mouse.
+ * it opens the field's card beside the mouse. Rivers run between the tiles and the polygons; every
+ * land field shows its fertility at the top and its resource top-right; herds stand top-left,
+ * beasts and tribes at the bottom, avatars in the lower corners; the city sits in the middle.
  */
 export function HexMap({ world, inspected, onInspect }: { world: WorldView; inspected: Inspect | null; onInspect: (i: Inspect | null) => void }) {
   const mode = useMapMode((s) => s.mode)
   const selection = useMapMode((s) => s.selection)
   const pick = useMapMode((s) => s.pick)
   const players = useGameStore((s) => s.players)
+  const occupants = useGameStore((s) => s.occupants)
   const log = useGameStore((s) => s.log)
+  const night = useGameStore(selectNight)
+  const reduce = useReducedMotion()
   const [chooser, setChooser] = useState<{ q: number; r: number; x: number; y: number; occupants: HexOccupant[] } | null>(null)
   const [zoomIdx, setZoomIdx] = useState(0)
   const zoom = ZOOMS[zoomIdx]
@@ -42,7 +51,7 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
   const colorOf = useMemo(() => {
     const m = new Map<string, Player>()
     for (const p of players) m.set(p.id, p)
-    return (playerId: string) => godColor(m.get(playerId))
+    return (playerId: string | null) => (playerId ? godColor(m.get(playerId)) : GODLESS)
   }, [players])
 
   useEffect(() => {
@@ -56,6 +65,10 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
       return
     }
     if (!canPick(mode, selection, q, r, world)) return
+    if (mode.kind === 'river') {
+      pick({ q, r }, !!mode.isTerminal?.(q, r, world))
+      return
+    }
     if (mode.kind === 'occupant') {
       const list = world.occupantsAt(q, r).filter((o) => !mode.validOccupant || mode.validOccupant(o, world))
       if (list.length === 0) return
@@ -91,6 +104,20 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
     })
     .filter((x): x is { id: string; name: string; q: number; r: number } => !!x && !world.cityAt(x.q, x.r))
 
+  // the river being drawn right now
+  const riverDraft: HexRef[] | null = mode?.kind === 'river' ? [...(mode.start ? [mode.start] : []), ...selection.map(({ q, r }) => ({ q, r }))] : null
+
+  // the night: who moves now, and where a fight waits
+  const nightUnit = night && night.cursor > 0 ? night.queue[night.cursor - 1] : null
+  const unitAt: HexRef | null = nightUnit
+    ? nightUnit.t === 'city'
+      ? (world.cityOf(nightUnit.id) ?? null)
+      : (occupants.find((o) => o.id === nightUnit.id) ?? null)
+    : null
+  const fight = night?.pending?.kind === 'fight' ? night.pending : null
+
+  const standing = occupants.filter((o) => world.entityById(o.entity_id))
+
   return (
     <div className={styles.board} onWheel={onWheel}>
       <div className={styles.scroller}>
@@ -110,13 +137,15 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
             })}
           </g>
 
+          <RiverLayer rivers={world.rivers} draft={riverDraft} />
+
           {/* the fields that hear the mouse: transparent, lit when the map asks a question */}
           {HEXES.map(({ q, r }) => {
             const hex = world.hexAt(q, r)
             const { x, y } = axialToPixel(q, r, R)
             const biome = hex ? BIOME_BY_KEY[hex.biome] : null
             const valid = mode ? canPick(mode, selection, q, r, world) : false
-            const selected = selection.some((s) => s.q === q && s.r === r)
+            const selected = selection.some((s) => s.q === q && s.r === r) || (!!mode?.start && mode.start.q === q && mode.start.r === r)
             const isInspected = !!inspected && inspected.q === q && inspected.r === r
             const cls = [styles.hex, mode ? (valid ? styles.hexValid : styles.hexDim) : '', selected ? styles.hexSelected : '', isInspected ? styles.hexInspected : ''].join(' ')
             return (
@@ -141,37 +170,100 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
             )
           })}
 
-          {/* what lives and stands on the fields */}
+          {/* what the land gives: its fertility at the top, its resource top-right */}
           {HEXES.map(({ q, r }) => {
             const hex = world.hexAt(q, r)
-            if (!hex) return null
+            if (!hex || hex.biome === 'woda') return null
+            const f = world.fertilityOf(q, r)
             const { x, y } = axialToPixel(q, r, R)
-            const occupants = world.occupantsAt(q, r)
-            const city = world.cityAt(q, r)
-            if (occupants.length === 0 && !city) return null
+            const fy = y + FERTILITY_OFFSET.y * R
+            const rx = x + RESOURCE_OFFSET.x * R
+            const ry = y + RESOURCE_OFFSET.y * R
+            const size = R * 0.4
             return (
-              <g key={hexKey(q, r)} className={styles.layer}>
-                {occupants.map((o) => {
-                  const ent = world.entityById(o.entity_id)
-                  if (!ent) return null
-                  const off = SLOT_OFFSETS[o.slot] ?? SLOT_OFFSETS[0]
-                  const sx = x + off.x * R
-                  const sy = y + off.y * R
-                  const size = R * 0.46
-                  return (
-                    <g key={o.id} className={styles.sign}>
-                      <rect className={styles.signPlate} x={sx - size * 0.62} y={sy - size * 0.6} width={size * 1.24} height={size * 1.2} rx={size * 0.3} />
-                      <text x={sx} y={sy} fontSize={size} textAnchor="middle" dominantBaseline="central" filter="url(#signShadow)">
-                        {ent.emoji ?? (ent.kind === 'avatar' ? '✦' : '●')}
-                      </text>
-                      {ent.kind === 'avatar' && <HpBar x={sx} y={sy + size * 0.68} hp={ent.hp ?? 0} max={ent.max_hp ?? 3} />}
-                    </g>
-                  )
-                })}
-                {city && <CityPyramid x={x} y={y} city={city.entity_id} world={world} colorOf={colorOf} />}
+              <g key={`land-${hexKey(q, r)}`} className={styles.layer}>
+                {f !== null && (
+                  <>
+                    <rect className={styles.fertPlate} x={x - R * 0.19} y={fy - R * 0.12} width={R * 0.38} height={R * 0.24} rx={R * 0.12} />
+                    <text className={styles.fertility} x={x} y={fy + 0.5} fontSize={R * 0.19} textAnchor="middle" dominantBaseline="central">
+                      {f}
+                    </text>
+                  </>
+                )}
+                {hex.resource && (
+                  <g className={styles.sign}>
+                    <rect className={styles.signPlate} x={rx - size * 0.62} y={ry - size * 0.6} width={size * 1.24} height={size * 1.2} rx={size * 0.3} />
+                    <text x={rx} y={ry} fontSize={size} textAnchor="middle" dominantBaseline="central" filter="url(#signShadow)">
+                      {hex.resource}
+                    </text>
+                  </g>
+                )}
               </g>
             )
           })}
+
+          {/* the night: a ring around whoever moves, swords where a fight waits */}
+          {unitAt && (() => {
+            const { x, y } = axialToPixel(unitAt.q, unitAt.r, R)
+            return <circle className={styles.nightRing} cx={x} cy={y} r={R * 0.92} />
+          })()}
+          {fight && (() => {
+            const a = axialToPixel(fight.origin.q, fight.origin.r, R)
+            const b = axialToPixel(fight.at.q, fight.at.r, R)
+            return (
+              <g className={styles.layer}>
+                {(a.x !== b.x || a.y !== b.y) && <line className={styles.fightLine} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
+                <text className={styles.fightMark} x={b.x} y={b.y - R * 0.1} fontSize={R * 0.7} textAnchor="middle" dominantBaseline="central" filter="url(#signShadow)" style={{ transformOrigin: `${b.x}px ${b.y}px` }}>
+                  ⚔️
+                </text>
+              </g>
+            )
+          })()}
+
+          {/* the cities in the middle of their fields */}
+          {world.cities.map((c) => {
+            const { x, y } = axialToPixel(c.q, c.r, R)
+            return (
+              <motion.g key={c.entity_id} className={styles.layer} initial={reduce ? false : { opacity: 0, scale: 0.4 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: reduce ? 0 : 0.9 }} style={{ transformOrigin: `${x}px ${y}px` }}>
+                <CityPyramid x={x} y={y} city={c.entity_id} world={world} colorOf={colorOf} />
+              </motion.g>
+            )
+          })}
+
+          {/* what lives and stands on the fields: a sign glides when its row moves */}
+          <AnimatePresence>
+            {standing.map((o) => {
+              const ent = world.entityById(o.entity_id)
+              if (!ent) return null
+              const { x, y } = axialToPixel(o.q, o.r, R)
+              const off = SLOT_OFFSETS[o.slot] ?? SLOT_OFFSETS[0]
+              const sx = x + off.x * R
+              const sy = y + off.y * R
+              const size = R * 0.46
+              const role = world.roleOf(ent)
+              return (
+                <motion.g
+                  key={o.id}
+                  className={styles.sign}
+                  initial={reduce ? { x: sx, y: sy, opacity: 1 } : { x: sx, y: sy, opacity: 0, scale: 0.6 }}
+                  animate={{ x: sx, y: sy, opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.4 }}
+                  transition={{ duration: reduce ? 0 : 1.1, ease: 'easeInOut' }}
+                >
+                  <rect className={styles.signPlate} x={-size * 0.62} y={-size * 0.6} width={size * 1.24} height={size * 1.2} rx={size * 0.3} />
+                  <text x={0} y={0} fontSize={size} textAnchor="middle" dominantBaseline="central" filter="url(#signShadow)">
+                    {ent.emoji ?? (ent.kind === 'avatar' ? '✦' : '●')}
+                  </text>
+                  {ent.kind === 'avatar' && <HpBar x={0} y={size * 0.68} hp={ent.hp ?? 0} max={ent.max_hp ?? 3} />}
+                  {role === 'beast' && (
+                    <text className={styles.strength} x={size * 0.66} y={size * 0.52} fontSize={size * 0.42} textAnchor="middle" dominantBaseline="central">
+                      {strengthLabel(ent.strength ?? 0)}
+                    </text>
+                  )}
+                </motion.g>
+              )
+            })}
+          </AnimatePresence>
           {burst && <Burst key={burst.id} q={burst.q} r={burst.r} />}
         </svg>
       </div>
@@ -202,6 +294,62 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
   )
 }
 
+function hashStr(s: string): number {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0
+  return h
+}
+
+/** a gently winding path through the given points: every leg bends a little to one side */
+function riverPath(pts: { x: number; y: number }[], seed: string): string {
+  if (pts.length < 2) return ''
+  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i]
+    const b = pts[i + 1]
+    const mx = (a.x + b.x) / 2
+    const my = (a.y + b.y) / 2
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const len = Math.hypot(dx, dy) || 1
+    const nx = -dy / len
+    const ny = dx / len
+    const sign = hashStr(`${seed}:${i}`) % 2 === 0 ? 1 : -1
+    const amp = R * 0.14
+    d += ` Q ${(mx + nx * amp * sign).toFixed(1)} ${(my + ny * amp * sign).toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`
+  }
+  return d
+}
+
+/** the rivers: from the mountain through the land to the edge of the sea, or into another river */
+function RiverLayer({ rivers, draft }: { rivers: River[]; draft: HexRef[] | null }) {
+  const lines = (pts: { x: number; y: number }[], seed: string, cls?: string) => {
+    const d = riverPath(pts, seed)
+    if (!d) {
+      const p = pts[0]
+      return p ? <circle className={styles.riverTop} cx={p.x} cy={p.y} r={R * 0.08} /> : null
+    }
+    return (
+      <g className={cls}>
+        <path className={styles.riverBase} d={d} strokeWidth={R * 0.22} />
+        <path className={styles.riverTop} d={d} strokeWidth={R * 0.11} />
+      </g>
+    )
+  }
+  return (
+    <g className={styles.river}>
+      {rivers.map((rv) => {
+        const pts = rv.path.map((n) => axialToPixel(n.q, n.r, R))
+        if (rv.mouth_kind === 'water' && rv.mouth_q !== null && rv.mouth_r !== null && rv.path.length > 0) {
+          pts.push(hexEdgeMidpoint(rv.path[rv.path.length - 1], { q: rv.mouth_q, r: rv.mouth_r }, R))
+        }
+        return <g key={rv.id}>{lines(pts, rv.id, rv.mouth_kind === 'none' ? styles.riverOpen : undefined)}</g>
+      })}
+      {draft && draft.length > 0 && lines(draft.map((n) => axialToPixel(n.q, n.r, R)), 'draft', styles.riverDraft)}
+    </g>
+  )
+}
+
 /** a city's name under its pyramid: at most two short lines, so it stays inside the field */
 function nameLines(name: string): string[] {
   const words = name.trim().split(/\s+/)
@@ -221,14 +369,15 @@ function nameLines(name: string): string[] {
   return out
 }
 
-/** the pyramid of dots in the middle of a city's field, every dot in its god's colour */
-function CityPyramid({ x, y, city, world, colorOf }: { x: number; y: number; city: string; world: WorldView; colorOf: (playerId: string) => { fill: string; stroke: string } }) {
+/** the pyramid of dots in the middle of a city's field, every dot in its god's colour, the godless grey */
+function CityPyramid({ x, y, city, world, colorOf }: { x: number; y: number; city: string; world: WorldView; colorOf: (playerId: string | null) => { fill: string; stroke: string } }) {
   const followers = world.followersOf(city)
   const total = cityLevel(world.cityDots(city))
   if (total === 0) return null
   const rows = PYRAMID[total] ?? [total]
-  const owners: string[] = []
+  const owners: (string | null)[] = []
   for (const f of followers) for (let i = 0; i < f.dots; i++) owners.push(f.player_id)
+  for (let i = 0; i < world.atheistsOf(city); i++) owners.push(null)
   const step = R * 0.16
   const dotR = R * 0.068
   const height = rows.length * step
@@ -250,7 +399,7 @@ function CityPyramid({ x, y, city, world, colorOf }: { x: number; y: number; cit
         const startX = x - ((count - 1) * step) / 2
         return Array.from({ length: count }, (_, i) => {
           const owner = owners[k++]
-          const c = owner ? colorOf(owner) : { fill: '#c9c2b6', stroke: '#5c554b' }
+          const c = owner === undefined ? GODLESS : colorOf(owner)
           return (
             <g key={`${rowIdx}-${i}`}>
               <circle className={styles.dot} cx={startX + i * step} cy={cy} r={dotR} fill={c.fill} stroke={c.stroke} />
