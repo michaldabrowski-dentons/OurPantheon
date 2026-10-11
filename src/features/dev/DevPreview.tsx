@@ -3,13 +3,16 @@
 //   &domain=0 (room: no domain yet), &sheet=p2 (game: that god's sheet open), &turn=me (game: my turn, 40 Logos)
 //   &contest=defender|attacker|resolved|duel|war (game: a contest in that state; duel = I defend my avatar, war = I split the successes)
 //   &lock=me (game: the book waits for my verse)
+//   &dice=N (game: every die of the preview shows N, so 1 fails, 4 lands on 7..9 and 6 is a full success)
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { User } from '@supabase/supabase-js'
 import { AuthContext } from '@/features/auth/AuthGate'
 import { useGameStore } from '@/store/useGameStore'
-import type { ActionLog, ActionPayload, BiomeKey, ChaosNight, City, CityFollower, CityGift, Contest, Entity, Game, Hex, HexOccupant, HexRef, NightPending, Player, Prophecy, River } from '@/lib/types'
-import { generatePreviewMap, hexDistance, decorFor } from '@/lib/hex'
+import type { ActionLog, ActionPayload, AttrKey, BiomeKey, ChaosNight, City, CityFollower, CityGift, Contest, DiceRoll, Entity, Game, Hex, HexOccupant, HexRef, NightPending, Player, Prophecy, River } from '@/lib/types'
+import { ACTION_BY_KEY, tierOf, type ActionKey } from '@/data/actions'
+import { scoresFor } from '@/data/pantheon'
+import { generatePreviewMap, hexDistance, decorFor, neighbours } from '@/lib/hex'
 import { buildWorld } from '@/lib/world'
 import { GamePage } from '@/features/game/GamePage'
 import { LobbyPage } from '@/features/lobby/LobbyPage'
@@ -532,7 +535,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       id: nextId('contest'), game_id: G, round_number: g.round_number, era: g.era, kind: kind as Contest['kind'], attacker_id: me.id,
       defender_id: defenderId, target_city_id: duel ? null : String(kind === 'convert' ? p.city_id : p.target_city_id), source_city_id: kind === 'holy_war' ? String(p.source_city_id) : null,
       attacker_avatar_id: duel ? String(p.attacker_avatar_id) : viaAv?.id ?? null, defender_avatar_id: duel ? String(p.defender_avatar_id) : null,
-      army: kind === 'holy_war' ? Number(p.army) : null, cost: viaAv ? Math.ceil((kind === 'convert' ? 6 : 1) / 2) : kind === 'convert' ? 6 : duel ? 5 : 1, attacker_attr: kind === 'holy_war' ? 'wrath' : (p.attr as Contest['attacker_attr']),
+      army: kind === 'holy_war' ? Number(p.army) : null, cost: viaAv ? Math.ceil((kind === 'convert' ? 6 : 1) / 2) : kind === 'convert' ? 6 : duel ? 5 : 1, attacker_attr: (p.attr as Contest['attacker_attr'] | undefined) ?? (kind === 'holy_war' ? 'wrath' : 'majesty'),
       attacker_d1: 4, attacker_d2: 5, attacker_mod: mod, attacker_total: 9 + mod,
       defender_attr: null, defender_d1: null, defender_d2: null, defender_mod: null, defender_total: null, status: 'pending', outcome: null, log_id: null, created_at: new Date().toISOString(), resolved_at: null,
     }
@@ -623,7 +626,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
   const p = (args.p_payload ?? {}) as ActionPayload
   const viaAv = p.via_avatar_id ? world.entityById(p.via_avatar_id) : undefined
   const free = !!viaAv
-  const costs: Record<string, number> = { shape_land: 2, catastrophe: 10, great_miracle: 15, bless_land: 4, pour_river: 3, create_creature: 10, create_sapient: 15, change_creature: 5, migrate: 0, create_civilization: 22, develop_civilization: 12, exodus: 0, create_avatar: 10, pilgrimage: 0, resurrect_avatar: 12, prophecy: 10 }
+  const costs: Record<string, number> = { shape_land: 2, catastrophe: 10, great_miracle: 15, bless_land: 4, pour_river: 3, create_beast: 10, create_herd: 10, create_sapient: 15, change_creature: 5, migrate: 0, multiply: 5, create_civilization: 22, develop_civilization: 12, exodus: 0, create_avatar: 10, pilgrimage: 0, resurrect_avatar: 12, prophecy: 10 }
   let cost = costs[key] ?? 0
   let entity_id: string | null = null
   let outcome: Record<string, unknown> = {}
@@ -639,6 +642,23 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     useGameStore.setState((st) => ({ occupants: [...st.occupants, { id: nextId('occ'), game_id: G, q: h.q, r: h.r, slot, entity_id: entityId, created_at: new Date().toISOString() }] }))
     return slot
   }
+  // the dice of the preview: every die shows the face from ?dice=N (4 when unset), so the band is predictable
+  const face = Math.min(6, Math.max(1, Number(new URLSearchParams(window.location.search).get('dice') ?? 4) || 4))
+  const scores = scoresFor(me.domain_key, me.attr_primary, me.attr_bonus)
+  const def = ACTION_BY_KEY[key as ActionKey]
+  const rolled = def?.roll
+    ? (() => {
+        const attr = (p.attr ?? def.roll!.options[0].attr) as AttrKey
+        const pm = spendProphecy(p.prophecy_id)
+        const score = scores[attr] ?? 0
+        const total = face + face + score + pm
+        const tier = tierOf(total)
+        const roll: DiceRoll = { d1: face, d2: face, modifier: score + pm, total, attr, tier }
+        return { attr, score, pm, total, tier, roll, fields: { d1: face, d2: face, attr, score, prophecy: pm, total, tier } }
+      })()
+    : null
+  const tier = rolled?.tier ?? 'strong'
+  const rank = (total: number) => (total <= 6 ? -1 : total <= 8 ? 0 : total <= 10 ? 1 : total <= 12 ? 2 : 3)
   switch (key) {
     case 'shape_land': {
       const hexes = (p.hexes ?? []).map((h) => ({ q: h.q, r: h.r, from: world.hexAt(h.q, h.r)?.biome ?? 'trawa' }))
@@ -666,16 +686,12 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
       break
     }
     case 'bless_land': {
-      const graceB = me.attr_primary === 'grace' ? 2 : 1
-      const totalB = 4 + 4 + graceB
-      const bonus = totalB <= 6 ? -1 : totalB <= 8 ? 0 : totalB <= 10 ? 1 : totalB <= 12 ? 2 : 3
+      const bonus = tier === 'strong' ? Math.max(1, rank(rolled!.total)) : tier === 'mixed' ? 0 : -1
       const replaced = world.hexAt(at.q, at.r)?.resource ?? null
       useGameStore.setState((st) => ({ hexes: st.hexes.map((h) => (h.q === at.q && h.r === at.r ? { ...h, resource: String(p.resource ?? '🌾'), resource_bonus: bonus } : h)) }))
       const w = buildWorld({ ...useGameStore.getState() })
-      outcome = { q: at.q, r: at.r, resource: p.resource, biome: world.hexAt(at.q, at.r)?.biome, fertility: w.fertilityOf(at.q, at.r), d1: 4, d2: 4, grace: graceB, total: totalB, bonus, replaced }
-      pay(cost)
-      lock(me.id)
-      return add({ action_key: key, logos_delta: -cost, entity_id, is_avatar_free_action: free, roll: { d1: 4, d2: 4, modifier: graceB, total: totalB, attr: 'grace' }, summary: p.summary ?? '', outcome })
+      outcome = { q: at.q, r: at.r, resource: p.resource, biome: world.hexAt(at.q, at.r)?.biome, fertility: w.fertilityOf(at.q, at.r), grace: rolled!.score, bonus, replaced }
+      break
     }
     case 'pour_river': {
       const path = (p.path ?? []) as HexRef[]
@@ -690,10 +706,8 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     case 'catastrophe': {
       const city = world.cityAt(at.q, at.r)
       const cityEnt = city ? world.entityById(city.entity_id) : undefined
-      const d1 = 4, d2 = 4
-      const pm = spendProphecy(p.prophecy_id)
-      const total = d1 + d2 - 1 + pm
-      const damage = Math.max(1, Math.floor(total / 2))
+      const half = Math.max(1, Math.floor(rolled!.total / 2))
+      const damage = tier === 'strong' ? half : tier === 'mixed' ? Math.max(1, Math.ceil(half / 2)) : 0
       const hits: Record<string, unknown>[] = []
       for (let i = 0; i < damage; i++) {
         const st = useGameStore.getState()
@@ -712,89 +726,141 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
         }
       }
       const stillThere = useGameStore.getState().occupants.some((o) => o.q === at.q && o.r === at.r) || (city && useGameStore.getState().followers.some((f) => f.city_id === city.entity_id))
-      const after = p.after && !stillThere ? p.after : null
+      const after = tier === 'strong' && p.after && !stillThere ? p.after : null
       if (after) useGameStore.setState((st) => ({ hexes: st.hexes.map((h) => (h.q === at.q && h.r === at.r ? { ...h, biome: after, decor: [] } : h)) }))
-      outcome = { type: p.type, q: at.q, r: at.r, d1, d2, total, wrath: -1, damage, hits, prophecy: pm || undefined, city_id: city?.entity_id ?? null, city_name: cityEnt?.name ?? null, city_destroyed: false, wasted: damage - hits.length, biome_after: after }
+      outcome = { type: p.type, q: at.q, r: at.r, wrath: rolled!.score, damage, hits, city_id: city?.entity_id ?? null, city_name: cityEnt?.name ?? null, city_destroyed: false, wasted: damage - hits.length, biome_after: after }
       entity_id = city?.entity_id ?? null
       break
     }
-    case 'create_creature':
+    case 'create_beast':
+    case 'create_herd':
     case 'create_sapient':
     case 'create_avatar': {
-      const diet = key === 'create_creature' ? (p.entity?.diet ?? 'herbivore') : null
-      const beast = diet === 'carnivore'
-      const herd = diet === 'herbivore'
-      const wrath = me.attr_primary === 'wrath' ? 2 : -1
-      const graceC = me.attr_primary === 'grace' ? 2 : 1
-      const total = 4 + 4 + (beast ? wrath : graceC)
-      const strength = beast || herd ? (total <= 6 ? -1 : total <= 8 ? 0 : total <= 10 ? 1 : total <= 12 ? 2 : 3) : 0
-      const e = newEntity({ kind: key === 'create_avatar' ? 'avatar' : 'creature', name: p.entity?.name ?? 'Bez imienia', traits: p.entity?.traits ?? [], conditions: p.entity?.conditions ?? [], emoji: p.emoji ?? null, hp: key === 'create_avatar' ? 2 : null, max_hp: key === 'create_avatar' ? 2 : null, diet, strength })
-      const slot = place(e.id, at)
-      entity_id = e.id
+      const beast = key === 'create_beast'
+      const herd = key === 'create_herd'
       const role = key === 'create_avatar' ? 'avatar' : key === 'create_sapient' ? 'tribe' : beast ? 'beast' : 'herbivore'
-      outcome = { q: at.q, r: at.r, slot, emoji: p.emoji, biome: world.hexAt(at.q, at.r)?.biome, role, diet, strength, d1: beast || herd ? 4 : null, d2: beast || herd ? 4 : null, wrath: beast ? wrath : null, grace: herd ? graceC : null, total: beast || herd ? total : null }
-      if (beast || herd) {
-        pay(cost)
-        lock(me.id)
-        return add({ action_key: key, logos_delta: -cost, entity_id, is_avatar_free_action: free, roll: { d1: 4, d2: 4, modifier: beast ? wrath : graceC, total, attr: beast ? 'wrath' : 'grace' }, summary: p.summary ?? '', outcome })
+      const strength = beast || herd ? (tier === 'strong' ? Math.max(1, rank(rolled!.total)) : 0) : 0
+      const maxHp = 2
+      const hp = tier === 'strong' ? maxHp : Math.max(1, maxHp - 1)
+      let slot: number | null = null
+      const copies: HexRef[] = []
+      if (tier !== 'weak') {
+        const e = newEntity({ kind: key === 'create_avatar' ? 'avatar' : 'creature', name: p.entity?.name ?? 'Bez imienia', traits: p.entity?.traits ?? [], conditions: p.entity?.conditions ?? [], emoji: p.emoji ?? null, hp: key === 'create_avatar' ? hp : null, max_hp: key === 'create_avatar' ? maxHp : null, diet: beast ? 'carnivore' : herd ? 'herbivore' : null, strength })
+        slot = place(e.id, at)
+        entity_id = e.id
+        // a numerous people: the tribe takes the most fertile free field next door too
+        if (key === 'create_sapient' && tier === 'strong') {
+          const w = buildWorld({ ...useGameStore.getState() })
+          const best = neighbours(at)
+            .filter((n) => w.hexAt(n.q, n.r) && !w.blocked(n.q, n.r) && w.slotFor(n.q, n.r, 'tribe') !== null)
+            .sort((a, b) => (w.fertilityOf(b.q, b.r) ?? -99) - (w.fertilityOf(a.q, a.r) ?? -99))[0]
+          if (best) {
+            place(e.id, best)
+            copies.push(best)
+          }
+        }
       }
+      outcome = { q: at.q, r: at.r, slot, emoji: p.emoji, biome: world.hexAt(at.q, at.r)?.biome, created: tier !== 'weak', role, diet: beast ? 'carnivore' : herd ? 'herbivore' : null, strength, copies, max_hp: key === 'create_avatar' && tier !== 'weak' ? maxHp : null, hp: key === 'create_avatar' && tier !== 'weak' ? hp : null, wrath: beast ? rolled!.score : null, grace: herd ? rolled!.score : null }
       break
     }
     case 'change_creature': {
       const occ = s.occupants.find((o) => o.id === p.occupant_id)
       const src = occ ? world.entityById(occ.entity_id) : undefined
-      const e = newEntity({ kind: 'creature', name: p.entity?.name ?? 'Odmiana', traits: p.entity?.traits ?? [], emoji: p.emoji ?? null })
-      if (occ) useGameStore.setState((st) => ({ occupants: st.occupants.map((o) => (o.id === occ.id ? { ...o, entity_id: e.id } : o)), entityLinks: [...st.entityLinks, { from_entity_id: e.id, to_entity_id: occ.entity_id, game_id: G, relation: 'variant_of' }] }))
-      entity_id = e.id
-      outcome = { q: occ?.q, r: occ?.r, from_entity_id: src?.id, from_name: src?.name, emoji: p.emoji }
+      const strength = tier === 'strong' && src && !world.isSapient(src) ? Math.min(3, (src.strength ?? 0) + 1) : src?.strength ?? 0
+      if (tier !== 'weak') {
+        const e = newEntity({ kind: 'creature', name: p.entity?.name ?? 'Odmiana', traits: p.entity?.traits ?? [], emoji: p.emoji ?? null, diet: src?.diet ?? null, strength })
+        if (occ) useGameStore.setState((st) => ({ occupants: st.occupants.map((o) => (o.id === occ.id ? { ...o, entity_id: e.id } : o)), entityLinks: [...st.entityLinks, { from_entity_id: e.id, to_entity_id: occ.entity_id, game_id: G, relation: 'variant_of' }] }))
+        entity_id = e.id
+      }
+      outcome = { q: occ?.q, r: occ?.r, from_entity_id: src?.id, from_name: src?.name, emoji: p.emoji, strength, from_strength: src?.strength ?? 0, created: tier !== 'weak' }
       break
     }
     case 'migrate': {
       const to = p.to ?? at
-      place(String(p.entity_id), to)
-      cost = hexDistance(p.from ?? at, to)
+      const from = p.from ?? at
+      cost = hexDistance(from, to)
+      if (tier === 'strong') place(String(p.entity_id), to)
+      else if (tier === 'mixed') {
+        const w = buildWorld({ ...useGameStore.getState() })
+        const slot = (w.slotFor(to.q, to.r, w.roleOf(w.entityById(p.entity_id)) ?? 'herbivore') ?? 0) as 0 | 1 | 2 | 3
+        useGameStore.setState((st) => ({ occupants: st.occupants.map((o) => (o.entity_id === p.entity_id && o.q === from.q && o.r === from.r ? { ...o, q: to.q, r: to.r, slot } : o)) }))
+      }
       entity_id = String(p.entity_id)
-      outcome = { from: p.from, to, distance: cost, name: world.entityById(p.entity_id)?.name, emoji: world.entityById(p.entity_id)?.emoji }
+      outcome = { from, to, distance: cost, name: world.entityById(p.entity_id)?.name, emoji: world.entityById(p.entity_id)?.emoji, moved: tier === 'mixed', arrived: tier !== 'weak' }
+      break
+    }
+    case 'multiply': {
+      const occ = s.occupants.find((o) => o.id === p.occupant_id)
+      const src = occ ? world.entityById(occ.entity_id) : undefined
+      const role = world.roleOf(src) ?? 'herbivore'
+      const n = tier === 'strong' ? 2 : tier === 'mixed' ? 1 : 0
+      const copies: Record<string, unknown>[] = []
+      if (occ && src && n > 0) {
+        const w = buildWorld({ ...useGameStore.getState() })
+        const free = neighbours(occ)
+          .filter((h) => {
+            const hx = w.hexAt(h.q, h.r)
+            const landOk = role === 'tribe' ? !w.blocked(h.q, h.r) : !!hx && hx.biome !== 'woda'
+            return !!hx && landOk && w.slotFor(h.q, h.r, role) !== null && !w.occupantsAt(h.q, h.r).some((x) => x.entity_id === src.id)
+          })
+          .sort((a, b) => (tier === 'strong' ? (w.fertilityOf(b.q, b.r) ?? -99) - (w.fertilityOf(a.q, a.r) ?? -99) : Math.random() - 0.5))
+          .slice(0, n)
+        for (const h of free) {
+          place(src.id, h)
+          copies.push({ q: h.q, r: h.r, fertility: w.fertilityOf(h.q, h.r) })
+        }
+        entity_id = src.id
+      }
+      outcome = { from: occ ? { q: occ.q, r: occ.r } : null, name: src?.name, emoji: src?.emoji, role, strength: src?.strength ?? 0, copies, count: copies.length }
       break
     }
     case 'create_civilization': {
-      const e = newEntity({ kind: 'civilization', name: p.entity?.name ?? 'Bez imienia', traits: p.entity?.traits ?? [], specialties: p.entity?.specialties ?? [], flaws: p.entity?.flaws ?? [] })
-      useGameStore.setState((st) => ({ cities: [...st.cities, { entity_id: e.id, game_id: G, q: at.q, r: at.r, atheists: 0 }], entityLinks: [...st.entityLinks, { from_entity_id: e.id, to_entity_id: String(p.species_id), game_id: G, relation: 'member_species' }] }))
-      addDots(e.id, me.id, 1)
-      entity_id = e.id
-      outcome = { q: at.q, r: at.r, species_id: p.species_id, species_name: world.entityById(p.species_id)?.name, biome: world.hexAt(at.q, at.r)?.biome }
+      const gained = tier === 'strong' ? 2 : tier === 'mixed' ? 1 : 0
+      if (gained > 0) {
+        const e = newEntity({ kind: 'civilization', name: p.entity?.name ?? 'Bez imienia', traits: p.entity?.traits ?? [], specialties: p.entity?.specialties ?? [], flaws: p.entity?.flaws ?? [] })
+        useGameStore.setState((st) => ({ cities: [...st.cities, { entity_id: e.id, game_id: G, q: at.q, r: at.r, atheists: 0 }], entityLinks: [...st.entityLinks, { from_entity_id: e.id, to_entity_id: String(p.species_id), game_id: G, relation: 'member_species' }] }))
+        addDots(e.id, me.id, gained)
+        entity_id = e.id
+      }
+      outcome = { q: at.q, r: at.r, species_id: p.species_id, species_name: world.entityById(p.species_id)?.name, biome: world.hexAt(at.q, at.r)?.biome, gained, created: gained > 0 }
       break
     }
     case 'develop_civilization': {
       const cityId = String(p.city_id)
-      const score = me.attr_primary === p.attr ? 2 : 1
-      const pm = spendProphecy(p.prophecy_id)
-      const total = 4 + 4 + score + (free ? -2 : 0) + pm
-      const tier = total >= 10 ? 'strong' : total >= 7 ? 'mixed' : 'weak'
       const gained = tier === 'strong' ? 2 : tier === 'mixed' ? 1 : 0
       const added = addDots(cityId, me.id, gained)
       useGameStore.setState((st) => ({ gifts: [...st.gifts, { id: nextId('gift'), game_id: G, city_id: cityId, player_id: me.id, text: String(p.gift), accepted: gained > 0, dots_gained: added, round_number: g.round_number, created_at: new Date().toISOString() }] }))
       entity_id = cityId
-      outcome = { city_id: cityId, city_name: world.entityById(cityId)?.name, d1: 4, d2: 4, attr: p.attr, score, avatar: free, total, tier, gained, added, wasted: gained - added, gift: p.gift, level: world.cityDots(cityId) + added, prophecy: pm ? { hold: pm } : undefined }
+      outcome = { city_id: cityId, city_name: world.entityById(cityId)?.name, avatar: free, gained, added, wasted: gained - added, gift: p.gift, level: world.cityDots(cityId) + added }
       break
     }
     case 'exodus': {
       const to = p.to ?? at
       const src = world.cityOf(String(p.city_id))
       cost = src ? hexDistance(src, to) : 1
-      const moved = removeDots(String(p.city_id), me.id, Number(p.dots ?? 1))
+      let moved = 0
+      let added = 0
+      let lost = 0
+      let target: Entity | undefined
       const existing = world.cityAt(to.q, to.r)
-      let target: Entity
-      if (existing) target = world.entityById(existing.entity_id)!
-      else {
-        const mother = world.entityById(p.city_id)
-        target = newEntity({ kind: 'civilization', name: p.name ?? 'Nowe miasto', description: p.description ?? '', traits: mother?.traits ?? [], specialties: mother?.specialties ?? [], flaws: mother?.flaws ?? [], parent_civilization_id: mother?.id ?? null })
-        useGameStore.setState((st) => ({ cities: [...st.cities, { entity_id: target.id, game_id: G, q: to.q, r: to.r, atheists: 0 }] }))
+      if (tier !== 'weak') {
+        moved = removeDots(String(p.city_id), me.id, Number(p.dots ?? 1))
+        if (tier === 'mixed' && moved >= 2) {
+          souls(String(p.city_id), me.id, 1)
+          lost = 1
+          moved -= 1
+        }
+        if (existing) target = world.entityById(existing.entity_id)!
+        else {
+          const mother = world.entityById(p.city_id)
+          target = newEntity({ kind: 'civilization', name: p.name ?? 'Nowe miasto', description: p.description ?? '', traits: mother?.traits ?? [], specialties: mother?.specialties ?? [], flaws: mother?.flaws ?? [], parent_civilization_id: mother?.id ?? null })
+          useGameStore.setState((st) => ({ cities: [...st.cities, { entity_id: target!.id, game_id: G, q: to.q, r: to.r, atheists: 0 }] }))
+        }
+        added = addDots(target.id, me.id, moved)
+        if (!useGameStore.getState().occupants.some((o) => o.q === to.q && o.r === to.r && o.entity_id === p.species_id)) place(String(p.species_id), to)
+        entity_id = target.id
       }
-      const added = addDots(target.id, me.id, moved)
-      if (!useGameStore.getState().occupants.some((o) => o.q === to.q && o.r === to.r && o.entity_id === p.species_id)) place(String(p.species_id), to)
-      entity_id = target.id
-      outcome = { from_city_id: p.city_id, from_name: world.entityById(p.city_id)?.name, to_city_id: target.id, to_name: target.name, new: !existing, dots: moved, added, wasted: moved - added, distance: cost, q: to.q, r: to.r, species_name: world.entityById(p.species_id)?.name, emoji: world.entityById(p.species_id)?.emoji, source_destroyed: false }
+      outcome = { from_city_id: p.city_id, from_name: world.entityById(p.city_id)?.name, to_city_id: target?.id ?? null, to_name: target?.name ?? null, new: !existing && tier !== 'weak', dots: moved, added, wasted: moved - added, lost, distance: cost, q: to.q, r: to.r, species_name: world.entityById(p.species_id)?.name, emoji: world.entityById(p.species_id)?.emoji, source_destroyed: false, gifts_inherited: !existing && tier === 'strong', left: tier !== 'weak' }
       break
     }
     case 'pilgrimage': {
@@ -813,10 +879,17 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     }
     case 'prophecy': {
       const av = world.entityById(p.avatar_id)
-      const pr: Prophecy = { id: nextId('pr'), game_id: G, player_id: me.id, avatar_id: String(p.avatar_id), text: String(p.text ?? ''), hold: 1, status: 'active', created_round: g.round_number, fulfilled_round: null, created_at: new Date().toISOString() }
-      useGameStore.setState((st) => ({ prophecies: [...st.prophecies, pr] }))
+      const hold = tier === 'strong' ? 2 : tier === 'mixed' ? 1 : 0
+      if (hold > 0) {
+        const pr: Prophecy = { id: nextId('pr'), game_id: G, player_id: me.id, avatar_id: String(p.avatar_id), text: String(p.text ?? ''), hold, status: 'active', created_round: g.round_number, fulfilled_round: null, created_at: new Date().toISOString() }
+        useGameStore.setState((st) => ({ prophecies: [...st.prophecies, pr] }))
+      }
       entity_id = String(p.avatar_id)
-      outcome = { avatar_id: p.avatar_id, avatar_name: av?.name, emoji: av?.emoji, text: p.text }
+      outcome = { avatar_id: p.avatar_id, avatar_name: av?.name, emoji: av?.emoji, text: p.text, hold, spoken: hold > 0 }
+      break
+    }
+    case 'great_miracle': {
+      outcome = { happened: tier !== 'weak', with_price: tier === 'mixed' }
       break
     }
     case 'resurrect_avatar': {
@@ -831,11 +904,12 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
     default:
       break
   }
+  if (rolled) outcome = { ...outcome, ...rolled.fields }
   if (free) {
     cost = Math.ceil(cost / 2)
     outcome = { ...outcome, via_avatar: { id: viaAv!.id, name: viaAv!.name, emoji: viaAv!.emoji } }
-    if (key === 'great_miracle') useGameStore.setState((st) => ({ entities: st.entities.map((e) => (e.id === viaAv!.id ? { ...e, status: 'dead', hp: 0 } : e)), occupants: st.occupants.filter((o) => o.entity_id !== viaAv!.id) }))
-    if (key === 'exodus' && p.to) {
+    if (key === 'great_miracle' && tier !== 'weak') useGameStore.setState((st) => ({ entities: st.entities.map((e) => (e.id === viaAv!.id ? { ...e, status: 'dead', hp: 0 } : e)), occupants: st.occupants.filter((o) => o.entity_id !== viaAv!.id) }))
+    if (key === 'exodus' && p.to && tier !== 'weak') {
       const to = p.to
       const occ = useGameStore.getState().occupants.find((o) => o.entity_id === viaAv!.id)
       const w = buildWorld({ ...useGameStore.getState() })
@@ -846,7 +920,7 @@ function previewRpc(fn: string, args: Record<string, unknown>): unknown {
   }
   pay(cost)
   lock(me.id)
-  return add({ action_key: key, logos_delta: -cost, entity_id, is_avatar_free_action: free, summary: p.summary ?? '', outcome })
+  return add({ action_key: key, logos_delta: -cost, entity_id, is_avatar_free_action: free, roll: rolled?.roll, summary: p.summary ?? '', outcome })
 }
 
 export function DevPreview() {

@@ -4,17 +4,17 @@ import { isWatchedRoll, rollOf } from '@/data/dice'
 import { useGameStore, playerLabel } from '@/store/useGameStore'
 import { Die } from '@/components/ui/Primitives'
 import { useDiceGate } from './diceGate'
+import { useDiceTumble } from './useDiceTumble'
 import styles from './game.module.css'
 
-const ROLLING_MS = 1600
-
 /** rows after which a window with the outcome and its decisions follows */
-const RESULT_FOLLOWS = new Set(['convert', 'holy_war', 'avatar_duel', 'develop_civilization', 'catastrophe', 'create_creature', 'bless_land'])
+const RESULT_FOLLOWS = new Set(['convert', 'holy_war', 'avatar_duel'])
 
 /**
  * Every throw at the table, for everyone: the dice tumble for a moment before they settle, so the
  * result is a moment and not a number. Opens on a new roll row (whoever threw) and stays until the
  * table clicks on; the windows with the consequences wait for that click.
+ * The god who threw has claimed the roll: its own window shows the dice, and this one keeps quiet.
  */
 export function DiceOverlay() {
   const log = useGameStore((s) => s.log)
@@ -24,8 +24,6 @@ export function DiceOverlay() {
   const dismiss = useDiceGate((s) => s.dismiss)
   const lastSeen = useRef<string | null | undefined>(undefined)
   const [row, setRow] = useState<ActionLog | null>(null)
-  const [settled, setSettled] = useState(false)
-  const [faces, setFaces] = useState<[number, number]>([3, 4])
 
   const latest = useMemo(() => [...log].reverse().find(isWatchedRoll) ?? null, [log])
 
@@ -38,24 +36,17 @@ export function DiceOverlay() {
     if (!latest || latest.id === lastSeen.current) return
     lastSeen.current = latest.id
     if (Date.now() - new Date(latest.created_at).getTime() > 20000) return
+    const gate = useDiceGate.getState()
+    // my own word's window shows this throw (or already has): the gate opens, the card stays away
+    if (gate.claimed || gate.dismissed === latest.id) {
+      if (gate.dismissed !== latest.id) show(latest.id)
+      return
+    }
     setRow(latest)
-    setSettled(false)
     show(latest.id)
   }, [latest, show])
 
-  // the tumble: random faces until the dice settle
-  useEffect(() => {
-    if (!row || settled) return
-    const tick = window.setInterval(() => setFaces([1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]), 90)
-    const stop = window.setTimeout(() => {
-      window.clearInterval(tick)
-      setSettled(true)
-    }, ROLLING_MS)
-    return () => {
-      window.clearInterval(tick)
-      window.clearTimeout(stop)
-    }
-  }, [row, settled])
+  const { faces, settled } = useDiceTumble(row?.id ?? null)
 
   if (!row) return null
   const roll = rollOf(row)

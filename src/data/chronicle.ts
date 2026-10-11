@@ -4,7 +4,7 @@
 // sentences open with "I" or "A", so the book breathes. Since the map, a row carries `outcome`
 // (what the word did to the world) and the book tells it; the player may rewrite the whole verse.
 import type { ActionLog, BiomeKey, Entity, EntityKind, GodGender } from '@/lib/types'
-import { ACTION_BY_KEY, ERA_NAMES, type ActionKey, type Era } from './actions'
+import { ACTION_BY_KEY, ERA_NAMES, logActionKey, type ActionKey, type Era } from './actions'
 import { CHAOS_BY_KEY, QUESTION_LEADS, type ChaosCategoryKey } from './chaosTables'
 import { BIOME_ACC, BIOME_BY_KEY, BIOME_GEN, BIOME_LOC } from './biomes'
 import { followersInWords } from './cities'
@@ -159,10 +159,20 @@ const OPENERS: Record<ActionKey, Opener[]> = {
     (G, p) => `${cap(p('uderzy'))} ${G} w górę, i wytrysnęła z niej rzeka.`,
     (G, p) => `${cap(p('rzek'))} ${G}: niech płynie woda. I popłynęła rzeka.`,
   ],
-  create_creature: [
-    (G, p, n) => `I ${p('stworzy')} ${G} istoty, i ${p('nazwa')} je ${n}.`,
-    (G, p, n) => `${cap(p('rzek'))} ${G}: niech powstaną ${n}. I powstały.`,
+  create_beast: [
+    (G, p, n) => `I ${p('stworzy')} ${G} bestie, i ${p('nazwa')} je ${n}.`,
+    (G, p, n) => `${cap(p('rzek'))} ${G}: niech powstaną ${n}, i niech polują. I powstały.`,
+    (G, p, n) => `${cap(p(TCHNAL))} ${G} głód w świat, i powstały ${n}.`,
+  ],
+  create_herd: [
+    (G, p, n) => `I ${p('stworzy')} ${G} stada, i ${p('nazwa')} je ${n}.`,
+    (G, p, n) => `${cap(p('rzek'))} ${G}: niech powstaną ${n}, i niech się pasą. I powstały.`,
     (G, p, n) => `${cap(p(TCHNAL))} ${G} życie w świat, i powstały ${n}.`,
+  ],
+  multiply: [
+    (G, p, n) => `${cap(p('pobłogosławi'))} ${G} ${n}, by się mnożyły.`,
+    (G, p, n) => `I ${p('rzek')} ${G} do ${n}: rozmnażajcie się. I było ich więcej.`,
+    (G, p, n) => `${cap(p('rozbudzi'))} ${G} w ${n} instynkt życia.`,
   ],
   create_sapient: [
     (G, p, n) => `${cap(p('stworzy'))} ${G} istoty rozumne i ${p('nazwa')} je ${n}.`,
@@ -237,6 +247,22 @@ const TIER_LINES = {
   weak: ['Odmówił los.', 'Odwrócił się los od tego dzieła.', 'Nie stało się tak, jak chciano.'],
 } as const
 
+/** what a failed word leaves behind: nothing, told in the book's own words */
+const WEAK_LINES: Partial<Record<ActionKey, string[]>> = {
+  catastrophe: ['Zebrały się chmury i rozeszły, nie raniąc nikogo.', 'Zadrżała ziemia i ucichła, a nikt nie został dotknięty.'],
+  great_miracle: ['Świat nie drgnął.', 'I nie stało się nic, choć niebo zdawało się słuchać.'],
+  create_beast: ['Nie powstało nic, co by polowało.', 'Glina nie przyjęła głodu, i rozsypała się.'],
+  create_herd: ['Nie powstało nic, co by się pasło.', 'Trawa została pusta.'],
+  create_sapient: ['Materia nie przebudziła się.', 'I nie było w tym tchnieniu dość mocy, by coś pomyślało.'],
+  change_creature: ['Istoty pozostały sobą.', 'I nie odmieniły się, choć coś je dotknęło.'],
+  migrate: ['Nikt nie ruszył z miejsca.', 'Zostały, gdzie były, głuche na wezwanie.'],
+  multiply: ['Nie przybyło nikogo.', 'Lecz nie było w tym błogosławieństwie życia.'],
+  create_civilization: ['Lud nie osiadł.', 'Rozeszli się, nie założywszy niczego.'],
+  exodus: ['Nikt nie wyszedł z miasta.', 'Zostali za murami, głusi na wezwanie.'],
+  create_avatar: ['Niebo milczało, i nikt nie zstąpił.', 'I nie było komu zstąpić na ziemię.'],
+  prophecy: ['Prorok otworzył usta i zamilkł.', 'I nie wyszło z proroka żadne słowo.'],
+}
+
 // ---------- what the word did to the map ----------
 type O = Record<string, unknown>
 const num = (o: O, k: string): number => (typeof o[k] === 'number' ? (o[k] as number) : 0)
@@ -255,7 +281,12 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
   const p = pastFor(god.gender)
   const id = l.id
   const parts: string[] = []
-  switch (l.action_key) {
+  const key = logActionKey(l) ?? l.action_key
+  // a word that failed its roll: the Logos is gone and the world is as it was (a blessing still curses the lode)
+  if (o.tier === 'weak' && key !== 'bless_land' && key !== 'develop_civilization') {
+    return [pick(id + 't', [...TIER_LINES.weak]), pick(id + 'w', WEAK_LINES[key as ActionKey] ?? ['Nic się nie stało, a Słowa przepadły.'])].join(' ')
+  }
+  switch (key) {
     case 'shape_land': {
       const hexes = (Array.isArray(o.hexes) ? o.hexes : []) as O[]
       const toKey = str(o, 'biome') as BiomeKey
@@ -323,31 +354,40 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       if (after) parts.push(`I nie został tam kamień na kamieniu: ziemia stała się ${after === 'woda' ? 'wodą' : after === 'pustynia' ? 'pustynią' : 'jałowym ugorem'}.`)
       break
     }
-    case 'create_creature':
+    case 'create_beast':
+    case 'create_herd':
     case 'create_sapient':
     case 'create_avatar': {
       const loc = biomeLoc(str(o, 'biome'))
-      if (loc) parts.push(l.action_key === 'create_avatar' ? `I stanął awatar ${loc}.` : pick(id + 'o', [`Zamieszkały ${loc}.`, `A dom ich był ${loc}.`]))
-      if (l.action_key === 'create_creature') {
-        if (str(o, 'role') === 'beast') parts.push(pick(id + 'b', [`Były to bestie ${temperOf(num(o, 'strength'))}, i polowały.`, `A były ${temperOf(num(o, 'strength'))} i głodne, i nikt nie był przy nich bezpieczny.`]))
-        else if (str(o, 'role') === 'herbivore') parts.push(pick(id + 'b', ['Były to stada łagodne, i pasły się.', 'A pasły się spokojnie, i ziemia była przy nich żyźniejsza.']))
-      }
+      if (loc) parts.push(key === 'create_avatar' ? `I stanął awatar ${loc}.` : pick(id + 'o', [`Zamieszkały ${loc}.`, `A dom ich był ${loc}.`]))
+      if (str(o, 'role') === 'beast') parts.push(pick(id + 'b', [`Były to bestie ${temperOf(num(o, 'strength'))}, i polowały.`, `A były ${temperOf(num(o, 'strength'))} i głodne, i nikt nie był przy nich bezpieczny.`]))
+      else if (str(o, 'role') === 'herbivore') parts.push(num(o, 'strength') > 0 ? pick(id + 'b', ['Były to stada łagodne, i pasły się.', 'A pasły się spokojnie, i ziemia była przy nich żyźniejsza.']) : 'Były to stada dzikie, i pasły się, gdzie chciały.')
+      if (key === 'create_sapient' && Array.isArray(o.copies) && o.copies.length > 0) parts.push('A było ich tak wielu, że zajęli i ziemię obok.')
+      if (key === 'create_avatar' && o.tier === 'mixed') parts.push('Zstąpił ranny, i musiał odpocząć, nim stanął w pełni sił.')
       break
     }
     case 'change_creature': {
       const from = str(o, 'from_name')
       if (from) parts.push(`Wywiodły się z istot ${from}, lecz nie były już nimi.`)
+      if (o.tier === 'strong' && num(o, 'strength') > num(o, 'from_strength')) parts.push('I były silniejsze od tych, z których wyszły.')
       break
     }
     case 'migrate': {
       const d = num(o, 'distance')
-      parts.push(pick(id + 'o', [`Rozeszły się ${journeyWord(d)} i nie opuściły dawnego domu.`, `I było ich odtąd więcej: ${journeyWord(d)} żyły tak samo.`]))
+      if (o.moved) parts.push(pick(id + 'o', [`Przeszły ${journeyWord(d)} i nie wróciły do dawnego domu.`, `Opuściły swoją ziemię i poszły ${journeyWord(d)}.`]))
+      else parts.push(pick(id + 'o', [`Rozeszły się ${journeyWord(d)} i nie opuściły dawnego domu.`, `I było ich odtąd więcej: ${journeyWord(d)} żyły tak samo.`]))
+      break
+    }
+    case 'multiply': {
+      const c = num(o, 'count')
+      parts.push(c >= 2 ? pick(id + 'o', ['I rozeszły się na dwa sąsiednie pola, bo ziemia ich nie mieściła.', 'A było ich dwakroć więcej, i zajęły ziemię wokół.']) : pick(id + 'o', ['I zajęły pole obok.', 'A było ich więcej, i poszły na sąsiednią ziemię.']))
       break
     }
     case 'create_civilization': {
       const sp = str(o, 'species_name')
       const loc = biomeLoc(str(o, 'biome'))
       if (sp) parts.push(`Wyszedł ten lud z istot ${sp}${loc ? `, ${loc}` : ''}, i pierwsi jego wyznawcy modlili się do ${G}.`)
+      if (num(o, 'gained') >= 2) parts.push('A było ich od początku wielu.')
       break
     }
     case 'develop_civilization': {
@@ -369,6 +409,7 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       const sp = str(o, 'species_name')
       const went = `${cap(followersInWords(n))} ${sp ? `z istot ${sp} ` : ''}${n === 1 ? 'przeszedł' : 'przeszło'} ${journeyWord(d)}`
       parts.push(o.new ? `${went} i ${n === 1 ? 'założył' : 'założyli'} miasto ${to}.` : `${went} i ${n === 1 ? 'dołączył' : 'dołączyli'} do miasta ${to}.`)
+      if (num(o, 'lost') > 0) parts.push('Jeden z nich nie dotarł: droga wzięła go sobie.')
       if (o.source_destroyed) parts.push(`A miasto ${str(o, 'from_name')} opustoszało i obróciło się w ruinę.`)
       if (o.avatar_moved) parts.push(`A z ludem poszedł awatar ${str(o, 'avatar_emoji') ? `${str(o, 'avatar_emoji')} ` : ''}${str(o, 'avatar_name')}.`)
       break
@@ -419,6 +460,11 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       const av = `${str(o, 'emoji') ? `${str(o, 'emoji')} ` : ''}${str(o, 'avatar_name')}`
       const text = stripPeriod(str(o, 'text'))
       if (text) parts.push(`Prorok ${av} zapowiedział, że: ${lowerFirst(text)}.`)
+      if (num(o, 'hold') >= 2) parts.push('A słowa te miały ciężar, jakiego dawno nie słyszano.')
+      break
+    }
+    case 'great_miracle': {
+      if (o.with_price) parts.push(pick(id + 'o', ['Lecz cud ten miał swoją cenę.', 'A świat zapłacił za ten cud, choć nie od razu było widać czym.']))
       break
     }
     case 'avatar_duel': {
@@ -455,7 +501,7 @@ function chaosEntry(l: ActionLog) {
 /** the name the opener needs: the thing made, or the city the word touched */
 function openerName(l: ActionLog, ent: Entity | undefined): string {
   const o = (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as O
-  switch (l.action_key) {
+  switch (logActionKey(l) ?? l.action_key) {
     case 'develop_civilization':
     case 'catastrophe':
       return str(o, 'city_name') || ent?.name || 'bez imienia'
@@ -465,6 +511,7 @@ function openerName(l: ActionLog, ent: Entity | undefined): string {
     case 'holy_war':
       return str(o, 'target_name') || ent?.name || 'bez imienia'
     case 'migrate':
+    case 'multiply':
       return str(o, 'name') || ent?.name || 'bez imienia'
     case 'prophecy':
       return str(o, 'avatar_name') || ent?.name || 'bez imienia'
@@ -481,7 +528,8 @@ export function chronicleVerse(l: ActionLog, ctx: VerseContext): string {
   const G = god.name
   const p = pastFor(god.gender)
   const key = l.action_key
-  const action = ACTION_BY_KEY[key as ActionKey]
+  const actionKey = logActionKey(l)
+  const action = actionKey ? ACTION_BY_KEY[actionKey] : undefined
 
   if (action) {
     const ent = ctx.entity(l.entity_id)
@@ -795,7 +843,7 @@ export function buildChapters(log: ActionLog[], ctx: VerseContext): Chapter[] {
       continue
     }
 
-    const isAction = !!ACTION_BY_KEY[l.action_key as ActionKey]
+    const isAction = !!logActionKey(l)
     const fate = isAction && pendingFate && pendingFate.playerId === l.player_id ? ` ${pendingFate.text}` : ''
     pendingFate = null
     const verse = { id: l.id, text: text + fate }

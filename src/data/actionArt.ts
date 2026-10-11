@@ -9,6 +9,9 @@ const ART_FILE: Partial<Record<ActionKey, string>> = {
   pilgrimage: 'command_avatar',
   bless_land: 'create_faction',
   pour_river: 'change_biome',
+  create_beast: 'change_creature',
+  create_herd: 'create_creature',
+  multiply: 'migrate',
 }
 
 /** Painted plates for the words, in public/actions: 512px squares and 160px thumbnails. */

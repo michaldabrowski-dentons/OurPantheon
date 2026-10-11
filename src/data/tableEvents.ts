@@ -1,4 +1,7 @@
-import { ACTION_BY_KEY, type ActionKey } from './actions'
+import { ACTION_BY_KEY, TIER_LABEL, logActionKey } from './actions'
+import { prophecyBonus, rollScore, rollTier } from './dice'
+import { ATTRIBUTE_BY_KEY } from './pantheon'
+import type { AttrKey } from '@/lib/types'
 import { pastFor, logosWords } from './chronicle'
 import { followersWord } from './cities'
 import type { ActionLog, Entity, GodGender } from '@/lib/types'
@@ -196,17 +199,20 @@ export function describeEvent(l: ActionLog, ctx: EventContext): string {
     case 'chaos_notes':
       return l.summary
     default: {
-      const a = ACTION_BY_KEY[l.action_key as ActionKey]
+      const key = logActionKey(l)
+      const a = key ? ACTION_BY_KEY[key] : undefined
       if (!a) return l.summary
       const e = ctx.entity(l.entity_id)
       const who = l.is_avatar_free_action ? ' przez awatara' : ''
       const o = (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as Record<string, unknown>
-      const dice =
-        l.action_key === 'develop_civilization' && typeof o.d1 === 'number'
-          ? ` Kości: ${o.d1} + ${o.d2} ${Number(o.score) < 0 ? '-' : '+'} ${Math.abs(Number(o.score))} = ${o.total}.`
-          : l.action_key === 'catastrophe' && typeof o.d1 === 'number'
-            ? ` Kości: ${o.d1} + ${o.d2} ${Number(o.wrath) < 0 ? '-' : '+'} ${Math.abs(Number(o.wrath))} (Gniew) = ${o.total}, połowa to ${o.damage}.`
-            : ''
+      let dice = ''
+      if (typeof o.d1 === 'number' && typeof o.d2 === 'number') {
+        const score = rollScore(l)
+        const hold = prophecyBonus(o)
+        const attr = ATTRIBUTE_BY_KEY[(o.attr ?? l.roll?.attr) as AttrKey]?.name
+        const tier = rollTier(l)
+        dice = ` Kości: ${o.d1} + ${o.d2} ${score < 0 ? '-' : '+'} ${Math.abs(score)}${attr ? ` (${attr})` : ''}${hold ? ` + ${hold} (proroctwo)` : ''} = ${o.total}${tier ? `: ${TIER_LABEL[tier].toLowerCase()}` : ''}.`
+      }
       return `${G}: ${a.name}${e ? ` (${e.name})` : ''}${who}.${dice}`
     }
   }

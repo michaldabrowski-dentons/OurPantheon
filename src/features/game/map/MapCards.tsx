@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { rpc } from '@/lib/supabase'
-import { ACTION_BY_KEY, type ActionKey } from '@/data/actions'
+import { ACTION_BY_KEY, logActionKey } from '@/data/actions'
 import { composeVerse } from '@/data/chronicle'
 import { Modal, Notice, TextArea } from '@/components/ui/Primitives'
 import { useDiceGate } from '../diceGate'
@@ -154,7 +154,7 @@ export function VerseLockCard({ onError }: { onError: (m: string | null) => void
     }),
     [players, profiles, entities],
   )
-  const myRow = useMemo(() => (me ? [...log].reverse().find((l) => l.player_id === me.id && !!ACTION_BY_KEY[l.action_key as ActionKey]) ?? null : null), [log, me])
+  const myRow = useMemo(() => (me ? [...log].reverse().find((l) => l.player_id === me.id && !!logActionKey(l)) ?? null : null), [log, me])
 
   if (!owing || !me) return null
   const mine = owing === me.id
@@ -175,8 +175,12 @@ export function VerseLockCard({ onError }: { onError: (m: string | null) => void
     setError(null)
     onError(null)
     try {
-      if (summary !== null && myRow) await rpc('edit_log_summary', { p_log_id: myRow.id, p_summary: summary })
-      else await rpc('release_verse', { p_game_id: game.id })
+      if (summary !== null && myRow) {
+        await rpc('edit_log_summary', { p_log_id: myRow.id, p_summary: summary })
+        // a thing made by this word carries the verse as its description
+        const key = logActionKey(myRow)
+        if (key && ACTION_BY_KEY[key].entityOp === 'create' && myRow.entity_id) await rpc('edit_entity', { p_entity_id: myRow.entity_id, p_patch: { description: summary } })
+      } else await rpc('release_verse', { p_game_id: game.id })
       setOpen(false)
     } catch (err) {
       setError((err as Error).message)

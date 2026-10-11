@@ -1,4 +1,4 @@
-// Line-art sigils for the sixteen actions, drawn as if carved into the marble tile.
+// Line-art sigils for the words, drawn as if carved into the marble tile.
 // Real shapes (circle, ellipse, path), no zero-length arc tricks: those render as dots or gaps.
 import type { ReactNode } from 'react'
 import type { ActionKey } from '@/data/actions'
@@ -46,13 +46,31 @@ const SHAPES: Record<ActionKey, ReactNode> = {
 
   // ---------- Tworzenie Życia ----------
   // a paw print: the pad and four toes
-  create_creature: (
+  create_beast: (
     <>
       <path d="M12 20.5c-3.2 0-5.6-1.7-5.6-3.9 0-1.6 1.3-2.5 2.5-3.6 1.1-1 1.9-2.3 3.1-2.3s2 1.3 3.1 2.3c1.2 1.1 2.5 2 2.5 3.6 0 2.2-2.4 3.9-5.6 3.9z" />
       <ellipse cx="5.6" cy="9.8" rx="1.6" ry="2.2" transform="rotate(-22 5.6 9.8)" />
       <ellipse cx="18.4" cy="9.8" rx="1.6" ry="2.2" transform="rotate(22 18.4 9.8)" />
       <ellipse cx="9.4" cy="5.2" rx="1.6" ry="2.2" transform="rotate(-8 9.4 5.2)" />
       <ellipse cx="14.6" cy="5.2" rx="1.6" ry="2.2" transform="rotate(8 14.6 5.2)" />
+    </>
+  ),
+  // two horned heads side by side: the herd
+  create_herd: (
+    <>
+      <path d="M4 10c0-2.2 1.8-4 4-4s4 1.8 4 4v3.5c0 2-1.8 3.5-4 3.5s-4-1.5-4-3.5z" />
+      <path d="M4.5 7 2.5 3.5M11.5 7l2-3.5" />
+      <path d="M13 12.5c0-1.8 1.6-3.3 3.5-3.3s3.5 1.5 3.5 3.3v3c0 1.7-1.6 3-3.5 3S13 17.2 13 15.5z" />
+      <path d="M13.5 10 12 7.5M19.5 10l1.5-2.5" />
+      <path d="M6.5 13.5h3M15 15.5h3" />
+    </>
+  ),
+  // two circles overlapping a third: one becomes more
+  multiply: (
+    <>
+      <circle cx="9" cy="9" r="4.5" />
+      <circle cx="15" cy="9" r="4.5" />
+      <circle cx="12" cy="15.5" r="4.5" />
     </>
   ),
   // a head lit from within

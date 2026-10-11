@@ -22,7 +22,7 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
    `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`, `0017_prices_and_ruins.sql`,
    `0018_verse_lock_avatars_prophecies.sql`, `0019_afterlife_avatar_hand.sql`, `0020_fertility_rivers_resources.sql`,
-   `0021_chaos_night.sql`, `0022_night_2d6_ranks_mutations.sql`.
+   `0021_chaos_night.sql`, `0022_night_2d6_ranks_mutations.sql`, `0023_two_tiles_pbta.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -60,7 +60,8 @@ więc po zmianie zmiennych trzeba zrobić redeploy.
   (`screen=login|lobby|room|palette|creation|game|rolling|chaos`, `&turn=me`, `&draw=1|chosen`,
   `&step=N&host=0` dla Stwarzania Świata, `&overture=1|2|3` odtwarza otwarcie Ery, `&overture=0` je pomija,
   `&domain=0` w przedsionku to bóstwo bez domeny, `&sheet=p2` w grze otwiera kartę tego bóstwa,
-  `&contest=defender|attacker|resolved` pokazuje starcie w danym stanie). Podgląd odpowiada na wołania
+  `&contest=defender|attacker|resolved` pokazuje starcie w danym stanie, `&dice=N` ustawia każdą kość podglądu na N:
+  1 to porażka, 4 sukces z konsekwencjami, 6 pełen sukces). Podgląd odpowiada na wołania
   okien lokalnie (`window.__previewRpc`), więc każdą akcję na mapie da się przejść bez Supabase. Tylko w trybie dev.
 
 ## Przebieg
@@ -140,33 +141,56 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 - Wylej Rzekę (3 / 8 / 12, cena stała): klik w górę to źródło, potem kolejne sąsiednie pola (tryb mapy
   `river`: klik w ostatnie pole cofa je, woda albo cudza rzeka kończy); gdy nie ma dokąd płynąć, karta mapy
   każe przerwać. Przez awatara liczy się zasięg do źródła.
-- Kataklizm (domyślnie deszcz ognia): rodzaj, pole i co zostanie po zniszczeniu (bez zmian, pustynia, ugór,
-  woda); obrażenia to połowa (w dół) z 2k6 + Gniew, najmniej 1, każde losowo w wyznawcę miasta, istotę
-  nierozumną albo awatara (−1 życia); istoty rozumne giną dopiero bez miasta. Biom zmienia się tylko wtedy,
-  gdy na polu nikt nie przeżył (`outcome.biome_after`). Najpierw
-  toczy się kość w oknie, potem na polu spada ogień (błysk, komety, pierścienie), a okno akcji wraca dopiero po
-  animacji z listą strat. Zniszczone miasto zostawia na polu czaszkę (`entities.attributes.ruin`).
-- Stworzenie Istoty: nazwa, wybór stado / bestia i emotikona z osobnej puli (`HERBIVORE_EMOJI` /
-  `BEAST_EMOJI`); bestii księga rzuca siłę 2k6 + Gniew (6-: −1 potulne, 7..8: 0 dzikie, 9..10: +1
-  niebezpieczne, 11..12: +2 krwiożercze, 13+: +3 niszczycielskie), stadu rangę 2k6 + Łaska, oba w oknie
-  kości; potem ląd z wolnym miejscem jej roli. Istota Rozumna i Zesłanie Awatara: nazwa i emotikona,
-  potem ląd (nie woda, nie góry) z wolnym miejscem.
-- Zmiana Istoty: klik w jedną istotę na jednym polu; tam powstaje odmiana (nowy byt, `variant_of`).
-- Migracja (3 / 1 / 3 plus 1 za heks): istota, potem pole docelowe; gatunek mnoży się na nowe pole.
-- Stworzenie Cywilizacji: pole z istotą rozumną i nazwa; miasto rodzi się z jedną kropką twórcy.
-- Rozwój Cywilizacji: miasto, dar z listy (`GIFTS` w `src/data/cities.ts`, albo własny) i Łaska albo Mądrość
-  wybierane tymi samymi dłońmi co na karcie postaci (`AttrPicker`); księga rzuca 2k6 + atrybut: 10+ to dwie
-  kropki, 7..9 jedna, 6- nic (dar odnotowany jako odrzucony w `city_gifts`). Kości widać w kroku wersetu
-  i na lewym panelu u wszystkich.
-- Exodus (12 / 8 / 4 plus 1 za heks): miasto z moimi wyznawcami, ilu ich zabieram i którą istotę rozumną, pole
-  docelowe; na pustym polu powstaje nowe miasto (dziedziczy dary), w zajętym wyznawcy dołączają.
+- Dwa kafle i progi PbtA (0023): każde słowo poza Kształtowaniem Lądów, Wylej Rzekę, Pielgrzymką i
+  Wskrzeszeniem kończy się dwoma kwadratowymi kaflami atrybutów (`AttributeTiles`; pary w `roll.options`
+  w `src/data/actions.ts` i w `action_attrs()` w bazie). Kafel pokazuje grafikę, nazwę, zdanie o sposobie
+  wykonania i tylko modyfikator bóstwa (plus wypełnione proroctwo). Klik płaci Logos i rzuca 2k6 + atrybut
+  po stronie serwera; okno pokazuje kości i werdykt (`RollReveal`), zamyka się, i dopiero wtedy widać
+  efekt na mapie. Progi: 10+ Pełen sukces, 7..9 Sukces z konsekwencjami, 6- Porażka: Logos przepada, świat
+  nie zmienia się (wyjątek: Błogosławieństwo zostawia przeklęte złoże). Wykonujący nie widzi okna kości
+  stołu (zgłasza rzut przez `claim()` w `diceGate.ts`), pozostali gracze widzą je jak dotąd. Werset dopisuje
+  się potem z karty „Święta Księga czeka” na lewym panelu. Stare wiersze `create_creature` czyta
+  `logActionKey()` jako bestię albo stado.
+- Kataklizm (Gniew / Żywioł, domyślnie deszcz ognia): rodzaj, pole i co zostanie po zniszczeniu (bez zmian,
+  pustynia, ugór, woda). 10+: obrażeń jest połowa (w dół) wyniku, każde losowo w wyznawcę miasta, istotę
+  nierozumną albo awatara (−1 życia), a biom zmienia się, gdy na polu nikt nie przeżył (`outcome.biome_after`);
+  7..9: ćwierć wyniku (najmniej jedno), ziemia bez zmian; 6-: nikt nie ranny. Istoty rozumne giną dopiero bez
+  miasta. Ogień spada na pole, gdy okno z kośćmi się zamknie (`useBurst` czeka na `dismissed`).
+  Zniszczone miasto zostawia na polu czaszkę (`entities.attributes.ruin`).
+- Wielki Cud (Majestat / Mądrość): 10+ cud zachodzi, 7..9 zachodzi z ceną opisaną w wersecie, 6- nic; awatar
+  użyty jako ręka spala się tylko wtedy, gdy cud zaszedł.
+- Pobłogosław ziemię (Łaska / Mądrość): 10+ surowiec o randze +1..+3 wedle wyniku, 7..9 pospolity (0), 6-
+  przeklęte złoże (−1).
+- Stworzenie Bestii (Gniew / Żywioł) i Stworzenie Stada (Łaska / Żywioł): nazwa i emotikona z osobnej puli
+  (`BEAST_EMOJI` / `HERBIVORE_EMOJI`), potem ląd z wolnym miejscem roli. 10+: siła albo ranga +1..+3 wedle
+  wyniku (9..10: +1, 11..12: +2, 13+: +3), 7..9: 0, 6-: nic nie powstaje (znak zostaje wolny). Istota
+  Rozumna (Majestat / Mądrość): 10+ plemię na wskazanym polu i drugie na najżyźniejszym wolnym polu obok,
+  7..9 jedno, 6- nic. Zesłanie Awatara (Majestat / Podszept): 10+ pełne życie, 7..9 o jedno mniej, 6- nic.
+- Zmiana Istoty (Podszept / Żywioł): klik w jedną istotę na jednym polu; 10+ odmiana o sile lub randze o jeden
+  wyższej (do +3), 7..9 o sile pierwowzoru, 6- nic (`variant_of`).
+- Migracja (Podszept / Żywioł, 3 / 1 / 3 plus 1 za heks): istota, potem pole docelowe; 10+ gatunek mnoży się
+  na nowe pole, 7..9 przenosi się (opuszcza stare), 6- nikt nie rusza, dystans zapłacony.
+- Rozmnożenie (Łaska / Żywioł, 5 / 2 / 6): klik w stado, bestię albo plemię z wolnym polem obok; 10+ kopie
+  na dwóch najżyźniejszych wolnych polach obok, 7..9 jedna na losowym, 6- nic. Kopie dziedziczą siłę gatunku
+  (`night_candidates` liczy wolne pola jak w nocy Chaosu).
+- Stworzenie Cywilizacji (Mądrość / Łaska): pole z istotą rozumną i nazwa; 10+ miasto z dwiema kropkami
+  twórcy, 7..9 z jedną, 6- lud nie osiada.
+- Rozwój Cywilizacji (Łaska / Mądrość): miasto i dar z listy (`GIFTS` w `src/data/cities.ts`, albo własny);
+  10+ dwie kropki, 7..9 jedna, 6- nic (dar odnotowany jako odrzucony w `city_gifts`).
+- Exodus (Gniew / Podszept, 12 / 8 / 4 plus 1 za heks): miasto z moimi wyznawcami, ilu ich zabieram i którą
+  istotę rozumną, pole docelowe; 10+ wszyscy dochodzą, a nowe miasto dziedziczy dary; 7..9 jeden ginie w
+  drodze (gdy idzie ich co najmniej dwóch; dusza do zaświatów) i dary nie wędrują; 6- nikt nie wychodzi.
+  W zajętym polu wyznawcy dołączają do miasta.
+- Proroctwo (Majestat / Mądrość): 10+ nieuchronność +2, 7..9 +1, 6- prorok milczy.
 - Nawracanie i Święta Wojna to starcia (`contests`): atakujący deklaruje i płaci (`declare_contest`), księga
   rzuca za niego; tura zamiera, aż obrońca u siebie wybierze atrybut i rzuci (`answer_contest`), potem atakujący
-  dopisuje werset (`commit_contest`) albo odwołuje starcie przed odpowiedzią (`cancel_contest`). Nawracanie:
-  2k6 + Majestat albo Podszept po obu stronach, wygrana o 3+ przejmuje dwóch wyznawców, o 1..2 jednego. Wojna:
-  armia to moi wyznawcy z miasta, w którym rządzę (jeden zostaje), koszt 8 / 6 / 4 plus 1 za heks; atakujący 2k6 + Gniew +
-  armia, obrońca 2k6 + atrybut + swoje kropki w celu; skala zwycięstwa jak w briefie (pełne, pyrrusowe, remis
-  bez oblężenia, odparcie, masakra).
+  dopisuje werset (`commit_contest`) albo odwołuje starcie przed odpowiedzią (`cancel_contest`). Obie strony
+  wybierają atrybut dwoma kaflami (obrońca w `ContestOverlay`, pary w `defence.options` i w
+  `action_attrs(kind, 'defence')`); różnica rzutów decyduje. Nawracanie: atak 2k6 + Majestat albo Podszept,
+  obrona 2k6 + Majestat albo Mądrość; wygrana o 3+ przejmuje dwóch wyznawców, o 1..2 jednego. Wojna: armia to
+  moi wyznawcy z miasta, w którym rządzę (jeden zostaje), koszt 8 / 6 / 4 plus 1 za heks; atakujący 2k6 +
+  Gniew albo Podszept + armia, obrońca (Obrona Miasta) 2k6 + Łaska albo Gniew + swoje kropki w celu + życie
+  awatara na murach; skala zwycięstwa jak w briefie (pełne, pyrrusowe, remis bez oblężenia, odparcie, masakra).
 - Awatar jest ręką bóstwa na ziemi (0019): nie ma już darmowej akcji. Słowa Terraformacji, Tworzenia Życia
   i Śmiertelników (także Nawracanie i Święta Wojna) można wypowiedzieć przez awatara za połowę ceny (w górę,
   `via_avatar_id`), ale cel musi leżeć najwyżej dwa heksy od niego (wszystkie pola Kształtowania, pole
@@ -184,8 +208,8 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   (`city_species_emoji`, `collect_souls`). Karta bóstwa ma sekcję „Zaświaty”: opis (domyślny z domeny,
   `AFTERLIFE_DEFAULT`, własny przez `set_afterlife`) i chmurę dusz.
 - Walka Awatarów (5 / 4 / 3): mój awatar i awatar innego bóstwa najwyżej dwa heksy od siebie (dalszego trzeba
-  najpierw dogonić Pielgrzymką); starcie 2k6 + Gniew, Majestat albo Podszept po obu stronach (obrońca wybiera u
-  siebie). Wygrana o 3+: wróg traci 2 życia; o 1..2: wróg 1 i ja 1; remis: obaj po 1; przegrana o 1..2: ja 1;
+  najpierw dogonić Pielgrzymką); starcie 2k6 + Gniew albo Majestat po obu stronach (obrońca wybiera u siebie
+  dwoma kaflami). Wygrana o 3+: wróg traci 2 życia; o 1..2: wróg 1 i ja 1; remis: obaj po 1; przegrana o 1..2: ja 1;
   o 3+: ja 2. Awatar bez życia ginie i znika z mapy. Plansza `avatar_fight.jpg`.
 - Wygrana Święta Wojna (pełna albo pyrrusowa) daje atakującemu tyle sukcesów, ilu liczyła armia; w oknie
   wersetu rozdziela je między wyznawców miasta (jeden sukces zabija jednego, połowa zabitych w górę nawraca się),
@@ -198,14 +222,16 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   trafia do „Spełnione Proroctwa” na karcie bóstwa, a księga notuje „Słowa proroka X stały się ciałem: …”.
 - Koniec Chaosu (`end_chaos_phase`): każde miasto zyskuje kropkę dla bóstwa, które nim rządzi (remis losowo),
   a suma kropek daje +3, +2 i +1 Logos trzem najwierniej czczonym bóstwom.
-- Każde słowo kończy się krokiem wersetu: księga układa werset z wyniku (`actions_log.outcome`,
+- Słowa bez rzutu kończą się krokiem wersetu w oknie; słowa z kaflami zamykają okno po kościach, a werset
+  dopisuje się z karty „Święta Księga czeka”. Księga układa werset z wyniku (`actions_log.outcome`,
   `composeVerse`), gracz może go przepisać (`edit_log_summary`). Zapis do księgi jest ZAMKIEM tury
   (`games.verse_pending_by`): póki gracz nie dopisze wersetu (albo nie zostawi podpowiedzi), tura nie przechodzi
   dalej, a Faza Chaosu nie może się zacząć; po odświeżeniu strony karta „Święta Księga czeka” na lewym panelu
   pozwala dokończyć zapis (`release_verse` zostawia podpowiedź).
-- Każdy rzut kośćmi otwiera u wszystkich okno kości (toczenie, wynik, przy starciach obie strony: „Atakujący:
-  2k6 + Gniew = 9 | Obrońca: 2k6 + Łaska = 7”) z przyciskiem „Kontynuuj” / „Zobacz wynik”; okna z wynikiem
-  i decyzjami (werset, podział sukcesów, obrona) pokazują się dopiero po tym kliknięciu (`diceGate.ts`). Wersety nie znają słów „heks” ani „pole”
+- Każdy rzut kośćmi otwiera u pozostałych graczy okno kości (toczenie, wynik i werdykt progu, przy starciach obie
+  strony: „Atakujący: 2k6 + Gniew = 9 | Obrońca: 2k6 + Łaska = 7”) z przyciskiem „Kontynuuj” / „Zobacz wynik”;
+  rzucający widzi kości we własnym oknie (`claim()`), a okna z wynikiem i decyzjami (werset starcia, podział
+  sukcesów, obrona) pokazują się dopiero po kliknięciu (`diceGate.ts`, wspólny `useDiceTumble`). Wersety nie znają słów „heks” ani „pole”
   ani cyfr: mówią o ziemiach i krainach, liczby piszą słowami. Frakcje i religie zniknęły z gry.
 - Faza Chaosu: kartę odwraca i losuje ponownie tylko gospodarz. Po karcie gospodarz klika „Rozpocznij noc”
   (`start_chaos_night`) albo „Pomiń noc i zakończ rundę” (`chaos_skip`).
@@ -281,8 +307,8 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 - Era: głosowanie w dowolnej rundzie; decyduje większość bóstw. Każdą nową Erę (i pierwszą) otwiera kurtyna
   z rysunkiem epoki; to, którą już widziano, pamięta `localStorage` na danym urządzeniu.
 - Akcje w panelu: Terraformacja (Kształtowanie Lądów, Kataklizm, Wielki Cud, Pobłogosław ziemię, Wylej Rzekę), Tworzenie Życia (Stworzenie
-  Istoty, Stworzenie Istoty Rozumnej, Zmiana Istoty, Migracja), Śmiertelnicy (Stworzenie Cywilizacji, Rozwój
-  Cywilizacji, Exodus, Nawracanie, Święta Wojna), Działania Awatara (Zesłanie, Rozkaz, Wskrzeszenie), Proroctwa
+  Bestii, Stworzenie Stada, Stworzenie Istoty Rozumnej, Zmiana Istoty, Migracja, Rozmnożenie), Śmiertelnicy (Stworzenie Cywilizacji, Rozwój
+  Cywilizacji, Exodus, Nawracanie, Święta Wojna), Działania Awatara (Zesłanie, Pielgrzymka, Wskrzeszenie, Walka Awatarów, Proroctwo), Proroctwa
   i Słowa (Przekaż Logos); zawsze w tej kolejności, nigdy wg ceny. Akcje z warunkiem (np. „musi istnieć miasto”) są nieaktywne, póki mapa go nie spełnia.
 - Werset do Świętej Księgi powstaje na końcu każdej akcji z tego, co się stało (opener, wynik z mapy, zdanie
   o cechach); gracz może go przepisać; „Zostaw jak jest” zapisuje podpowiedź. Opis nowego bytu to ten sam

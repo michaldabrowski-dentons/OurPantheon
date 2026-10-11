@@ -115,12 +115,12 @@ export function ActionsPanel() {
                 </span>
                 <span className={styles.stoneBody}>
                   <span className={styles.stoneName}>{a.name}</span>
-                  {(a.requirement || a.requiresRoll || a.distance || a.contested) && (
+                  {(a.requirement || a.roll || a.distance || a.contested) && (
                     <span className={styles.stoneMeta}>
                       {a.requirement && (
                         <span className={[styles.stoneReq, reqOk ? '' : styles.reqUnmet].join(' ')}>{a.requirement.text}</span>
                       )}
-                      {a.requiresRoll && <span className={styles.stoneRoll}>wymaga rzutu</span>}
+                      {a.roll && !a.contested && <span className={styles.stoneRoll}>2k6 + atrybut</span>}
                       {a.contested && <span className={styles.stoneRoll}>rzut sporny</span>}
                       {a.distance && <span className={styles.stoneRoll}>1 Logos za heks</span>}
                     </span>
