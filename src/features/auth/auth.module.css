@@ -5,6 +5,14 @@
   padding: var(--gutter);
 }
 
+/* the door of the temple: the painting hangs only behind the login and the signup, under a veil of dusk */
+.wall {
+  background:
+    linear-gradient(180deg, rgba(5, 4, 3, 0.45), rgba(5, 4, 3, 0.7)),
+    url('/wallpaper.jpg') center / cover no-repeat,
+    var(--void-soft);
+}
+
 .card {
   width: min(520px, 100%);
   display: grid;

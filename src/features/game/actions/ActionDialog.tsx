@@ -23,9 +23,12 @@ import { AttributeTiles } from './AttributeTiles'
 import { RollReveal } from './RollReveal'
 import { useMapMode, type MapMode } from '../map/mapMode'
 import { useWorld } from '../map/useWorld'
+import { verdict, verdictHead } from '../map/ContestOverlay'
 import styles from './actions.module.css'
 
 const OWN_GIFT = '__own'
+/** the defender of a city with nobody to answer: the godless, for whom the book rolls at once */
+const GODLESS = '__godless'
 
 interface FormState {
   name: string
@@ -339,7 +342,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           costFor: (sel) => (srcCity && sel[0] ? hexDistance(srcCity, sel[0]) : null),
         }
       case 'convert':
-        return { kind: 'city', title: 'Nawracanie', instruction: `Kliknij miasto, w którym inne bóstwo ma wyznawców: awatar wejdzie do niego i będzie nawracać.${reachNote}`, valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && w.followersOf(c.entity_id).some((x) => x.player_id !== me.id) && inReach(q, r) } }
+        return { kind: 'city', title: 'Nawracanie', instruction: `Kliknij miasto, w którym inne bóstwo ma wyznawców albo żyją bezbożni: awatar wejdzie do niego i będzie nawracać.${reachNote}`, valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && (c.atheists > 0 || w.followersOf(c.entity_id).some((x) => x.player_id !== me.id)) && inReach(q, r) } }
       case 'holy_war':
         if (mapOrdinal === 0) {
           return { kind: 'city', title: 'Święta Wojna', instruction: `Kliknij swoje miasto: to, w którym masz najwięcej wyznawców (co najmniej dwóch, bo jeden zostaje). Awatar wejdzie do niego i poprowadzi armię.${reachNote}`, valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && w.holds(c.entity_id, me.id) && w.dotsOf(c.entity_id, me.id) >= 2 && inReach(q, r) } }
@@ -348,7 +351,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           kind: 'city',
           title: 'Święta Wojna',
           instruction: `Kliknij miasto, na które rusza armia (${followersWord(f.army)}). 1 Logos za każdy heks między miastami; świecą tylko te, na które cię stać.`,
-          valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && c.entity_id !== f.cityId && w.followersOf(c.entity_id).some((x) => x.player_id !== me.id) && reach(srcCity, q, r) },
+          valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && c.entity_id !== f.cityId && (c.atheists > 0 || w.followersOf(c.entity_id).some((x) => x.player_id !== me.id)) && reach(srcCity, q, r) },
           costFor: (sel) => (srcCity && sel[0] ? hexDistance(srcCity, sel[0]) : null),
         }
       case 'avatar_duel': {
@@ -510,7 +513,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           } else {
             n.targetCityId = p.cityId ?? ''
             const rivals = world.followersOf(p.cityId ?? '').filter((x) => x.player_id !== me.id)
-            n.defenderId = rivals[0]?.player_id ?? ''
+            n.defenderId = rivals[0]?.player_id ?? (world.atheistsOf(p.cityId ?? '') > 0 ? GODLESS : '')
           }
           break
         default:
@@ -672,11 +675,12 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     setError(null)
     claim()
     try {
+      const defender = f.defenderId === GODLESS ? undefined : f.defenderId
       const payload = action.key === 'convert'
-        ? { city_id: f.cityId, defender_id: f.defenderId, attr, prophecy_id: f.prophecyId, avatar_id: f.avatarId || undefined }
+        ? { city_id: f.cityId, defender_id: defender, attr, prophecy_id: f.prophecyId, avatar_id: f.avatarId || undefined }
         : action.key === 'avatar_duel'
           ? { attacker_avatar_id: f.avatarId, defender_avatar_id: f.enemyAvatarId, attr, prophecy_id: f.prophecyId }
-          : { source_city_id: f.cityId, army: f.army, target_city_id: f.targetCityId, defender_id: f.defenderId, attr, prophecy_id: f.prophecyId, avatar_id: f.avatarId || undefined }
+          : { source_city_id: f.cityId, army: f.army, target_city_id: f.targetCityId, defender_id: defender, attr, prophecy_id: f.prophecyId, avatar_id: f.avatarId || undefined }
       const c = await rpc<Contest>('declare_contest', { p_game_id: game.id, p_kind: action.key, p_payload: payload })
       setRolled({ contest: c, attr })
     } catch (err) {
@@ -700,6 +704,8 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     const declaredRow = c ? log.find((l) => l.action_key === 'contest_declared' && !!l.outcome && !Array.isArray(l.outcome) && (l.outcome as Record<string, unknown>).contest_id === c.id) : undefined
     const rowId = rolled?.row?.id ?? fought?.id ?? declaredRow?.id ?? c?.log_id ?? null
     if (rowId) dismiss(rowId)
+    // against the godless the book has answered already: its row is read here too
+    if (c && c.status !== 'pending' && c.log_id) dismiss(c.log_id)
     unclaim()
     onClose()
   }
@@ -825,12 +831,16 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
 
   // ---------- roll: two tiles; a click pays and throws, and the dice fall right here ----------
   if (step === 'roll' && action.roll) {
+    const godless = f.defenderId === GODLESS
     const def = players.find((p) => p.id === f.defenderId)
+    const defName = godless ? 'Bezbożni' : godLabel(def)
     if (rolled) {
       const c = rolled.contest
       const o = (rolled.row?.outcome && !Array.isArray(rolled.row.outcome) ? rolled.row.outcome : {}) as Record<string, unknown>
       const tier = c ? null : ((o.tier as Tier | undefined) ?? null)
       const prophecyHold = c ? hold : Number(o.prophecy ?? 0)
+      // against the godless the book has already answered: the verdict is read right here
+      const settled = !!c && c.status !== 'pending' && c.defender_total !== null
       return shell(
         <RollReveal
           id={rolled.row?.id ?? c?.id ?? 'roll'}
@@ -841,8 +851,8 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           bonus={prophecyHold}
           attr={rolled.attr}
           tier={tier}
-          verdict={c ? 'Czekamy na obronę' : undefined}
-          consequence={c ? `${godLabel(def)} wybiera obronę i rzuca u siebie. Twoja tura czeka na odpowiedź.` : rolled.row ? tierDetail(rolled.row) ?? (tier && action.roll.tiers ? action.roll.tiers[tier] : undefined) : undefined}
+          verdict={c ? (settled ? verdictHead(c) : 'Czekamy na obronę') : undefined}
+          consequence={c ? (settled ? `${verdict(c, godLabel(me), defName, Number((c.outcome as Record<string, unknown> | null)?.converted ?? 0))} Księga rzuciła za bezbożników ${c.defender_d1} + ${c.defender_d2} + ${c.defender_mod} = ${c.defender_total}.` : `${defName} wybiera obronę i rzuca u siebie. Twoja tura czeka na odpowiedź.`) : rolled.row ? tierDetail(rolled.row) ?? (tier && action.roll.tiers ? action.roll.tiers[tier] : undefined) : undefined}
           what={`${action.name}, 2k6 + ${ATTRIBUTE_BY_KEY[rolled.attr].name}${action.key === 'holy_war' ? ' + Armia + życie awatara' : ''}`}
           onDone={finishRoll}
           doneLabel={c ? 'Zamknij' : 'Dalej'}
@@ -861,7 +871,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           ))}
         </ul>
         {distance > 0 && <p className={styles.hint}>Dystans: {distance} {distance === 1 ? 'heks' : 'heksów'}, czyli {distance} Logos{baseCost ? ` doliczone do ${baseCost}` : ''}.</p>}
-        {action.contested && <Notice>Kości rzuca księga od razu. Potem {godLabel(def)} wybiera obronę i rzuca u siebie; twoja tura czeka na odpowiedź. Logos płacisz teraz.</Notice>}
+        {action.contested && <Notice>{godless ? 'Kości rzuca księga od razu, także za bezbożników: wynik poznasz od razu.' : `Kości rzuca księga od razu. Potem ${defName} wybiera obronę i rzuca u siebie; twoja tura czeka na odpowiedź.`} Logos płacisz teraz.</Notice>}
         <ProphecyPicker prophecies={prophecies} value={f.prophecyId} onChange={(v) => set('prophecyId', v)} disabled={busy} />
         {error && <Notice tone="error">{error}</Notice>}
         <AttributeTiles
@@ -1050,7 +1060,8 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
       }
       case 'convert': {
         const rivals = world.followersOf(f.cityId).filter((x) => x.player_id !== me.id)
-        if (!f.defenderId && rivals[0]) set('defenderId', rivals[0].player_id)
+        const godlessHere = world.atheistsOf(f.cityId)
+        if (!f.defenderId && (rivals[0] || godlessHere > 0)) set('defenderId', rivals[0]?.player_id ?? GODLESS)
         return {
           ready: !!f.defenderId && !!f.avatarId,
           fields: (
@@ -1064,6 +1075,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
                       <option key={x.player_id} value={x.player_id}>{godLabel(p)} ({followersWord(x.dots)})</option>
                     )
                   })}
+                  {godlessHere > 0 && <option value={GODLESS}>Bezbożni ({godlessHere}): za nich rzuca księga</option>}
                 </select>
               </label>
             </div>
@@ -1089,6 +1101,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           }
         }
         const rivals = world.followersOf(f.targetCityId).filter((x) => x.player_id !== me.id)
+        const godlessThere = world.atheistsOf(f.targetCityId)
         return {
           ready: !!f.defenderId,
           fields: (
@@ -1102,6 +1115,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
                       <option key={x.player_id} value={x.player_id}>{godLabel(p)} ({followersWord(x.dots)})</option>
                     )
                   })}
+                  {godlessThere > 0 && <option value={GODLESS}>Bezbożni ({godlessThere}): za nich rzuca księga, 2k6 + ich liczba</option>}
                 </select>
               </label>
             </div>
@@ -1198,9 +1212,9 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
       case 'exodus':
         return [`Z miasta: ${world.entityById(f.cityId)?.name ?? ''}`, `${followersWord(f.dots)} i istota ${unit?.name ?? ''}`, `Cel: ${at}${f.target && world.cityAt(f.target.q, f.target.r) ? ` (dołączają do miasta ${world.entityById(world.cityAt(f.target.q, f.target.r)!.entity_id)?.name})` : ` (nowe miasto ${f.name})`}`]
       case 'convert':
-        return [`Miasto: ${world.entityById(f.cityId)?.name ?? ''}`, `Nawracasz wyznawców: ${godLabel(players.find((p) => p.id === f.defenderId))}`]
+        return [`Miasto: ${world.entityById(f.cityId)?.name ?? ''}`, `Nawracasz: ${f.defenderId === GODLESS ? 'bezbożnych' : `wyznawców ${godLabel(players.find((p) => p.id === f.defenderId))}`}`]
       case 'holy_war':
-        return [`Z miasta: ${world.entityById(f.cityId)?.name ?? ''}, Armia: ${followersWord(f.army)}`, `Cel: ${world.entityById(f.targetCityId)?.name ?? ''}, broni: ${godLabel(players.find((p) => p.id === f.defenderId))}`, `Rzut: 2k6 + atrybut + ${f.army} (Armia) + ${speaker?.entity.hp ?? 0} (życie awatara)`]
+        return [`Z miasta: ${world.entityById(f.cityId)?.name ?? ''}, Armia: ${followersWord(f.army)}`, `Cel: ${world.entityById(f.targetCityId)?.name ?? ''}, broni: ${f.defenderId === GODLESS ? 'bezbożni (księga rzuca za nich)' : godLabel(players.find((p) => p.id === f.defenderId))}`, `Rzut: 2k6 + atrybut + ${f.army} (Armia) + ${speaker?.entity.hp ?? 0} (życie awatara)`]
       case 'pilgrimage':
         return [`Awatar: ${world.entityById(f.avatarId)?.emoji ?? ''} ${world.entityById(f.avatarId)?.name ?? ''}`, `Idzie na ${at}`]
       case 'resurrect_avatar':

@@ -23,7 +23,7 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
    `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`, `0017_prices_and_ruins.sql`,
    `0018_verse_lock_avatars_prophecies.sql`, `0019_afterlife_avatar_hand.sql`, `0020_fertility_rivers_resources.sql`,
    `0021_chaos_night.sql`, `0022_night_2d6_ranks_mutations.sql`, `0023_two_tiles_pbta.sql`,
-   `0024_cataclysms_avatar_words.sql`.
+   `0024_cataclysms_avatar_words.sql`, `0025_godless_contests_prices.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -163,12 +163,12 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 - Kataklizmy (0024, wszystkie Gniew / Żywioł, zamiast jednego Kataklizmu):
   - Piorun (1 / 2 / 3): klik w bestię, stado albo awatara (nie lud). 10+ dwa obrażenia, 7..9 jedno, 6-
     chybienie; bestia albo stado trafione znikają z pola (gatunek ginie bez innych pól), awatar traci życie.
-  - Potop (6 / 12 / 18): klik w ląd. 10+ pole staje się Wodą na zawsze (`drown_hex`: wyznawcy do zaświatów,
+  - Potop (4 / 10 / 16): klik w ląd. 10+ pole staje się Wodą na zawsze (`drown_hex`: wyznawcy do zaświatów,
     istoty toną, awatary giną, miasto zostawia czaszkę, surowiec przepada, rzeka urwana); 7..9 trzy losowe
     trafienia (`strike_hex`: wyznawca, stado/bestia, życie awatara), ląd zostaje; 6- nic.
   - Deszcz Ognia (6 / 12 / 18): klik w ląd. 10+ sześć losowych trafień, 7..9 trzy, 6- nic. Gdy po ogniu nikt
     nie żyje na polu, staje się Ugorem (góry zostają). Istoty rozumne giną dopiero bez miasta.
-  - Susza (3 / 6 / 9): klik w ląd. 10+ trzy noce, 7..9 dwie (`hexes.drought_rounds`): u góry heksa ☀️
+  - Susza (1 / 4 / 7): klik w ląd. 10+ trzy noce, 7..9 dwie (`hexes.drought_rounds`): u góry heksa ☀️
     zamiast liczby, Żyzność 0 (`hex_fertility`, `fertilityOf`), a każdej nocy stado pasące się tam ginie.
   - Plaga (9 / 5 / 8): klik w pole z miastem, stadem albo bestią. 10+ dwie noce, 7..9 jedna
     (`hexes.plague_rounds`): u góry heksa ☣️, a każdej nocy w mieście umiera dwoje losowych mieszkańców
@@ -220,6 +220,10 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   kropki w celu + życie awatara na murach; skala zwycięstwa jak w briefie (pełne, pyrrusowe, remis bez
   oblężenia, odparcie, masakra). Po wygranej (także pyrrusowej) awatar staje w zdobytym mieście, gdy jest
   miejsce (`outcome.attacker_avatar_to`); po przegranej o 3+ odnosi ranę (`attacker_avatar_wound`).
+  Bezbożnych też da się nawracać i najeżdżać (0025, `contests.defender_id` null): nikt nie odpowiada, więc
+  księga rzuca za nich od razu w `declare_contest` (`contest_resolve`: Nawracanie 2k6 bez atrybutu, Wojna
+  2k6 + ich liczba); starcie wraca już rozstrzygnięte, okno słowa pokazuje werdykt, a atakujący od razu pisze
+  werset (i po wygranej wojnie rozdziela sukcesy; bezbożni giną bez zaświatów i nie mają awatara na murach).
 - Awatar nie daje zniżki (0024): słowa kosztują tyle, ile kosztują, bez pytania „Kto wypowiada słowo”. Awatar
   jest za to jedynym, kto wypowiada słowa Działalności Awatara, zawsze najwyżej dwa heksy od siebie
   (`pick_avatar` bierze wskazanego albo najbliższego z moich; `avatar_enter` wprowadza go do miasta i podnosi

@@ -128,7 +128,8 @@ const anyLand = (w: WorldView) => w.hexes.some((h) => h.biome !== 'woda')
 const sapientCanSettle = (w: WorldView) =>
   w.hexes.some((h) => !w.blocked(h.q, h.r) && !w.cityAt(h.q, h.r) && w.occupantsAt(h.q, h.r).some((o) => w.isSapient(w.entityById(o.entity_id))))
 const myCities = (w: WorldView, me: Player | null) => (me ? w.cities.filter((c) => w.dotsOf(c.entity_id, me.id) > 0) : [])
-const rivalCities = (w: WorldView, me: Player | null) => (me ? w.cities.filter((c) => w.followersOf(c.entity_id).some((f) => f.player_id !== me.id)) : [])
+/** cities with somebody to convert or to war upon: another god's followers, or the godless */
+const rivalCities = (w: WorldView, me: Player | null) => (me ? w.cities.filter((c) => c.atheists > 0 || w.followersOf(c.entity_id).some((f) => f.player_id !== me.id)) : [])
 const unblessedLand = (w: WorldView) => w.hexes.some((h) => h.biome !== 'woda' && !h.resource)
 const riverSource = (w: WorldView) =>
   w.hexes.some((h) => isMountain(h.biome) && !w.riverAt(h.q, h.r) && neighbours(h).some((n) => { const b = w.hexAt(n.q, n.r)?.biome; return !!b && !isMountain(b) }))
@@ -235,7 +236,7 @@ export const ACTIONS: ActionDef[] = [
     key: 'flood',
     name: 'Potop',
     category: 'cataclysm',
-    costs: [6, 12, 18],
+    costs: [4, 10, 16],
     flow: ['map', 'roll'],
     roll: {
       options: [
@@ -285,7 +286,7 @@ export const ACTIONS: ActionDef[] = [
     key: 'drought',
     name: 'Susza',
     category: 'cataclysm',
-    costs: [3, 6, 9],
+    costs: [1, 4, 7],
     flow: ['map', 'roll'],
     roll: {
       options: [

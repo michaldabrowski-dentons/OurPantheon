@@ -54,7 +54,7 @@ export function TempleLogin() {
   const signup = mode === 'signup'
 
   return (
-    <div className={styles.center}>
+    <div className={[styles.center, styles.wall].join(' ')}>
       <MarblePanel className={styles.card}>
         <header className={styles.templeHead}>
           <h1 className="engraved">O BOGOWIE!</h1>

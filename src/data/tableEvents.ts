@@ -174,11 +174,11 @@ export function describeEvent(l: ActionLog, ctx: EventContext): string {
       return 'Pierwsza Era się zaczęła. Wszyscy rzucają na Logos.'
     case 'contest_declared': {
       const o = (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as Record<string, unknown>
-      const def = ctx.god(typeof o.defender_id === 'string' ? o.defender_id : null).name
+      const def = o.godless ? 'bezbożnikom' : ctx.god(typeof o.defender_id === 'string' ? o.defender_id : null).name
       const began = gender === 'm' ? 'zaczął' : gender === 'f' ? 'zaczęła' : 'zaczęło'
       const what = o.kind === 'holy_war' ? `${p('wyruszy')} na świętą wojnę` : o.kind === 'avatar_duel' ? `${p('posła')} awatara do walki` : `${began} nawracać`
       const where = o.kind === 'avatar_duel' ? (typeof o.defender_avatar === 'string' ? ` (${o.defender_avatar})` : '') : typeof o.target_name === 'string' && o.target_name ? ` w mieście ${o.target_name}` : ''
-      return `${G} ${what} przeciw ${def}${where}. Czekamy na obronę.`
+      return `${G} ${what} przeciw ${def}${where}. ${o.godless ? 'Za bezbożników rzuca księga.' : 'Czekamy na obronę.'}`
     }
     case 'contest_cancelled':
       return `${G} ${p('odwoła')} starcie.`

@@ -43,8 +43,10 @@ export function ContestVerseDialog() {
   const pendingWar = contest?.kind === 'holy_war' && o.pending === true
   const successes = Number(o.successes ?? 0)
   const city = contest?.target_city_id ? world.cityOf(contest.target_city_id) : undefined
-  const defenderDots = contest?.target_city_id ? world.dotsOf(contest.target_city_id, contest.defender_id) : 0
-  const defAvatar = contest && city ? world.avatarsOf(contest.defender_id).find((a) => a.occupant && a.occupant.q === city.q && a.occupant.r === city.r)?.entity : undefined
+  // the godless have no god, no afterlife and no avatar on the walls
+  const godless = !!contest && contest.defender_id === null
+  const defenderDots = contest?.target_city_id ? (godless ? world.atheistsOf(contest.target_city_id) : world.dotsOf(contest.target_city_id, contest.defender_id!)) : 0
+  const defAvatar = contest && city && !godless ? world.avatarsOf(contest.defender_id!).find((a) => a.occupant && a.occupant.q === city.q && a.occupant.r === city.r)?.entity : undefined
   const creaturesHere = city ? world.occupantsAt(city.q, city.r).map((occ) => ({ occ, e: world.entityById(occ.entity_id) })).filter((x): x is { occ: typeof x.occ; e: Entity } => !!x.e && x.e.kind === 'creature') : []
   const dotsChosen = dots ?? Math.min(successes, defenderDots)
   const spent = dotsChosen + avatar + creatures.length
@@ -76,6 +78,7 @@ export function ContestVerseDialog() {
   useVerseDialogFlag(!!contest && !!me && !waiting)
   if (!contest || !me || waiting) return null
   const def = players.find((p) => p.id === contest.defender_id)
+  const defName = godless ? 'Bezbożni' : godLabel(def)
 
   async function commit(summary: string) {
     setBusy(true)
@@ -102,15 +105,15 @@ export function ContestVerseDialog() {
   return (
     <Modal title={`${KIND_TITLE[contest.kind]} rozstrzygnięta`} wide>
       <div className={styles.contestBody}>
-        <ContestSides contest={contest} attackerName={godLabel(me)} defenderName={godLabel(def)} />
-        <p className={styles.verdict}>{verdict(contest, godLabel(me), godLabel(def), Number(o.converted ?? 0))}</p>
+        <ContestSides contest={contest} attackerName={godLabel(me)} defenderName={defName} />
+        <p className={styles.verdict}>{verdict(contest, godLabel(me), defName, Number(o.converted ?? 0))}</p>
         {pendingWar && (
           <div className={styles.alloc}>
             <p className={styles.allocHead}>
               Rozdziel {successes} {successes === 1 ? 'sukces' : successes < 5 ? 'sukcesy' : 'sukcesów'}. {left > 0 ? `Jeszcze ${left} do rozdania (przepadnie, jeśli nie wskażesz celu).` : 'Wszystkie rozdane.'}
             </p>
             <label className={fieldClass}>
-              <span className={labelClass}>Wyznawcy {godLabel(def)} w mieście (jest ich {defenderDots}): każdy sukces zabija jednego, połowa zabitych (w górę) nawraca się na ciebie</span>
+              <span className={labelClass}>{godless ? 'Bezbożni' : `Wyznawcy ${godLabel(def)}`} w mieście (jest ich {defenderDots}): każdy sukces zabija jednego, połowa zabitych (w górę) nawraca się na ciebie</span>
               <input className={inputClass} type="number" min={0} max={Math.min(defenderDots, successes)} value={dotsChosen} onChange={(e) => setDots(clampDots(Number(e.target.value) || 0))} />
             </label>
             {defAvatar ? (

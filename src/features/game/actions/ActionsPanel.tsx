@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { ACTION_BY_KEY, ACTION_GROUPS, actionsByCategory, standingAvatars, type ActionDef, type ActionGroupKey, type Era } from '@/data/actions'
+import { ACTION_BY_KEY, ACTION_GROUPS, actionsByCategory, standingAvatars, type ActionCategoryKey, type ActionDef, type Era } from '@/data/actions'
 import { rpc } from '@/lib/supabase'
 import { TransferDialog } from '../TransferDialog'
 import { useUser } from '@/features/auth/AuthGate'
@@ -28,7 +28,7 @@ export function ActionsPanel() {
   const [transfer, setTransfer] = useState(false)
   const players = useGameStore((s) => s.players)
   const profiles = useGameStore((s) => s.profiles)
-  const [folded, setFolded] = useState<Record<ActionGroupKey, boolean>>({ divine: false, avatar: false })
+  const [folded, setFolded] = useState<Partial<Record<ActionCategoryKey, boolean>>>({})
 
   const era = game.era as Era
   const versePending = !!game.verse_pending_by
@@ -88,31 +88,25 @@ export function ActionsPanel() {
 
       {ACTION_GROUPS.map((group) => {
         const groupOff = group.key === 'avatar' && !avatarStands
-        const isOpen = !folded[group.key] && !groupOff
         const cats = groups.filter((g) => g.category.group === group.key)
-        const count = cats.reduce((n, g) => n + g.actions.length, 0) + (group.key === 'divine' ? 1 : 0)
         return (
           <section key={group.key} className={styles.actionsGroup} aria-label={group.name}>
-            <button
-              type="button"
-              className={['marble', styles.groupHead, groupOff ? styles.groupHeadOff : ''].join(' ')}
-              aria-expanded={isOpen}
-              onClick={() => { if (!groupOff) setFolded((f) => ({ ...f, [group.key]: !f[group.key] })) }}
-              title={groupOff ? 'Słowa awatara wypowiada twój awatar stojący na mapie. Najpierw go ześlij.' : group.hint}
-            >
-              <span className={[styles.groupChevron, isOpen ? styles.groupChevronOpen : ''].join(' ')} aria-hidden />
+            <div className={['marble', styles.groupHead, groupOff ? styles.groupHeadOff : ''].join(' ')} title={groupOff ? 'Słowa awatara wypowiada twój awatar stojący na mapie. Najpierw go ześlij.' : group.hint}>
               <span className={styles.groupTitle}>
                 <b className="engraved">{group.name}</b>
                 <small>{groupOff ? 'Brak awatara na mapie. Ześlij go, by te słowa ożyły.' : group.hint}</small>
               </span>
-              <span className={styles.groupCount}>{count}</span>
-            </button>
-            {isOpen && (
-              <div className={styles.groupBody}>
-                {cats.map(({ category, actions }) => (
+            </div>
+            <div className={styles.groupBody}>
+              {cats.map(({ category, actions }) => {
+                const isOpen = !folded[category.key]
+                return (
                   <section key={category.key} className={styles.actionsCat} aria-label={category.name}>
-                    <h3 className="carved-glow">{category.name}</h3>
-                    {actions.map((a) => {
+                    <button type="button" className={styles.catHead} aria-expanded={isOpen} onClick={() => setFolded((f) => ({ ...f, [category.key]: !f[category.key] }))}>
+                      <h3 className="carved-glow">{category.name}</h3>
+                      <span className={[styles.groupChevron, isOpen ? styles.groupChevronOpen : ''].join(' ')} aria-hidden />
+                    </button>
+                    {isOpen && actions.map((a) => {
                       const cost = a.costs[era - 1]
                       const affordable = !!me && me.logos >= cost + (a.distance ? 1 : 0)
                       const reqOk = !a.requirement || a.requirement.check(world, me)
@@ -160,11 +154,11 @@ export function ActionsPanel() {
                         </button>
                       )
                     })}
-                    {category.key === 'pantheon' && transferStone}
+                    {isOpen && category.key === 'pantheon' && transferStone}
                   </section>
-                ))}
-              </div>
-            )}
+                )
+              })}
+            </div>
           </section>
         )
       })}

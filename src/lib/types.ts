@@ -326,7 +326,8 @@ export interface Contest {
   era: number
   kind: ContestKind
   attacker_id: string
-  defender_id: string
+  /** null: the godless of the city, for whom the book rolls at once */
+  defender_id: string | null
   target_city_id: string | null
   source_city_id: string | null
   attacker_avatar_id: string | null

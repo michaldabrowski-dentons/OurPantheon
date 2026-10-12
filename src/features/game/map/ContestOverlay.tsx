@@ -163,7 +163,7 @@ export function ContestOverlay() {
 }
 
 /** the short head of the verdict: who won and by how much */
-function verdictHead(c: Contest): string {
+export function verdictHead(c: Contest): string {
   const diff = c.attacker_total - (c.defender_total ?? 0)
   if (diff > 0) return `Atak wygrywa o ${diff}`
   if (diff === 0) return 'Remis'
@@ -201,6 +201,11 @@ export function verdict(c: Contest, attacker: string, defender: string, converte
   const diff = c.attacker_total - (c.defender_total ?? 0)
   const o = (c.outcome ?? {}) as Record<string, unknown>
   if (c.kind === 'convert') {
+    if (c.defender_id === null) {
+      if (converted >= 2) return `${attacker} wygrywa o ${diff}: dwoje bezbożnych uwierzyło w ${attacker}.`
+      if (converted === 1) return `${attacker} wygrywa o ${diff}: jeden z bezbożnych uwierzył w ${attacker}.`
+      return diff === 0 ? 'Remis: nikt nie uwierzył.' : 'Bezbożni pozostali głusi: nikt nie uwierzył.'
+    }
     if (converted >= 2) return `${attacker} wygrywa o ${diff}: dwóch wyznawców ${defender} zwraca się ku ${attacker}.`
     if (converted === 1) return `${attacker} wygrywa o ${diff}: jeden wyznawca ${defender} zwraca się ku ${attacker}.`
     return diff === 0 ? 'Remis: nikt nie zmienia wiary.' : `${defender} broni swoich: nikt nie zmienia wiary.`

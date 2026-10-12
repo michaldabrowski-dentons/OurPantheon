@@ -11,8 +11,11 @@ import { useDiceGate } from '../diceGate'
 import styles from './map.module.css'
 import formStyles from '../actions/actions.module.css'
 
-/** how long the map keeps the stage after a word's window closes: the burst plays, then the book opens */
-const AFTER_WORD_MS = 3600
+/** the words the map plays a scene for: the book waits for it; every other word opens the book at once */
+const SCENE_KEYS = new Set(['lightning', 'flood', 'fire_rain', 'drought', 'plague', 'create_avatar', 'resurrect_avatar'])
+/** how long the map keeps the stage after a word's window closes: the scene plays, then the book opens */
+const AFTER_SCENE_MS = 3600
+const AFTER_WORD_MS = 250
 
 /**
  * The Holy Book opens by itself after every word of mine: the window of the word has closed, the map
@@ -42,12 +45,15 @@ export function VerseDialog() {
   const contestVerse = !!me && contests.some((c) => c.status === 'resolved' && c.attacker_id === me.id)
   // the stage belongs to the word's own window and to the map for a moment after it closes
   const waiting = wordOpen || claimed
+  const myRow = useMemo(() => (me ? [...log].reverse().find((l) => l.player_id === me.id && !!logActionKey(l)) ?? null : null), [log, me])
+  const sceneKey = myRow ? logActionKey(myRow) : undefined
+  const scene = !!sceneKey && SCENE_KEYS.has(sceneKey) && !(myRow && (myRow.outcome as Record<string, unknown> | null)?.created === false)
   useEffect(() => {
     setReady(false)
     if (!mine || waiting || contestVerse) return
-    const t = window.setTimeout(() => setReady(true), AFTER_WORD_MS)
+    const t = window.setTimeout(() => setReady(true), scene ? AFTER_SCENE_MS : AFTER_WORD_MS)
     return () => window.clearTimeout(t)
-  }, [mine, waiting, contestVerse, owing])
+  }, [mine, waiting, contestVerse, owing, scene])
 
   const ctx = useMemo(
     () => ({
@@ -59,7 +65,6 @@ export function VerseDialog() {
     }),
     [players, profiles, entities],
   )
-  const myRow = useMemo(() => (me ? [...log].reverse().find((l) => l.player_id === me.id && !!logActionKey(l)) ?? null : null), [log, me])
   const drafted = useMemo(() => (myRow ? composeVerse(myRow, ctx) : ''), [myRow, ctx])
   useEffect(() => {
     if (!edited) setText(drafted)

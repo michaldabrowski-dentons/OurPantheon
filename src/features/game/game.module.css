@@ -882,21 +882,34 @@
 }
 .groupHead {
   display: grid;
-  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 10px;
   width: 100%;
   padding: 10px 12px;
-  border: 0;
   border-radius: 3px;
   text-align: left;
   color: var(--ink);
-  font: inherit;
-  cursor: pointer;
-  transition: box-shadow var(--t-glow) ease, filter var(--t-glow) ease;
+  transition: filter var(--t-glow) ease;
 }
-.groupHead:hover {
-  box-shadow: var(--marble-slab-shadow-lit);
+/* every category folds on its own: the heading is the latch */
+.catHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.catHead h3 {
+  flex: 1;
+}
+.catHead:hover h3 {
+  filter: brightness(1.25);
 }
 .groupHeadOff {
   filter: grayscale(0.6) brightness(0.7);

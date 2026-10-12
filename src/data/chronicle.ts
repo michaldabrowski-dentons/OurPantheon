@@ -483,6 +483,11 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       const def = ctx.god(str(o, 'defender_id')).name
       const k = num(o, 'converted')
       const fromA = num(o, 'from_atheists')
+      if (o.godless) {
+        parts.push('Byli to ludzie bez boga.')
+        parts.push(k >= 2 ? `I uwierzyło w ${G} dwóch z nich.` : k === 1 ? `I uwierzył w ${G} jeden z nich.` : 'Lecz nikt z nich nie uwierzył.')
+        break
+      }
       parts.push(`Byli to wyznawcy bóstwa ${def}.`)
       parts.push(k >= 2 ? `I zwróciło się ku ${G} dwóch z nich.` : k === 1 ? `I zwrócił się ku ${G} jeden z nich.` : 'Lecz nikt nie odstąpił od swego boga.')
       if (fromA > 0) parts.push(fromA === 1 ? 'Jeden z nich nie miał dotąd boga.' : 'Ci nie mieli dotąd boga.')
@@ -496,7 +501,7 @@ export function outcomeSentences(l: ActionLog, ctx: VerseContext): string {
       const converted = num(o, 'converted')
       const attLost = num(o, 'attacker_lost')
       const defLost = num(o, 'defender_lost')
-      parts.push(`Armia liczyła ${followersInWords(army)}, a bronił miasta ${def}.`)
+      parts.push(o.godless ? `Armia liczyła ${followersInWords(army)}, a miasta bronili ludzie bez boga.` : `Armia liczyła ${followersInWords(army)}, a bronił miasta ${def}.`)
       const fell = removed === 0 ? 'nikt z obrońców nie padł' : removed === 1 ? 'padł jeden wyznawca obrońców' : `padło ${followersInWords(removed)} obrońców`
       if (o.pending) parts.push(`Zwyciężyła armia${diff >= 3 ? ' w pełni' : ', choć krwawo'}, a gdzie spadną jej ciosy, rozstrzyga jeszcze ${G}.`)
       else if (diff >= 3) parts.push(`Zwyciężyła armia w pełni: ${fell}${converted ? `, a ${followersInWords(converted)} spośród jeńców ${converted === 1 ? 'uwierzył' : 'uwierzyło'} w ${G}` : ''}. I wróciła armia cała.`)
