@@ -28,7 +28,7 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `)
 
-for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql', '0015_fix_biome_draw.sql', '0016_colors_and_tiles.sql', '0017_prices_and_ruins.sql', '0018_verse_lock_avatars_prophecies.sql', '0019_afterlife_avatar_hand.sql', '0020_fertility_rivers_resources.sql', '0021_chaos_night.sql', '0022_night_2d6_ranks_mutations.sql', '0023_two_tiles_pbta.sql']) {
+for (const f of ['0001_schema.sql', '0002_rls.sql', '0003_functions.sql', '0004_realtime.sql', '0005_world_creation.sql', '0006_chronicle_book.sql', '0007_god_gender.sql', '0008_login_and_guests.sql', '0009_creation_sync.sql', '0010_ensure_turn.sql', '0011_playbooks.sql', '0012_hex_map.sql', '0013_ocean_start.sql', '0014_biome_tiles.sql', '0015_fix_biome_draw.sql', '0016_colors_and_tiles.sql', '0017_prices_and_ruins.sql', '0018_verse_lock_avatars_prophecies.sql', '0019_afterlife_avatar_hand.sql', '0020_fertility_rivers_resources.sql', '0021_chaos_night.sql', '0022_night_2d6_ranks_mutations.sql', '0023_two_tiles_pbta.sql', '0024_cataclysms_avatar_words.sql']) {
   const sql = readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')
     .replace(/create extension if not exists pgcrypto;/i, '-- (pgcrypto not needed: gen_random_uuid is core)')
   try {
@@ -365,11 +365,13 @@ console.log('\n# fertility, rivers and resources')
   await db.query('select release_verse($1)', [game.id])
   await db.query(`update rivers set mouth_kind = 'none', reroute_by = $2 where id = $1`, [riverA.outcome.river_id, actor.id])
   ok((await rpcErr(`select continue_river($1, $2, $3::jsonb, $4::jsonb)`, [game.id, riverA.outcome.river_id, J([]), J({ q: -1, r: 2 })])) === 'Nowe koryto wyklikuje się zaraz po Kształtowaniu Lądów.', 'after the verse the river no longer waits')
-  // a cataclysm that drowns a field cuts the river there too
+  // a flood that drowns a field cuts the river there too
   await db.query(`update rivers set mouth_kind = 'water', mouth_q = -1, mouth_r = 2, reroute_by = null where id = $1`, [riverA.outcome.river_id])
   await topUp()
-  const flood = await rolled(6, `select * from perform_action($1, 'catastrophe', $2::jsonb)`, [game.id, J({ type: 'tsunami', q: 0, r: 1, after: 'woda', attr: 'element' })])
-  ok(flood.outcome.biome_after === 'woda' && flood.outcome.rivers_cut.length === 1 && (await q('select path from rivers where id = $1', [riverA.outcome.river_id]))[0].path.length === 1, 'a flood on the channel shortens the river')
+  ok((await rpcErr(`select perform_action($1, 'catastrophe', $2::jsonb)`, [game.id, J({ type: 'tsunami', q: 0, r: 1, attr: 'element' })])) === 'Kataklizm to teraz Piorun, Potop, Deszcz Ognia, Susza albo Plaga.', 'the old Kataklizm is gone')
+  const flood = await rolled(6, `select * from perform_action($1, 'flood', $2::jsonb)`, [game.id, J({ q: 0, r: 1, attr: 'element' })])
+  ok(flood.logos_delta === -6 && flood.outcome.drowned === true && flood.outcome.biome_after === 'woda' && flood.outcome.rivers_cut.length === 1 && (await q('select path from rivers where id = $1', [riverA.outcome.river_id]))[0].path.length === 1, 'a flood on 10+ drowns the field (6 Logos) and shortens the river')
+  ok((await q('select biome from hexes where game_id = $1 and q = 0 and r = 1', [game.id]))[0].biome === 'woda', 'the drowned field is water for good')
   // back to the map the rest of the play expects
   await db.query('delete from rivers where game_id = $1', [game.id])
   await db.query('update hexes set resource = null, resource_bonus = 1 where game_id = $1', [game.id])
@@ -427,67 +429,80 @@ await topUp()
 const octopus = await rolled(4, `select * from perform_action($1, 'create_herd', $2::jsonb)`, [game.id, J({ entity: { name: 'Ośmiornice', traits: ['Wodne'] }, emoji: '🐙', q: 0, r: 3, attr: 'grace' })])
 ok(octopus.outcome.biome === 'trawa', 'creatures settle on land')
 await topUp()
-ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: 0, r: 0 }, attr: 'element' })])) !== null, 'migration needs a different hex')
-ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: 2, r: -2 }, attr: 'element' })])) !== null, 'no migration onto water')
-// a 6- costs the distance too and moves nobody
+ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: 0, r: 0 } })])) !== null, 'migration needs a different hex')
+ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: 2, r: -2 } })])) !== null, 'no migration onto water')
+// Migracja throws no dice: the kind simply moves, 1 Logos a field
 {
-  const miss = await rolled(1, `select * from perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: -1, r: 1 }, attr: 'element' })])
-  ok(miss.logos_delta === -4 && miss.outcome.arrived === false && (await q('select count(*)::int as n from hex_occupants where entity_id = $1', [sapient.entity_id]))[0].n === 1, 'a failed migration still costs the distance; nobody moves')
-  await topUp()
-}
-// a 7..9 moves the kind instead of multiplying it
-{
-  const move = await rolled(3, `select * from perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: -1, r: 1 }, attr: 'element' })])
+  const move = (await q(`select * from perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: -1, r: 1 } })]))[0]
   const where = await q('select q, r from hex_occupants where entity_id = $1', [sapient.entity_id])
-  ok(move.outcome.tier === 'mixed' && move.outcome.moved === true && where.length === 1 && where[0].q === -1 && where[0].r === 1, 'on 7..9 the species moves and leaves its old field')
+  ok(move.logos_delta === -4 && move.outcome.distance === 1 && move.roll === null && move.outcome.tier === undefined, 'migration costs 3 plus its distance (1 hex) and throws no dice')
+  ok(move.outcome.moved === true && move.outcome.mode === 'free' && where.length === 1 && where[0].q === -1 && where[0].r === 1, 'the kind moves and leaves its old field')
   await topUp()
-  const back = await rolled(3, `select * from perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: -1, r: 1 }, to: { q: 0, r: 0 }, attr: 'element' })])
+  const back = (await q(`select * from perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: -1, r: 1 }, to: { q: 0, r: 0 } })]))[0]
   ok(back.outcome.moved === true && (await q('select count(*)::int as n from hex_occupants where entity_id = $1 and q = 0 and r = 0', [sapient.entity_id]))[0].n === 1, 'and moves back the same way')
   await topUp()
+  // a beast walking onto a tribe fights it at once by the rules of the night (both 2k6 + strength; the tribe has none)
+  const wolfOcc = (await q('select * from hex_occupants where entity_id = $1', [third.entity_id]))[0]
+  const tribeOcc = (await q('select * from hex_occupants where entity_id = $1', [sapient.entity_id]))[0]
+  const attack = await rolled(6, `select * from perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: third.entity_id, from: { q: wolfOcc.q, r: wolfOcc.r }, to: { q: 0, r: 0 } })])
+  {
+    const f = attack.outcome.fight
+    ok(attack.outcome.mode === 'fight' && f && f.scene === 'creature' && f.diff === third.outcome.strength && f.loser === 'right', `the beast attacks the tribe: equal dice, the difference is its strength (${f?.diff})`)
+    ok(attack.roll && attack.roll.att.total === 12 + third.outcome.strength && attack.roll.def.total === 12, 'both rolls are on the row for the dice window')
+    ok((await q('select q, r from hex_occupants where id = $1', [wolfOcc.id]))[0].q === 0 && (f.result === 'flee' || f.result === 'eaten' || f.result === 'fled_nowhere'), `the beast takes the field, the tribe ${f.result === 'eaten' ? 'is eaten' : 'flees'}`)
+  }
+  // undo for the tests below: the wolves go home, the tribe returns
+  await db.query('update hex_occupants set q = $2, r = $3, slot = 1 where id = $1', [wolfOcc.id, wolfOcc.q, wolfOcc.r])
+  await db.query(`update entities set status = 'active' where id = $1`, [sapient.entity_id])
+  await db.query('delete from hex_occupants where entity_id = $1', [sapient.entity_id])
+  await db.query('insert into hex_occupants (id, game_id, q, r, slot, entity_id) values ($1, $2, 0, 0, 1, $3)', [tribeOcc.id, game.id, sapient.entity_id])
+  await topUp()
 }
-const mig = await rolled(6, `select * from perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: -1, r: 1 }, attr: 'element' })])
-ok(mig.logos_delta === -4 && mig.outcome.distance === 1 && mig.outcome.tier === 'strong', 'migration costs 3 plus its distance (1 hex)')
-ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1', [sapient.entity_id]))[0].n === 2, 'on 10+ the species now lives on two hexes')
-ok((await rpcErr(`select perform_action($1, 'migrate', $2::jsonb)`, [game.id, J({ entity_id: sapient.entity_id, from: { q: 0, r: 0 }, to: { q: -1, r: 1 }, attr: 'element' })])) !== null, 'cannot migrate where the species already lives')
-await topUp()
-const owlOcc = (await q('select * from hex_occupants where entity_id = $1 and q = -1 and r = 1', [sapient.entity_id]))[0]
-const variant = await rolled(4, `select * from perform_action($1, 'change_creature', $2::jsonb)`, [game.id, J({ occupant_id: owlOcc.id, entity: { name: 'Sowy Morskie', traits: ['Rozumne', 'Nocne', 'Wodne'] }, emoji: '🦆', attr: 'element' })])
-ok(variant.logos_delta === -5 && variant.entity_id !== sapient.entity_id, 'a variant is a new creature')
-ok((await q('select entity_id from hex_occupants where id = $1', [owlOcc.id]))[0].entity_id === variant.entity_id, 'only that hex changed')
-ok((await q(`select count(*)::int as n from entity_links where from_entity_id = $1 and to_entity_id = $2 and relation = 'variant_of'`, [variant.entity_id, sapient.entity_id]))[0].n === 1, 'variant linked to its origin')
-ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1', [sapient.entity_id]))[0].n === 1, 'the original species keeps its other hex')
-// a stronger variant on 10+, and multiplication onto the fields next door
+// Zmiana Istoty edits the kind itself: its name, its sign, its description, everywhere it lives
+const owlOcc = (await q('select * from hex_occupants where entity_id = $1 and q = 0 and r = 0', [sapient.entity_id]))[0]
+ok((await rpcErr(`select perform_action($1, 'change_creature', $2::jsonb)`, [game.id, J({ occupant_id: owlOcc.id, entity: {}, attr: 'element' })])) === 'Zmień nazwę, znak albo opis istoty.', 'a change needs something to change')
+{
+  const miss = await rolled(1, `select * from perform_action($1, 'change_creature', $2::jsonb)`, [game.id, J({ occupant_id: owlOcc.id, entity: { name: 'Nikt' }, emoji: '🦆', attr: 'element' })])
+  ok(miss.logos_delta === -5 && miss.outcome.changed === false && (await q('select name, emoji from entities where id = $1', [sapient.entity_id]))[0].name === 'Sowy', 'on 6- the kind stays itself and the Logos is spent')
+  await topUp()
+}
+const variant = await rolled(4, `select * from perform_action($1, 'change_creature', $2::jsonb)`, [game.id, J({ occupant_id: owlOcc.id, entity: { name: 'Sowy Morskie', description: 'Nurkują.' }, emoji: '🦆', attr: 'element' })])
+ok(variant.logos_delta === -5 && variant.entity_id === sapient.entity_id && variant.outcome.changed === true, 'the change is written on the kind itself, not on a new creature')
+{
+  const e = (await q('select name, emoji, description, strength from entities where id = $1', [sapient.entity_id]))[0]
+  ok(e.name === 'Sowy Morskie' && e.emoji === '🦆' && e.description === 'Nurkują.' && e.strength === 0, 'name, sign and description changed; a tribe gains no strength')
+  ok((await q('select entity_id from hex_occupants where id = $1', [owlOcc.id]))[0].entity_id === sapient.entity_id, 'the kind keeps its field')
+}
+// a stronger kind on 10+, and multiplication onto a chosen field next door
 {
   await topUp()
   const wolfOcc = (await q('select * from hex_occupants where entity_id = $1', [third.entity_id]))[0]
-  const fiercer = await rolled(6, `select * from perform_action($1, 'change_creature', $2::jsonb)`, [game.id, J({ occupant_id: wolfOcc.id, entity: { name: 'Wargi' }, emoji: '🐕', attr: 'whisper' })])
-  ok(fiercer.outcome.tier === 'strong' && fiercer.outcome.strength === Math.min(3, third.outcome.strength + 1) && (await q('select strength from entities where id = $1', [fiercer.entity_id]))[0].strength === fiercer.outcome.strength, 'on 10+ the variant outgrows its kind by one')
-  await db.query('update hex_occupants set entity_id = $2 where id = $1', [wolfOcc.id, third.entity_id])
-  await db.query('delete from entities where id = $1', [fiercer.entity_id])
+  const fiercer = await rolled(6, `select * from perform_action($1, 'change_creature', $2::jsonb)`, [game.id, J({ occupant_id: wolfOcc.id, entity: { name: 'Wargi' }, attr: 'whisper' })])
+  ok(fiercer.outcome.tier === 'strong' && fiercer.outcome.strength === Math.min(3, third.outcome.strength + 1) && (await q('select strength, name, emoji from entities where id = $1', [third.entity_id]))[0].strength === fiercer.outcome.strength, 'on 10+ the kind grows one stronger')
+  ok((await q('select name, emoji from entities where id = $1', [third.entity_id]))[0].emoji === '🐺', 'a change without a new sign keeps the old one')
+  await db.query('update entities set strength = $2, name = $3 where id = $1', [third.entity_id, third.outcome.strength, 'Wilki'])
   await topUp()
-  // the herd at (0,0) multiplies onto the free fields around it
+  // the herd at (0,0) multiplies onto a chosen free field next door
   const herdOcc = (await q('select * from hex_occupants where entity_id = $1', [creature.entity_id]))[0]
-  const freeAround = async () => (await q(`select count(*)::int as n from hex_neighbours($2, $3) n where night_enterable($1, n.q, n.r, $4, 'herbivore') = 'free'`, [game.id, herdOcc.q, herdOcc.r, creature.entity_id]))[0].n
-  const bestAround = async () => (await q(`select max(coalesce(hex_fertility($1, n.q, n.r), -99))::int as f from hex_neighbours($2, $3) n where night_enterable($1, n.q, n.r, $4, 'herbivore') = 'free'`, [game.id, herdOcc.q, herdOcc.r, creature.entity_id]))[0].f
-  ok((await freeAround()) >= 3, `the herd has room around it (${await freeAround()} free fields)`)
-  ok((await rpcErr(`select perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: herdOcc.id, attr: 'wrath' })])) === 'Wybierz: Łaska albo Żywioł.', 'multiplication is Łaska or Żywioł')
-  const best = await bestAround()
-  const two = await rolled(6, `select * from perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: herdOcc.id, attr: 'grace' })])
-  ok(two.logos_delta === -5 && two.outcome.tier === 'strong' && two.outcome.count === 2 && two.entity_id === creature.entity_id, 'Rozmnożenie for 5 Logos: on 10+ two copies next door')
-  ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1', [creature.entity_id]))[0].n === 3 && two.outcome.copies.every((c) => Math.max(Math.abs(c.q - herdOcc.q), Math.abs(c.r - herdOcc.r), Math.abs(c.q + c.r - herdOcc.q - herdOcc.r)) === 1), 'the copies stand on neighbouring fields')
-  ok(Math.max(...two.outcome.copies.map((c) => c.fertility)) >= best, 'the most fertile free field was taken first')
+  const freeAround = async () => await q(`select n.q, n.r from hex_neighbours($2, $3) n where night_enterable($1, n.q, n.r, $4, 'herbivore') = 'free' order by n.q, n.r`, [game.id, herdOcc.q, herdOcc.r, creature.entity_id])
+  const free = await freeAround()
+  ok(free.length >= 3, `the herd has room around it (${free.length} free fields)`)
+  ok((await rpcErr(`select perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: herdOcc.id, to: free[0], attr: 'wrath' })])) === 'Wybierz: Łaska albo Żywioł.', 'multiplication is Łaska or Żywioł')
+  ok((await rpcErr(`select perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: herdOcc.id, to: { q: 0, r: 3 }, attr: 'grace' })])) === 'Kopia staje na polu sąsiadującym z istotą.', 'the copy stands next door only')
+  ok((await rpcErr(`select perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: owlOcc.id, to: { q: 1, r: 0 }, attr: 'grace' })])) === 'Na tym polu nie ma miejsca dla tych istot.', 'no copy of a tribe where a beast holds the bottom of the field')
+  const strengthBefore = (await q('select strength from entities where id = $1', [creature.entity_id]))[0].strength
+  const one = await rolled(6, `select * from perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: herdOcc.id, to: free[0], attr: 'grace' })])
+  ok(one.logos_delta === -5 && one.outcome.tier === 'strong' && one.outcome.count === 1 && one.entity_id === creature.entity_id && one.outcome.weakened === false, 'Rozmnożenie for 5 Logos: on 10+ a copy on the chosen field')
+  ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1 and q = $2 and r = $3', [creature.entity_id, free[0].q, free[0].r]))[0].n === 1 && (await q('select strength from entities where id = $1', [creature.entity_id]))[0].strength === strengthBefore, 'the copy stands where it was told; the kind is as strong as before')
   await topUp()
-  const one = await rolled(3, `select * from perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: herdOcc.id, attr: 'grace' })])
-  ok(one.outcome.tier === 'mixed' && one.outcome.count === 1 && (await q('select count(*)::int as n from hex_occupants where entity_id = $1', [creature.entity_id]))[0].n === 4, 'on 7..9 one copy on a free field')
+  const weak = await rolled(3, `select * from perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: herdOcc.id, to: free[1], attr: 'grace' })])
+  ok(weak.outcome.tier === 'mixed' && weak.outcome.count === 1 && weak.outcome.weakened === true && (await q('select strength from entities where id = $1', [creature.entity_id]))[0].strength === Math.max(-1, strengthBefore - 1), 'on 7..9 a copy, but the kind weakens by one')
   await topUp()
-  if ((await freeAround()) > 0) {
-    const none = await rolled(1, `select * from perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: herdOcc.id, attr: 'grace' })])
-    ok(none.logos_delta === -5 && none.outcome.count === 0 && (await q('select count(*)::int as n from hex_occupants where entity_id = $1', [creature.entity_id]))[0].n === 4, 'on 6- nobody is born, the Logos is spent')
-  } else {
-    ok((await rpcErr(`select perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: herdOcc.id, attr: 'grace' })])) === 'Wokół nie ma wolnego pola dla tych istot.', 'with no free field around, the word is refused before the dice')
-  }
+  const none = await rolled(1, `select * from perform_action($1, 'multiply', $2::jsonb)`, [game.id, J({ occupant_id: herdOcc.id, to: free[2], attr: 'grace' })])
+  ok(none.logos_delta === -5 && none.outcome.count === 0 && (await q('select count(*)::int as n from hex_occupants where entity_id = $1', [creature.entity_id]))[0].n === 3, 'on 6- nobody is born, the Logos is spent')
   // back to one herd for the tests below
   await db.query('delete from hex_occupants where entity_id = $1 and id <> $2', [creature.entity_id, herdOcc.id])
+  await db.query('update entities set strength = $2 where id = $1', [creature.entity_id, strengthBefore])
   await topUp()
 }
 
@@ -509,9 +524,18 @@ ok(links.length === 1 && links[0].relation === 'member_species', 'civilization l
 await topUp()
 ok((await rpcErr(`select perform_action($1, 'create_civilization', $2::jsonb)`, [game.id, J({ entity: { name: 'Drugie', traits: [] }, q: 0, r: 0, species_id: sapient.entity_id, attr: 'wisdom' })])) !== null, 'one city per hex')
 ok((await rpcErr(`select perform_action($1, 'shape_land', $2::jsonb)`, [game.id, J({ biome: 'woda', hexes: [{ q: 0, r: 0 }] })])) !== null, 'a city cannot be drowned by shaping')
-ok((await rpcErr(`select perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'wrath', gift: 'Ogień' })])) !== null, 'development is Łaska or Mądrość')
-ok((await rpcErr(`select perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'grace', gift: '  ' })])) !== null, 'a gift needs words')
-const dev = (await q(`select * from perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'grace', gift: 'Ogień' })]))[0]
+// the words of the avatar need one on the map: the god's hand stands a step from the city
+ok((await rpcErr(`select perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'wisdom', gift: 'Ogień' })])) === 'To słowo wypowiada twój awatar: najpierw go ześlij.', 'development is a word of the avatar: none on the map, no gift')
+const [hand] = await q(`insert into entities (game_id, kind, name, emoji, hp, max_hp, created_by_player_id) values ($1, 'avatar', 'Ręka Rzeki', '🫳', 2, 2, $2) returning id`, [game.id, actor.id])
+await db.query(`insert into entity_gods (entity_id, player_id, game_id, role) values ($1, $2, $3, 'creator')`, [hand.id, actor.id, game.id])
+await db.query(`insert into hex_occupants (game_id, q, r, slot, entity_id) values ($1, 0, -1, 2, $2)`, [game.id, hand.id])
+ok((await rpcErr(`select perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'grace', gift: 'Ogień' })])) === 'Wybierz: Mądrość albo Podszept.', 'development is Mądrość or Podszept')
+ok((await rpcErr(`select perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'wisdom', gift: '  ' })])) !== null, 'a gift needs words')
+await db.query('update hex_occupants set q = -1, r = 4 where entity_id = $1', [hand.id])
+ok((await rpcErr(`select perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'wisdom', gift: 'Ogień' })])) === 'Awatar sięga najwyżej dwa heksy od miasta. Najpierw wyślij go na Pielgrzymkę.', 'the avatar must stand at most two fields from the city')
+await db.query('update hex_occupants set q = 0, r = -1 where entity_id = $1', [hand.id])
+const dev = (await q(`select * from perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'wisdom', gift: 'Ogień' })]))[0]
+ok(dev.outcome.avatar && dev.outcome.avatar.id === hand.id && (await q('select q, r from hex_occupants where entity_id = $1', [hand.id]))[0].q === 0 && (await q('select q, r from hex_occupants where entity_id = $1', [hand.id]))[0].r === -1, 'the gift is given by the avatar, which stays where it stood')
 {
   const o = dev.outcome
   const expected = o.total >= 10 ? 2 : o.total >= 7 ? 1 : 0
@@ -526,13 +550,20 @@ ok((await rpcErr(`select perform_action($1, 'exodus', $2::jsonb)`, [game.id, J({
 ok((await rpcErr(`select perform_action($1, 'exodus', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, dots: 2, species_id: sapient.entity_id, to: { q: 0, r: 2 }, name: 'W Górach', attr: 'whisper' })])) !== null, 'no exodus into mountains')
 ok((await rpcErr(`select perform_action($1, 'exodus', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, dots: 2, species_id: creature.entity_id, to: { q: 1, r: -1 }, name: 'Kocie', attr: 'whisper' })])) !== null, 'exodus takes a sapient species')
 {
+  await db.query(`update hexes set biome = 'trawa' where game_id = $1 and q = -1 and r = 4`, [game.id])
+  await db.query('update hex_occupants set q = -1, r = 4 where entity_id = $1', [hand.id])
+  ok((await rpcErr(`select perform_action($1, 'exodus', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, dots: 2, species_id: sapient.entity_id, to: { q: 1, r: -1 }, name: 'Daleko', attr: 'whisper' })])) === 'Awatar sięga najwyżej dwa heksy od miasta, które wyprowadza. Najpierw wyślij go na Pielgrzymkę.', 'an exodus needs the avatar within two fields of the city')
+  await db.query('update hex_occupants set q = 0, r = -1 where entity_id = $1', [hand.id])
   const miss = await rolled(1, `select * from perform_action($1, 'exodus', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, dots: 2, species_id: sapient.entity_id, to: { q: 1, r: -1 }, name: 'Nigdzie', attr: 'whisper' })])
   ok(miss.logos_delta === -13 && miss.outcome.left === false && miss.entity_id === null && (await q('select player_dots($1, $2) as d', [civ.entity_id, actor.id]))[0].d === 4, 'on 6- nobody leaves; the Logos and the distance are spent')
+  ok(miss.outcome.avatar_entered === true && (await q('select q, r from hex_occupants where entity_id = $1', [hand.id]))[0].q === 0 && (await q('select q, r from hex_occupants where entity_id = $1', [hand.id]))[0].r === 0, 'the avatar stepped into the city all the same')
   await topUp()
   const soulsBefore = (await q('select jsonb_array_length(afterlife)::int as n from players where id = $1', [actor.id]))[0].n
   const hard = await rolled(4, `select * from perform_action($1, 'exodus', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, dots: 2, species_id: sapient.entity_id, to: { q: 1, r: -1 }, name: 'Krwawy Szlak', attr: 'whisper' })])
   const hardCity = (await q('select * from entities where id = $1', [hard.entity_id]))[0]
   ok(hard.outcome.tier === 'mixed' && hard.outcome.lost === 1 && hard.outcome.dots === 1 && (await q('select player_dots($1, $2) as d', [hardCity.id, actor.id]))[0].d === 1, 'on 7..9 one dies on the road and the rest found the city')
+  ok(hard.outcome.avatar_entered === false && hard.outcome.avatar_moved === true && (await q('select q, r from hex_occupants where entity_id = $1', [hand.id]))[0].q === 1, 'the avatar already stood in the city; it walks with the people to the new one')
+  await db.query('update hex_occupants set q = 0, r = -1, slot = 2 where entity_id = $1', [hand.id])
   ok((await q('select jsonb_array_length(afterlife)::int as n from players where id = $1', [actor.id]))[0].n === soulsBefore + 1, 'the fallen one is a soul in the afterlife')
   ok((await q('select count(*)::int as n from city_gifts where city_id = $1', [hardCity.id]))[0].n === 0 && hard.outcome.gifts_inherited === false, 'no gifts travel on a hard road')
   // undo for the tests below: the people come home, the camp is forgotten
@@ -551,28 +582,29 @@ ok((await q('select player_dots($1, $2) as d', [newCity.id, actor.id]))[0].d ===
 ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1 and q = 1 and r = -1', [sapient.entity_id]))[0].n === 1, 'the species settled on the new hex')
 ok((await q('select count(*)::int as n from city_gifts where city_id = $1', [newCity.id]))[0].n === (dev.outcome.gained > 0 ? 1 : 0), 'accepted gifts travel with the people')
 
-console.log('\n# catastrophe')
+console.log('\n# cataclysms: fire rain, lightning, flood, drought, plague')
 await topUp()
 const dotsBefore = (await q('select city_dots($1) as d', [civ.entity_id]))[0].d
 const occBefore = (await q('select count(*)::int as n from hex_occupants where game_id = $1 and q = 0 and r = 0', [game.id]))[0].n
 const soulsBefore = Object.fromEntries((await q('select id, jsonb_array_length(afterlife)::int as n from players where game_id = $1', [game.id])).map((r) => [r.id, r.n]))
-ok((await rpcErr(`select perform_action($1, 'catastrophe', $2::jsonb)`, [game.id, J({ type: 'meteor', q: 0, r: 0, after: 'gory', attr: 'wrath' })])) !== null, 'after a cataclysm only desert, dirt or water may remain')
+ok((await rpcErr(`select perform_action($1, 'fire_rain', $2::jsonb)`, [game.id, J({ q: 2, r: -2, attr: 'wrath' })])) === 'Ogień nie spadnie na wodę.', 'fire rain needs land')
+ok((await rpcErr(`select perform_action($1, 'fire_rain', $2::jsonb)`, [game.id, J({ q: 0, r: 0, attr: 'grace' })])) === 'Wybierz: Gniew albo Żywioł.', 'a cataclysm is Gniew or Żywioł')
 {
-  // a 6-: the storm passes over the field and touches nothing
-  const miss = await rolled(1, `select * from perform_action($1, 'catastrophe', $2::jsonb)`, [game.id, J({ type: 'meteor', q: 0, r: 0, after: 'pustynia', attr: 'wrath' })])
-  ok(miss.logos_delta === -10 && miss.outcome.tier === 'weak' && miss.outcome.damage === 0 && miss.outcome.hits.length === 0 && miss.outcome.biome_after === null, 'a failed cataclysm wounds nobody and costs 10')
+  // a 6-: the fire dies in the air and touches nothing
+  const miss = await rolled(1, `select * from perform_action($1, 'fire_rain', $2::jsonb)`, [game.id, J({ q: 0, r: 0, attr: 'wrath' })])
+  ok(miss.logos_delta === -6 && miss.outcome.tier === 'weak' && miss.outcome.damage === 0 && miss.outcome.hits.length === 0 && miss.outcome.biome_after === null, 'a failed fire rain wounds nobody and costs 6')
   ok((await q('select city_dots($1) as d', [civ.entity_id]))[0].d === dotsBefore && (await q('select count(*)::int as n from hex_occupants where game_id = $1 and q = 0 and r = 0', [game.id]))[0].n === occBefore, 'the city and the field are untouched')
   await topUp()
-  // a 7..9: a quarter of the total, at least one blow, and the land never changes
+  // a 7..9: three blows; an empty field burnt to the ground is a wasteland
   await db.query(`update hexes set biome = 'trawa' where game_id = $1 and q = 0 and r = 4`, [game.id])
-  const half = await rolled(4, `select * from perform_action($1, 'catastrophe', $2::jsonb)`, [game.id, J({ type: 'susza', q: 0, r: 4, after: 'woda', attr: 'wrath' })])
-  ok(half.outcome.tier === 'mixed' && half.outcome.total === 7 && half.outcome.damage === 2 && half.outcome.biome_after === null && (await q('select biome from hexes where game_id = $1 and q = 0 and r = 4', [game.id]))[0].biome !== 'woda', 'on 7..9 the blows are halved and the land stays ' + JSON.stringify({tier: half.outcome.tier, total: half.outcome.total, damage: half.outcome.damage, after: half.outcome.biome_after, biome: (await q('select biome from hexes where game_id = $1 and q = 0 and r = 4', [game.id]))[0]?.biome}))
+  const half = await rolled(4, `select * from perform_action($1, 'fire_rain', $2::jsonb)`, [game.id, J({ q: 0, r: 4, attr: 'wrath' })])
+  ok(half.outcome.tier === 'mixed' && half.outcome.total === 7 && half.outcome.damage === 3 && half.outcome.wasted === 3 && half.outcome.biome_after === 'ziemia' && (await q('select biome from hexes where game_id = $1 and q = 0 and r = 4', [game.id]))[0].biome === 'ziemia', 'on 7..9 three blows fall; with nothing left alive the land is a wasteland')
   await topUp()
 }
-const cat = await rolled(6, `select * from perform_action($1, 'catastrophe', $2::jsonb)`, [game.id, J({ type: 'meteor', q: 0, r: 0, after: 'pustynia', attr: 'wrath' })])
+const cat = await rolled(6, `select * from perform_action($1, 'fire_rain', $2::jsonb)`, [game.id, J({ q: 0, r: 0, attr: 'wrath' })])
 {
   const o = cat.outcome
-  ok(cat.logos_delta === -10 && o.tier === 'strong' && o.attr === 'wrath' && o.total === o.d1 + o.d2 + o.wrath && o.damage === Math.max(1, Math.floor(o.total / 2)), `catastrophe: 2k6 ${o.d1} + ${o.d2} + Gniew ${o.wrath} = ${o.total}, half is ${o.damage} damage`)
+  ok(cat.logos_delta === -6 && o.tier === 'strong' && o.attr === 'wrath' && o.total === o.d1 + o.d2 + o.score && o.damage === 6, `fire rain: 2k6 ${o.d1} + ${o.d2} + Gniew ${o.score} = ${o.total}, six blows`)
   const dotsByGod = {}
   for (const h of o.hits.filter((h) => h.t === 'dot')) dotsByGod[h.player_id] = (dotsByGod[h.player_id] ?? 0) + 1
   const soulsAfter = Object.fromEntries((await q('select id, jsonb_array_length(afterlife)::int as n from players where game_id = $1', [game.id])).map((r) => [r.id, r.n]))
@@ -584,7 +616,7 @@ const cat = await rolled(6, `select * from perform_action($1, 'catastrophe', $2:
   }
   const left = (await q('select count(*)::int as n from hex_occupants where game_id = $1 and q = 0 and r = 0', [game.id]))[0].n + (o.city_destroyed ? 0 : 1)
   const biomeNow = (await q('select biome from hexes where game_id = $1 and q = 0 and r = 0', [game.id]))[0].biome
-  ok(left === 0 ? biomeNow === 'pustynia' && o.biome_after === 'pustynia' : biomeNow !== 'pustynia' && o.biome_after === null, `the land changes only when nothing is left (${left} left, biome ${biomeNow})`)
+  ok(left === 0 ? biomeNow === 'ziemia' && o.biome_after === 'ziemia' : biomeNow !== 'ziemia' && o.biome_after === null, `the land turns to a wasteland only when nothing is left (${left} left, biome ${biomeNow})`)
   ok(o.hits.length <= o.damage && o.hits.length + o.wasted === o.damage, `${o.hits.length} hit(s), ${o.wasted} wasted`)
   const dotHits = o.hits.filter((h) => h.t === 'dot').length
   const creatureHits = o.hits.filter((h) => h.t === 'creature').length
@@ -594,21 +626,100 @@ const cat = await rolled(6, `select * from perform_action($1, 'catastrophe', $2:
   ok(!sapientHit || o.city_destroyed, 'sapients are spared while the city stands')
   ok(o.city_destroyed === ((await q('select count(*)::int as n from cities where entity_id = $1', [civ.entity_id]))[0].n === 0), 'a city with no dots left is a ruin')
 }
-// restore a deterministic state for the contests below
-await db.query('delete from city_followers where city_id = $1', [civ.entity_id])
-await db.query(`update entities set status = 'active' where id = $1 or (game_id = $2 and kind = 'creature')`, [civ.entity_id, game.id])
-await db.query(`insert into cities (entity_id, game_id, q, r) values ($1, $2, 0, 0) on conflict do nothing`, [civ.entity_id, game.id])
-await db.query(`insert into hex_occupants (game_id, q, r, slot, entity_id) select $1, 0, 0, hex_slot_for($1, 0, 0, $2), $2 where not exists (select 1 from hex_occupants where entity_id = $2 and q = 0 and r = 0)`, [game.id, sapient.entity_id])
-await db.query('insert into city_followers (game_id, city_id, player_id, dots) values ($1, $2, $3, 5), ($1, $2, $4, 3), ($1, $5, $4, 2) on conflict (city_id, player_id) do update set dots = excluded.dots', [game.id, civ.entity_id, actor.id, otherP.id, newCity.id])
-await db.query(`update hexes set biome = 'trawa' where game_id = $1 and q = 0 and r = 0`, [game.id])
-await topUp()
+// restore a deterministic state for the words below
+const restoreCity = async () => {
+  await db.query('delete from city_followers where city_id = $1', [civ.entity_id])
+  await db.query(`update entities set status = 'active' where id = $1 or (game_id = $2 and kind = 'creature')`, [civ.entity_id, game.id])
+  await db.query(`insert into cities (entity_id, game_id, q, r) values ($1, $2, 0, 0) on conflict do nothing`, [civ.entity_id, game.id])
+  await db.query(`insert into hex_occupants (game_id, q, r, slot, entity_id) select $1, 0, 0, hex_slot_for($1, 0, 0, $2), $2 where not exists (select 1 from hex_occupants where entity_id = $2 and q = 0 and r = 0)`, [game.id, sapient.entity_id])
+  await db.query(`insert into hex_occupants (game_id, q, r, slot, entity_id) select $1, 0, 0, 0, $2 where not exists (select 1 from hex_occupants where entity_id = $2)`, [game.id, creature.entity_id])
+  await db.query('insert into city_followers (game_id, city_id, player_id, dots) values ($1, $2, $3, 5), ($1, $2, $4, 3), ($1, $5, $4, 2) on conflict (city_id, player_id) do update set dots = excluded.dots', [game.id, civ.entity_id, actor.id, otherP.id, newCity.id])
+  await db.query(`update hexes set biome = 'trawa', drought_rounds = 0, plague_rounds = 0 where game_id = $1 and q = 0 and r = 0`, [game.id])
+  await topUp()
+}
+await restoreCity()
+{
+  // Piorun: a beast, a herd or an avatar; 10+ two blows, 7..9 one, 6- a miss
+  const wolfOcc = (await q('select * from hex_occupants where entity_id = $1', [third.entity_id]))[0]
+  const tribeOcc = (await q('select * from hex_occupants where entity_id = $1 limit 1', [sapient.entity_id]))[0]
+  ok((await rpcErr(`select perform_action($1, 'lightning', $2::jsonb)`, [game.id, J({ occupant_id: tribeOcc.id, attr: 'wrath' })])) === 'Piorun trafia bestię, stado albo awatara, nie lud.', 'a bolt never strikes a people')
+  const miss = await rolled(1, `select * from perform_action($1, 'lightning', $2::jsonb)`, [game.id, J({ occupant_id: wolfOcc.id, attr: 'wrath' })])
+  ok(miss.logos_delta === -1 && miss.outcome.hit === false && miss.outcome.damage === 0 && (await q('select count(*)::int as n from hex_occupants where id = $1', [wolfOcc.id]))[0].n === 1, 'Piorun for 1 Logos; on 6- it misses')
+  await topUp()
+  const bolt = await rolled(5, `select * from perform_action($1, 'lightning', $2::jsonb)`, [game.id, J({ occupant_id: wolfOcc.id, attr: 'element' })])
+  ok(bolt.outcome.tier === 'strong' && bolt.outcome.damage === 2 && bolt.outcome.killed === true && bolt.outcome.extinct === true && (await q('select count(*)::int as n from hex_occupants where id = $1', [wolfOcc.id]))[0].n === 0 && (await q('select status from entities where id = $1', [third.entity_id]))[0].status === 'dead', 'a bolt on 10+ (5+5 + Żywioł 1) kills the only pack of the beast')
+  await db.query(`update entities set status = 'active' where id = $1`, [third.entity_id])
+  await db.query('insert into hex_occupants (id, game_id, q, r, slot, entity_id) values ($1, $2, $3, $4, 1, $5)', [wolfOcc.id, game.id, wolfOcc.q, wolfOcc.r, third.entity_id])
+  await topUp()
+  const handOcc = (await q('select * from hex_occupants where entity_id = $1', [hand.id]))[0]
+  const graze = await rolled(4, `select * from perform_action($1, 'lightning', $2::jsonb)`, [game.id, J({ occupant_id: handOcc.id, attr: 'wrath' })])
+  ok(graze.outcome.tier === 'mixed' && graze.outcome.damage === 1 && graze.outcome.role === 'avatar' && graze.outcome.hp === 1 && graze.outcome.killed === false && (await q('select hp from entities where id = $1', [hand.id]))[0].hp === 1, 'on 7..9 one blow: the avatar loses one life')
+  await db.query('update entities set hp = 2 where id = $1', [hand.id])
+  await topUp()
+}
+{
+  // Potop on 7..9: three blows, the land stays
+  await db.query(`update hexes set biome = 'trawa' where game_id = $1 and q = 0 and r = 4`, [game.id])
+  const wet = await rolled(4, `select * from perform_action($1, 'flood', $2::jsonb)`, [game.id, J({ q: 0, r: 4, attr: 'wrath' })])
+  ok(wet.outcome.tier === 'mixed' && wet.outcome.drowned === false && wet.outcome.damage === 3 && wet.outcome.wasted === 3 && wet.outcome.biome_after === null && (await q('select biome from hexes where game_id = $1 and q = 0 and r = 4', [game.id]))[0].biome === 'trawa', 'on 7..9 the waters take three and recede; the land stays')
+  await topUp()
+  ok((await rpcErr(`select perform_action($1, 'flood', $2::jsonb)`, [game.id, J({ q: 2, r: -2, attr: 'wrath' })])) === 'Wody nie da się zatopić.', 'water cannot be drowned')
+}
+{
+  // Susza: barren land for three nights (10+) or two (7..9); the herd grazing there dies every night
+  const octOcc = (await q('select * from hex_occupants where entity_id = $1', [octopus.entity_id]))[0]
+  const fertBefore = (await q('select hex_fertility($1, 0, 3) as f', [game.id]))[0].f
+  const dry = await rolled(6, `select * from perform_action($1, 'drought', $2::jsonb)`, [game.id, J({ q: 0, r: 3, attr: 'element' })])
+  ok(dry.logos_delta === -3 && dry.outcome.tier === 'strong' && dry.outcome.rounds === 3 && dry.outcome.fertility_before === fertBefore && fertBefore > 0, 'Susza for 3 Logos: three barren nights on 10+')
+  ok((await q('select drought_rounds from hexes where game_id = $1 and q = 0 and r = 3', [game.id]))[0].drought_rounds === 3 && (await q('select hex_fertility($1, 0, 3) as f', [game.id]))[0].f === 0, 'the land is barren: Żyzność 0 while the drought lasts')
+  await db.query('select night_blights($1)', [game.id])
+  ok((await q('select drought_rounds from hexes where game_id = $1 and q = 0 and r = 3', [game.id]))[0].drought_rounds === 2 && (await q('select count(*)::int as n from hex_occupants where id = $1', [octOcc.id]))[0].n === 0, 'a night of drought: the herd dies and one night less remains')
+  const nd = (await q(`select outcome from actions_log where action_key = 'night_drought' and game_id = $1 order by created_at desc limit 1`, [game.id]))[0]
+  ok(nd && nd.outcome.killed && nd.outcome.killed.entity_id === octopus.entity_id && nd.outcome.rounds_left === 2, 'the night tells which herd starved')
+  await db.query(`update hexes set drought_rounds = 0 where game_id = $1`, [game.id])
+  await db.query(`update entities set status = 'active' where id = $1`, [octopus.entity_id])
+  await db.query('insert into hex_occupants (id, game_id, q, r, slot, entity_id) values ($1, $2, 0, 3, 0, $3)', [octOcc.id, game.id, octopus.entity_id])
+  await topUp()
+  const dry2 = await rolled(4, `select * from perform_action($1, 'drought', $2::jsonb)`, [game.id, J({ q: 0, r: 3, attr: 'wrath' })])
+  ok(dry2.outcome.tier === 'mixed' && dry2.outcome.rounds === 2 && (await q('select drought_rounds from hexes where game_id = $1 and q = 0 and r = 3', [game.id]))[0].drought_rounds === 2, 'on 7..9 two barren nights')
+  await db.query(`update hexes set drought_rounds = 0 where game_id = $1`, [game.id])
+  await topUp()
+  const dry3 = await rolled(1, `select * from perform_action($1, 'drought', $2::jsonb)`, [game.id, J({ q: 0, r: 3, attr: 'wrath' })])
+  ok(dry3.outcome.rounds === 0 && (await q('select drought_rounds from hexes where game_id = $1 and q = 0 and r = 3', [game.id]))[0].drought_rounds === 0, 'on 6- the sky clouds over and nothing happens')
+  await topUp()
+}
+{
+  // Plaga: two nights (10+) or one (7..9); every night two of the city's people die, or a herd or a beast
+  ok((await rpcErr(`select perform_action($1, 'plague', $2::jsonb)`, [game.id, J({ q: 0, r: 4, attr: 'wrath' })])) === 'Plaga potrzebuje żywych: miasta, stada albo bestii.', 'a plague needs someone to infect')
+  const sick = await rolled(6, `select * from perform_action($1, 'plague', $2::jsonb)`, [game.id, J({ q: 0, r: 0, attr: 'wrath' })])
+  ok(sick.logos_delta === -9 && sick.outcome.tier === 'strong' && sick.outcome.rounds === 2 && sick.outcome.city_id === civ.entity_id && (await q('select plague_rounds from hexes where game_id = $1 and q = 0 and r = 0', [game.id]))[0].plague_rounds === 2, 'Plaga for 9 Logos: two nights of sickness on 10+')
+  const popBefore = (await q('select city_dots($1) as d', [civ.entity_id]))[0].d
+  await db.query('select night_blights($1)', [game.id])
+  ok((await q('select city_dots($1) as d', [civ.entity_id]))[0].d === popBefore - 2 && (await q('select plague_rounds from hexes where game_id = $1 and q = 0 and r = 0', [game.id]))[0].plague_rounds === 1, 'a night of plague: two of the people die, one night remains')
+  const np = (await q(`select outcome from actions_log where action_key = 'night_plague' and game_id = $1 order by created_at desc limit 1`, [game.id]))[0]
+  ok(np && np.outcome.city_id === civ.entity_id && np.outcome.lost.length === 2 && np.outcome.rounds_left === 1, 'the night tells who the plague took')
+  await restoreCity()
+  // a plague on a herd without a city takes the herd
+  const goatOcc = (await q('select * from hex_occupants where entity_id = $1', [goats.entity_id]))[0]
+  const sick2 = await rolled(4, `select * from perform_action($1, 'plague', $2::jsonb)`, [game.id, J({ q: goatOcc.q, r: goatOcc.r, attr: 'wrath' })])
+  ok(sick2.outcome.tier === 'mixed' && sick2.outcome.rounds === 1 && sick2.outcome.creatures.length === 1, 'on 7..9 one night of sickness')
+  await db.query('select night_blights($1)', [game.id])
+  ok((await q('select count(*)::int as n from hex_occupants where id = $1', [goatOcc.id]))[0].n === 0 && (await q('select plague_rounds from hexes where game_id = $1 and q = $2 and r = $3', [game.id, goatOcc.q, goatOcc.r]))[0].plague_rounds === 0, 'without a city the plague takes the herd, and it is over')
+  await db.query(`update entities set status = 'active' where id = $1`, [goats.entity_id])
+  await db.query('insert into hex_occupants (id, game_id, q, r, slot, entity_id) values ($1, $2, $3, $4, 0, $5)', [goatOcc.id, game.id, goatOcc.q, goatOcc.r, goats.entity_id])
+  await topUp()
+}
 await db.query(`update hexes set biome = 'trawa' where game_id = $1 and q = 0 and r = 4`, [game.id])
-const emptyCat = await rolled(6, `select * from perform_action($1, 'catastrophe', $2::jsonb)`, [game.id, J({ type: 'Deszcz ognia', q: 0, r: 4, after: 'woda', attr: 'element' })])
-ok(emptyCat.outcome.biome_after === 'woda' && (await q('select biome from hexes where game_id = $1 and q = 0 and r = 4', [game.id]))[0].biome === 'woda', 'an empty field takes the chosen biome')
+const emptyCat = await rolled(6, `select * from perform_action($1, 'flood', $2::jsonb)`, [game.id, J({ q: 0, r: 4, attr: 'element' })])
+ok(emptyCat.outcome.biome_after === 'woda' && (await q('select biome from hexes where game_id = $1 and q = 0 and r = 4', [game.id]))[0].biome === 'woda', 'an empty field drowned on 10+ is water')
 await db.query(`select set_afterlife($1, 'Rzeka bez dna.')`, [game.id])
 ok((await q('select afterlife_description from players where id = $1', [actor.id]))[0].afterlife_description === 'Rzeka bez dna.', 'a god describes its afterlife')
 
 console.log('\n# avatars on the map')
+// the god's hand of the tests above steps aside: the words below name their avatar themselves
+await db.query('delete from hex_occupants where entity_id = $1', [hand.id])
+await db.query('delete from entity_gods where entity_id = $1', [hand.id])
+await db.query('delete from entities where id = $1', [hand.id])
 await topUp()
 ok((await rpcErr(`select perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, J({ entity: { name: 'Na wodzie', conditions: ['a'] }, emoji: '🗿', q: 2, r: -2, attr: 'majesty' })])) !== null, 'an avatar does not stand on water')
 {
@@ -635,22 +746,22 @@ const far = (await q(`select * from perform_action($1, 'pilgrimage', $2::jsonb)`
 ok(far.logos_delta === -4 && far.outcome.distance === 4, 'a long pilgrimage costs one Logos per hex, with no limit')
 await q(`select * from perform_action($1, 'pilgrimage', $2::jsonb)`, [game.id, J({ avatar_id: av.entity_id, to: { q: -1, r: 0 } })])
 await topUp()
-ok((await rpcErr(`select perform_action($1, 'create_herd', $2::jsonb)`, [game.id, J({ via_avatar_id: av.entity_id, entity: { name: 'Daleko', traits: [] }, emoji: '🦋', q: -1, r: 4, attr: 'grace' })])) !== null, 'through the avatar the target must lie within two hexes')
-const viaCreature = await rolled(4, `select * from perform_action($1, 'create_herd', $2::jsonb)`, [game.id, J({ via_avatar_id: av.entity_id, entity: { name: 'Ćmy', traits: ['Nocne'] }, emoji: '🦋', q: -1, r: 1, attr: 'grace' })])
-ok(viaCreature.logos_delta === -5 && viaCreature.is_avatar_free_action && viaCreature.outcome.via_avatar.full_cost === 10, 'through the avatar a creature costs half: 5 instead of 10')
-ok((await rpcErr(`select perform_action($1, 'create_avatar', $2::jsonb)`, [game.id, J({ via_avatar_id: av.entity_id, entity: { name: 'x' }, emoji: '👼', q: 0, r: 1, attr: 'majesty' })])) !== null, 'an avatar does not send another avatar')
+// no half price any more: a word costs what it costs, whoever stands on the map
+const viaCreature = await rolled(4, `select * from perform_action($1, 'create_herd', $2::jsonb)`, [game.id, J({ via_avatar_id: av.entity_id, entity: { name: 'Ćmy', traits: ['Nocne'] }, emoji: '🦋', q: -1, r: 4, attr: 'grace' })])
+ok(viaCreature.logos_delta === -10 && viaCreature.is_avatar_free_action === false && viaCreature.outcome.via_avatar === undefined, 'a creature costs its full 10 Logos; the avatar is no discount and no reach')
 await topUp()
 {
-  // a failed Great Miracle: the Logos is gone, the avatar lives
-  const miss = await rolled(1, `select * from perform_action($1, 'great_miracle', $2::jsonb)`, [game.id, J({ via_avatar_id: av.entity_id, summary: 'Nic.', attr: 'wisdom' })])
-  ok(miss.logos_delta === -8 && miss.outcome.happened === false && (await q('select status from entities where id = $1', [av.entity_id]))[0].status === 'active', 'a failed Great Miracle spares the avatar and spends the Logos')
+  // a failed Great Miracle: the Logos is gone, the world is as it was
+  const miss = await rolled(1, `select * from perform_action($1, 'great_miracle', $2::jsonb)`, [game.id, J({ summary: 'Nic.', attr: 'wisdom' })])
+  ok(miss.logos_delta === -15 && miss.outcome.happened === false, 'a failed Great Miracle spends 15 Logos')
   await topUp()
 }
-const free = await rolled(4, `select * from perform_action($1, 'great_miracle', $2::jsonb)`, [game.id, J({ via_avatar_id: av.entity_id, summary: 'Kontynent unosi się.', attr: 'majesty' })])
-ok(free.logos_delta === -8 && free.is_avatar_free_action && free.summary === 'Kontynent unosi się.' && free.outcome.with_price === true, 'a Great Miracle through the avatar costs 8 instead of 15 and keeps the written verse')
-ok((await q('select status from entities where id = $1', [av.entity_id]))[0].status === 'dead', 'a Great Miracle through the avatar destroys it')
-ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1', [av.entity_id]))[0].n === 0, 'the dead avatar leaves the map')
-ok((await q(`select count(*)::int as n from actions_log where action_key = 'entity_edit' and entity_id = $1 and summary like 'I spłonął awatar%Wielkim Cudzie%'`, [av.entity_id]))[0].n === 1, 'the destruction is a Chronicle line, told in the past')
+const free = await rolled(4, `select * from perform_action($1, 'great_miracle', $2::jsonb)`, [game.id, J({ summary: 'Kontynent unosi się.', attr: 'majesty' })])
+ok(free.logos_delta === -15 && free.summary === 'Kontynent unosi się.' && free.outcome.with_price === true, 'a Great Miracle costs 15 and keeps the written verse')
+ok((await q('select status from entities where id = $1', [av.entity_id]))[0].status === 'active', 'no avatar burns for a Great Miracle any more')
+// test-only: the avatar falls, so the resurrection below has someone to raise
+await db.query(`update entities set status = 'dead', hp = 0 where id = $1`, [av.entity_id])
+await db.query('delete from hex_occupants where entity_id = $1', [av.entity_id])
 await topUp()
 const res = (await q(`select * from perform_action($1, 'resurrect_avatar', $2::jsonb)`, [game.id, J({ entity: { op: 'update', id: av.entity_id, description: 'Wrócił bez twarzy.' }, q: 0, r: -1 })]))[0]
 ok(res.logos_delta === -12 && (await q('select status, hp, max_hp from entities where id = $1', [av.entity_id]))[0].hp === 3 && res.outcome.max_hp === 3, 'resurrected one life stronger: 3 of 3')
@@ -704,7 +815,7 @@ console.log('\n# the godless')
   // a gift wins the godless first
   await topUp()
   await fixDice(6)
-  const devA = (await q(`select * from perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'grace', gift: 'Pismo' })]))[0]
+  const devA = (await q(`select * from perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'wisdom', gift: 'Pismo' })]))[0]
   await fixDice(null)
   ok(devA.outcome.gained === 2 && devA.outcome.converted_atheists === 2 && devA.outcome.added === 2, 'development: two groups gained, both from the godless')
   ok((await q('select atheists from cities where entity_id = $1', [civ.entity_id]))[0].atheists === 0 && (await q('select player_dots($1, $2) as d', [civ.entity_id, actor.id]))[0].d === 7, 'the godless now pray to the giver')
@@ -775,14 +886,16 @@ await db.query('insert into city_followers (game_id, city_id, player_id, dots) v
 ok((await rpcErr(`select declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: civ.entity_id, army: 5, target_city_id: newCity.id, defender_id: otherP.id, attr: 'wrath' })])) !== null, 'at least one dot stays home')
 ok((await rpcErr(`select declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: newCity.id, army: 1, target_city_id: civ.entity_id, defender_id: otherP.id, attr: 'wrath' })])) !== null, 'an army marches only from a city I hold')
 ok((await rpcErr(`select declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: civ.entity_id, army: 2, target_city_id: newCity.id, defender_id: otherP.id, attr: 'grace' })])) === 'Wybierz: Gniew albo Podszept.', 'a war is led by Gniew or Podszept')
+const avHp = (await q('select hp from entities where id = $1', [av.entity_id]))[0].hp
 const war = (await q(`select * from declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: civ.entity_id, army: 2, target_city_id: newCity.id, defender_id: otherP.id, attr: 'wrath' })]))[0]
-ok(war.status === 'pending' && war.cost === 9 && war.army === 2 && war.attacker_mod === 2 + (await q(`select attr_score(p, 'wrath') as s from players p where id = $1`, [actor.id]))[0].s, 'war declared: cost is the distance, modifier is Gniew plus the army')
+ok(war.status === 'pending' && war.cost === 9 && war.army === 2 && war.attacker_mod === 2 + avHp + (await q(`select attr_score(p, 'wrath') as s from players p where id = $1`, [actor.id]))[0].s, 'war declared: cost is the distance, modifier is Gniew plus the army plus the life of the general')
+ok(war.attacker_avatar_id === av.entity_id && (await q('select q, r from hex_occupants where entity_id = $1', [av.entity_id]))[0].q === 0 && (await q('select q, r from hex_occupants where entity_id = $1', [av.entity_id]))[0].r === 0, 'the nearest avatar of mine leads and steps into the city')
 ok((await q('select player_dots($1, $2) as d', [civ.entity_id, actor.id]))[0].d === 3, 'the army left the city')
 await db.query(`select cancel_contest($1)`, [war.id])
 ok((await q('select player_dots($1, $2) as d', [civ.entity_id, actor.id]))[0].d === 5 && (await q('select logos from players where id = $1', [actor.id]))[0].logos === 60, 'a cancelled war refunds the army and the Logos')
 ok((await q('select status from contests where id = $1', [war.id]))[0].status === 'cancelled', 'contest cancelled')
 const war2 = (await q(`select * from declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: civ.entity_id, army: 4, target_city_id: newCity.id, defender_id: otherP.id, attr: 'whisper' })]))[0]
-ok(war2.attacker_attr === 'whisper' && war2.attacker_mod === 4 + (await q(`select attr_score(p, 'whisper') as s from players p where id = $1`, [actor.id]))[0].s, 'a war may be led by Podszept')
+ok(war2.attacker_attr === 'whisper' && war2.attacker_mod === 4 + avHp + (await q(`select attr_score(p, 'whisper') as s from players p where id = $1`, [actor.id]))[0].s, 'a war may be led by Podszept')
 await as(otherP.user_id)
 ok((await rpcErr(`select answer_contest($1, 'wisdom')`, [war2.id])) === 'Wybierz: Łaska albo Gniew.', 'a city is defended with Łaska or Gniew')
 const warDone = (await q(`select * from answer_contest($1, 'grace')`, [war2.id]))[0]
@@ -825,11 +938,13 @@ console.log('\n# a war hunts an avatar')
   await topUp()
   await db.query('update players set logos = 60 where id = $1', [actor.id])
   await db.query('update games set current_turn_player_id = $2 where id = $1', [game.id, actor.id])
+  await db.query('update hex_occupants set q = 0, r = -1, slot = 2 where entity_id = $1', [av.entity_id])
   ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1 and q = 0 and r = -1', [av.entity_id]))[0].n === 1, 'my avatar stands a step from the city that raises the army')
   const wrath = (await q(`select attr_score(p, 'wrath') as s from players p where id = $1`, [actor.id]))[0].s
-  const hunt = (await q(`select * from declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: civ.entity_id, army: 4, target_city_id: newCity.id, defender_id: otherP.id, via_avatar_id: av.entity_id, attr: 'wrath' })]))[0]
-  ok(hunt.cost === 5 && hunt.attacker_avatar_id === av.entity_id, 'a war led by the avatar costs half: 5 instead of 8 + 1')
+  const hunt = (await q(`select * from declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: civ.entity_id, army: 4, target_city_id: newCity.id, defender_id: otherP.id, avatar_id: av.entity_id, attr: 'wrath' })]))[0]
+  ok(hunt.cost === 9 && hunt.attacker_avatar_id === av.entity_id, 'a war costs its full 8 + 1 and is led by the avatar')
   ok(hunt.attacker_mod === wrath + 4 + 3, 'the avatar leads the army with its three lives')
+  ok((await q('select q, r from hex_occupants where entity_id = $1', [av.entity_id]))[0].q === 0 && (await q('select q, r from hex_occupants where entity_id = $1', [av.entity_id]))[0].r === 0, 'the general steps into the city that raises the army')
   // test-only: make the attack a sure win so the blows can be placed
   await db.query('update contests set attacker_total = 30 where id = $1', [hunt.id])
   await as(otherP.user_id)
@@ -841,11 +956,28 @@ console.log('\n# a war hunts an avatar')
   ok((await q('select hp from entities where id = $1', [enemyAv.id]))[0].hp === 1, 'the enemy avatar lost two of three')
   ok((await q('select player_dots($1, $2) as d', [newCity.id, otherP.id]))[0].d === 2, 'one follower of the defender fell')
   ok((await q('select outcome from contests where id = $1', [hunt.id]))[0].outcome.avatar_wounds === 2, 'the wounds are written down')
+  ok(huntDone.outcome.attacker_avatar_to && huntDone.outcome.attacker_avatar_to.q === 1 && (await q('select q, r from hex_occupants where entity_id = $1', [av.entity_id]))[0].q === 1 && (await q('select q, r from hex_occupants where entity_id = $1', [av.entity_id]))[0].r === -1, 'after the victory the general stands in the taken city')
   await db.query('update entities set hp = 3 where id = $1', [enemyAv.id])
+  // a rout wounds the general: the same war, lost by three
+  await db.query('update hex_occupants set q = 0, r = -1, slot = 2 where entity_id = $1', [av.entity_id])
+  await db.query('insert into city_followers (game_id, city_id, player_id, dots) values ($1, $2, $3, 5) on conflict (city_id, player_id) do update set dots = excluded.dots', [game.id, civ.entity_id, actor.id])
+  await db.query('update players set logos = 60 where id = $1', [actor.id])
+  await db.query('select release_verse($1)', [game.id])
+  await db.query('update games set current_turn_player_id = $2 where id = $1', [game.id, actor.id])
+  const rout = (await q(`select * from declare_contest($1, 'holy_war', $2::jsonb)`, [game.id, J({ source_city_id: civ.entity_id, army: 2, target_city_id: newCity.id, defender_id: otherP.id, avatar_id: av.entity_id, attr: 'wrath' })]))[0]
+  await db.query('update contests set attacker_total = -30 where id = $1', [rout.id])
+  await as(otherP.user_id)
+  const routDone = (await q(`select * from answer_contest($1, 'grace')`, [rout.id]))[0]
+  ok(routDone.outcome.diff <= -3 && routDone.outcome.attacker_avatar_wound === 1 && (await q('select hp from entities where id = $1', [av.entity_id]))[0].hp === 2 && (await q('select q, r from hex_occupants where entity_id = $1', [av.entity_id]))[0].q === 0, 'a rout wounds the general by one; it stays in the city it marched from')
+  await as(actor.user_id)
+  await db.query(`select commit_contest($1, 'Klęska.', null)`, [rout.id])
+  await db.query('insert into city_followers (game_id, city_id, player_id, dots) values ($1, $2, $3, 5), ($1, $2, $4, 1), ($1, $5, $4, 3) on conflict (city_id, player_id) do update set dots = excluded.dots', [game.id, civ.entity_id, actor.id, otherP.id, newCity.id])
+  await db.query('update entities set hp = 3 where id in ($1, $2)', [av.entity_id, enemyAv.id])
 
   console.log('\n# avatars fight')
   await db.query('update entities set hp = 3, max_hp = 3 where id in ($1, $2)', [av.entity_id, enemyAv.id])
   // my avatar next to the enemy's: (0,-1) touches (1,-1)
+  await db.query('update hex_occupants set q = 0, r = -1, slot = 2 where entity_id = $1', [av.entity_id])
   ok((await q('select count(*)::int as n from hex_occupants where entity_id = $1 and q = 0 and r = -1', [av.entity_id]))[0].n === 1, 'my avatar stands next door')
   await topUp()
   ok((await rpcErr(`select declare_contest($1, 'avatar_duel', $2::jsonb)`, [game.id, J({ attacker_avatar_id: av.entity_id, defender_avatar_id: enemyAv.id, attr: 'whisper' })])) === 'Wybierz: Gniew albo Majestat.', 'a duel is Gniew or Majestat')
@@ -890,12 +1022,12 @@ console.log('\n# a war hunts an avatar')
   ok(proph.logos_delta === -10 && pr.length === 1 && pr[0].hold === 1 && pr[0].status === 'active', 'a prophecy is spoken for 10 Logos, with a hold of one on 7..9')
   await topUp()
   await db.query('update prophecies set hold = 3 where id = $1', [pr[0].id])
-  const devP = (await q(`select * from perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'grace', gift: 'Prawo', prophecy_id: pr[0].id })]))[0]
+  const devP = (await q(`select * from perform_action($1, 'develop_civilization', $2::jsonb)`, [game.id, J({ city_id: civ.entity_id, attr: 'wisdom', gift: 'Prawo', prophecy_id: pr[0].id })]))[0]
   ok(devP.outcome.prophecy === 3 && devP.outcome.total === devP.outcome.d1 + devP.outcome.d2 + devP.outcome.score + 3, 'the prophecy adds its hold to the roll')
   ok((await q('select status from prophecies where id = $1', [pr[0].id]))[0].status === 'fulfilled', 'and is fulfilled')
   ok((await q(`select count(*)::int as n from actions_log where action_key = 'prophecy_fulfilled' and game_id = $1`, [game.id]))[0].n === 1, 'the book tells that the words became flesh')
   await topUp()
-  ok((await rpcErr(`select perform_action($1, 'catastrophe', $2::jsonb)`, [game.id, J({ type: 'Deszcz ognia', q: 0, r: 3, prophecy_id: pr[0].id, attr: 'wrath' })])) !== null, 'a fulfilled prophecy cannot be used again')
+  ok((await rpcErr(`select perform_action($1, 'fire_rain', $2::jsonb)`, [game.id, J({ q: 0, r: 3, prophecy_id: pr[0].id, attr: 'wrath' })])) !== null, 'a fulfilled prophecy cannot be used again')
   await topUp()
   await rolled(4, `select * from perform_action($1, 'prophecy', $2::jsonb)`, [game.id, J({ avatar_id: av.entity_id, text: 'Zgasną gwiazdy.', attr: 'majesty' })])
 }
@@ -1193,7 +1325,7 @@ ok((await q('select * from hexes'))[0] === undefined, 'outsider sees no map')
 await as(A)
 ok((await q('select * from games')).length === 1, 'member sees their game')
 ok((await q('select * from entities')).length === entityCount, `member sees all ${entityCount} entities`)
-ok((await q('select * from hexes')).length === hexCount && (await q('select * from city_followers')).length > 0 && (await q('select * from contests')).length === 6, 'member sees the map, the dots and the contests')
+ok((await q('select * from hexes')).length === hexCount && (await q('select * from city_followers')).length > 0 && (await q('select * from contests')).length === 7, 'member sees the map, the dots and the contests')
 ok((await q('select * from chaos_nights')).length === 1 && (await q('select * from rivers')).length === 0, 'member sees the night; rivers are readable')
 ok((await q('select * from creation_options')).length === 1, 'member sees creation options')
 const pal = await rpcErr(`insert into palette_entries (game_id, player_id, "column", text) values ($1, $2, 'no', 'x')`, [game.id, players[1].id])

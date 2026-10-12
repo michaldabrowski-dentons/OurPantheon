@@ -143,6 +143,10 @@ export interface Hex {
   resource: string | null
   /** the rank of that resource (-1 przeklęte złoże .. +3 boski surowiec), rolled on 2k6 + Łaska */
   resource_bonus: number
+  /** nights of Susza left: the land is barren (Żyzność 0) and the herd grazing there dies every night */
+  drought_rounds: number
+  /** nights of Plaga left: two of the city's people (or a herd or a beast) die every night */
+  plague_rounds: number
 }
 
 /** a river: its channel from the mountain source through land fields, and how it ends */
@@ -483,27 +487,22 @@ export interface HexRef {
 /** Payload of perform_action; which keys matter depends on the action (see 0012_hex_map.sql) */
 export interface ActionPayload {
   summary?: string
-  /** the word is spoken through this avatar: half the price, the target within two fields of it */
-  via_avatar_id?: string
   entity?: EntityPayload
   /** shape_land */
   biome?: BiomeKey
   hexes?: HexRef[]
-  /** catastrophe */
-  type?: string
-  /** catastrophe: the land left behind when nothing survives */
-  after?: BiomeKey
-  /** the field (creation, catastrophe, resurrection) */
+  /** the field (creation, cataclysms, resurrection) */
   q?: number
   r?: number
   slot?: number
-  /** creatures, sapients, avatars, variants */
+  /** creatures, sapients, avatars, a changed kind */
   emoji?: string
-  /** change_creature */
+  /** change_creature, multiply, lightning: the thing standing on the map */
   occupant_id?: string
   /** migrate */
   entity_id?: string
   from?: HexRef
+  /** migrate, exodus, pilgrimage, multiply: where it goes */
   to?: HexRef
   /** create_civilization, exodus */
   species_id?: string
@@ -514,7 +513,7 @@ export interface ActionPayload {
   dots?: number
   name?: string
   description?: string
-  /** pilgrimage, prophecy */
+  /** pilgrimage, prophecy; the avatar that speaks a word of the avatar (develop, exodus) */
   avatar_id?: string
   /** prophecy: what is foretold */
   text?: string

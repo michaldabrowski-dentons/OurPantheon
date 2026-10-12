@@ -149,6 +149,8 @@ export function buildWorld(input: {
       if (!h) return null
       const base = FERTILITY_BASE[h.biome]
       if (base === null || base === undefined) return null
+      // a drought makes the land barren for as long as it lasts
+      if ((h.drought_rounds ?? 0) > 0) return 0
       let f = base
       if (neighbours({ q, r }).some((n) => hexAt(n.q, n.r)?.biome === 'woda')) f += 1
       if (riverAt(q, r)) f += h.biome === 'pustynia' ? 3 : 1

@@ -81,6 +81,8 @@ export function HexInfoPopup({ at, world, onClose, onOpenEntity }: { at: Inspect
       {fertility !== null && (
         <p className={styles.popupStatus}>
           Żyzność {fertility}
+          {(hex?.drought_rounds ?? 0) > 0 ? ` · ☀️ susza: ziemia jałowa jeszcze przez ${hex!.drought_rounds === 1 ? 'jedną noc' : `${hex!.drought_rounds} noce`}` : ''}
+          {(hex?.plague_rounds ?? 0) > 0 ? ` · ☣️ plaga: co noc umiera dwoje, jeszcze przez ${hex!.plague_rounds === 1 ? 'jedną noc' : `${hex!.plague_rounds} noce`}` : ''}
           {hex?.resource ? ` · ${hex.resource} ${resourceName(hex.resource)}: ${resourceRankName(hex.resource_bonus)} (${hex.resource_bonus > 0 ? '+' : ''}${hex.resource_bonus})` : ''}
           {river ? ` · rzeka${river.mouth_kind === 'none' ? ' (urwana)' : ''}` : ''}
         </p>

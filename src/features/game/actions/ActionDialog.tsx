@@ -1,18 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { rpc } from '@/lib/supabase'
-import type { ActionLog, ActionPayload, AttrKey, BiomeKey, Contest, Entity, EntityKind, HexOccupant, HexRef, Player } from '@/lib/types'
+import type { ActionLog, ActionPayload, AttrKey, BiomeKey, Contest, Entity, EntityKind, HexRef, Player } from '@/lib/types'
 import type { MapPick, WorldView } from '@/lib/world'
-import { hexDistance, neighbours } from '@/lib/hex'
-import { AVATAR_REACH, TIER_RANGE, costFor, viaAvatarAllowed, viaAvatarCost, type ActionDef, type Era, type FlowStep, type Tier } from '@/data/actions'
+import { hexDistance } from '@/lib/hex'
+import { AVATAR_REACH, TIER_RANGE, canMultiply, costFor, groupOf, standingAvatars, type ActionDef, type Era, type FlowStep, type Tier } from '@/data/actions'
 import { SAPIENT_TRAITS } from '@/data/traits'
-import { BIOMES, BIOME_BY_KEY, CATASTROPHE_TYPES } from '@/data/biomes'
+import { BIOMES, BIOME_BY_KEY } from '@/data/biomes'
 import { AVATAR_EMOJI, BEAST_EMOJI, CREATURE_EMOJI, HERBIVORE_EMOJI, SAPIENT_EMOJI } from '@/data/emoji'
-import { RESOURCES, RESOURCE_NAMES, isMountain } from '@/data/fertility'
+import { RESOURCES, RESOURCE_NAMES, isMountain, strengthLabel } from '@/data/fertility'
 import { ATTRIBUTE_BY_KEY, scoresFor } from '@/data/pantheon'
-import { composeVerse } from '@/data/chronicle'
-import { isWatchedRoll, tierDetail } from '@/data/dice'
-import { draftDeedSummary } from '@/data/draft'
-import { describeEvent } from '@/data/tableEvents'
+import { tierDetail, fightLine } from '@/data/dice'
 import { GIFTS, followersWord } from '@/data/cities'
 import { useGameStore, playerLabel, godLabel, selectPropheciesOf } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
@@ -21,7 +18,7 @@ import { actionArt } from '@/data/actionArt'
 import { EmojiPicker } from '@/components/ui/EmojiPicker'
 import { ActionIcon } from '@/components/ui/ActionIcons'
 import { ProphecyPicker } from '@/features/pantheon/ProphecyPicker'
-import { useDiceGate, useDiceWait, useVerseDialogFlag } from '../diceGate'
+import { useDiceGate, useVerseDialogFlag } from '../diceGate'
 import { AttributeTiles } from './AttributeTiles'
 import { RollReveal } from './RollReveal'
 import { useMapMode, type MapMode } from '../map/mapMode'
@@ -31,16 +28,11 @@ import styles from './actions.module.css'
 const OWN_GIFT = '__own'
 
 interface FormState {
-  /** the avatar that speaks the word (half the price, reach of two fields); empty = the god itself */
-  viaAvatarId: string
-  /** catastrophe: the land left when nothing survives */
-  after: '' | BiomeKey
   name: string
   description: string
   co_god_ids: string[]
   emoji: string
   biome: BiomeKey
-  catastrophe: string
   hexes: HexRef[]
   /** the clicked field: where a thing appears, where the blow lands, where people go */
   target: HexRef | null
@@ -55,8 +47,8 @@ interface FormState {
   dots: number
   army: number
   defenderId: string
+  /** the avatar that speaks a word of the avatar, or walks, or prophesies */
   avatarId: string
-  moveAvatar: boolean
   summary: string
   deadAvatarId: string
   /** a prophecy spent on this roll */
@@ -73,14 +65,11 @@ interface FormState {
 }
 
 const initial = (): FormState => ({
-  viaAvatarId: '',
-  after: '',
   name: '',
   description: '',
   co_god_ids: [],
   emoji: '',
   biome: 'trawa',
-  catastrophe: CATASTROPHE_TYPES[0],
   hexes: [],
   target: null,
   occupantId: '',
@@ -95,7 +84,6 @@ const initial = (): FormState => ({
   army: 1,
   defenderId: '',
   avatarId: '',
-  moveAvatar: false,
   summary: '',
   deadAvatarId: '',
   prophecyId: null,
@@ -108,19 +96,8 @@ const initial = (): FormState => ({
 
 const avatarAt = (w: WorldView, q: number, r: number) => w.occupantsAt(q, r).some((o) => w.entityById(o.entity_id)?.kind === 'avatar')
 
-/** a creature with a free field next door for its kind: it may multiply */
-function canMultiply(o: Pick<HexOccupant, 'entity_id' | 'q' | 'r'>, w: WorldView): boolean {
-  const e = w.entityById(o.entity_id)
-  if (!e || e.kind !== 'creature') return false
-  const role = w.roleOf(e)
-  if (!role || role === 'avatar') return false
-  return neighbours({ q: o.q, r: o.r }).some((n) => {
-    const h = w.hexAt(n.q, n.r)
-    if (!h) return false
-    const landOk = role === 'tribe' ? !w.blocked(n.q, n.r) : h.biome !== 'woda'
-    return landOk && w.slotFor(n.q, n.r, role) !== null && !w.occupantsAt(n.q, n.r).some((x) => x.entity_id === e.id)
-  })
-}
+/** the words of the avatar that first step into a city: the city must lie within its reach */
+const ENTERS_CITY = new Set(['convert', 'exodus', 'holy_war'])
 
 export function ActionDialog({ action, me, onClose, preset }: { action: ActionDef; me: Player; onClose: () => void; preset?: { avatarId?: string } }) {
   const game = useGameStore((s) => s.game)!
@@ -136,10 +113,9 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   const era = game.era as Era
   const baseCost = costFor(action.key, era)
   const myAvatars = world.avatarsOf(me.id)
-  const standing = myAvatars.filter((a) => a.occupant)
-  // the avatar may speak this word: the window first asks who speaks
-  const viaAllowed = viaAvatarAllowed(action.key) && standing.length > 0
-  const flow = useMemo<FlowStep[]>(() => (viaAllowed ? ['via', ...action.flow] : action.flow), [viaAllowed, action.flow])
+  const standing = standingAvatars(world, me)
+  const avatarWord = groupOf(action.key) === 'avatar'
+  const flow = useMemo<FlowStep[]>(() => action.flow, [action.flow])
   // a prophecy opened from the avatar on the map skips the question which avatar speaks
   const [stepIdx, setStepIdx] = useState(action.key === 'prophecy' && preset?.avatarId ? 1 : 0)
   const step: FlowStep = flow[stepIdx]
@@ -153,14 +129,12 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   const [error, setError] = useState<string | null>(null)
   const [rules, setRules] = useState(false)
   const [row, setRow] = useState<ActionLog | null>(null)
-  const [verse, setVerse] = useState('')
-  const [verseEdited, setVerseEdited] = useState(false)
-  /** a mountain cut a river in this word: the map asks for the new bed before the verse */
+  /** a mountain cut a river in this word: the map asks for the new bed before the window closes */
   const [reroute, setReroute] = useState<{ riverId: string; from: HexRef } | null>(null)
-  // a word without dice of its own still waits for the table's dice window before its verse
-  const waitingDice = useDiceWait(row && isWatchedRoll(row) ? row.id : null)
   /** the dice fell for this word: the window shows them before it closes */
   const [rolled, setRolled] = useState<{ row?: ActionLog; contest?: Contest; attr: AttrKey } | null>(null)
+  /** a migration ended in a fight: the window shows the two throws before it closes */
+  const [fought, setFought] = useState<ActionLog | null>(null)
   const claim = useDiceGate((s) => s.claim)
   const unclaim = useDiceGate((s) => s.unclaim)
   const dismiss = useDiceGate((s) => s.dismiss)
@@ -168,7 +142,6 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((s) => ({ ...s, [k]: v }))
 
-  const god = { name: me.god_name?.trim() || 'bóstwo', gender: me.god_gender ?? 'm' }
   const scores = scoresFor(me.domain_key, me.attr_primary, me.attr_bonus)
   /** the fulfilled prophecy's hold, added to the roll */
   const hold = prophecies.find((p) => p.id === f.prophecyId)?.hold ?? 0
@@ -195,21 +168,22 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     }
   })()
   const cost = baseCost + distance
-  const viaAv = f.viaAvatarId ? standing.find((a) => a.entity.id === f.viaAvatarId) : undefined
-  const viaOcc = viaAv?.occupant
-  const paid = viaAv ? viaAvatarCost(cost) : cost
+  const paid = cost
   const canPay = me.logos >= paid
-  /** how many fields of distance my Words still buy (half price through the avatar) */
-  const budget = viaAv ? 2 * me.logos - baseCost : me.logos - baseCost
-  const inReach = (q: number, r: number) => !viaOcc || hexDistance(viaOcc, { q, r }) <= AVATAR_REACH
+  /** how many fields of distance my Words still buy */
+  const budget = me.logos - baseCost
+  /** one of my avatars stands at most two fields from the place */
+  const inReach = (q: number, r: number) => standing.some((a) => hexDistance(a.occupant!, { q, r }) <= AVATAR_REACH)
+  /** the avatar nearest the place: the one that speaks the word */
+  const nearestAvatar = (q: number, r: number) => [...standing].sort((a, b) => hexDistance(a.occupant!, { q, r }) - hexDistance(b.occupant!, { q, r }))[0]
+  /** the avatar that speaks this word of the avatar (chosen when the city was clicked) */
+  const speaker = avatarWord && action.key !== 'pilgrimage' && action.key !== 'prophecy' && action.key !== 'avatar_duel' ? standing.find((a) => a.entity.id === f.avatarId) ?? standing[0] : undefined
 
   // ---------- the map's questions ----------
   const mapOrdinal = flow.slice(0, stepIdx).filter((s) => s === 'map').length
-  const skipMap = (_i: number) => false
 
   function advance(from: number) {
-    let i = from + 1
-    while (i < flow.length && skipMap(i)) i++
+    const i = from + 1
     if (i >= flow.length) onClose()
     else setStepIdx(i)
   }
@@ -218,6 +192,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     const key = action.key
     const biomeName = BIOME_BY_KEY[f.biome].name.toLowerCase()
     const reach = (from: HexRef | undefined, q: number, r: number) => !!from && hexDistance(from, { q, r }) >= 1 && hexDistance(from, { q, r }) <= budget
+    const reachNote = ' Najwyżej dwa heksy od twojego awatara.'
     switch (key) {
       case 'shape_land':
         return {
@@ -228,14 +203,35 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           instruction: `Kliknij do trzech sąsiadujących heksów, które staną się terenem: ${biomeName}. Trzeci klik kończy akcję sam.`,
           valid: (q, r, w) => !(BIOME_BY_KEY[f.biome].blocked && (!!w.cityAt(q, r) || avatarAt(w, q, r))),
         }
-      case 'catastrophe':
-        return { kind: 'hex', title: 'Kataklizm', instruction: `Kliknij heks, w który uderza: ${f.catastrophe.toLowerCase()}.`, valid: () => true }
+      case 'lightning': {
+        const target = (o: { entity_id: string }, w: WorldView) => { const role = w.roleOf(w.entityById(o.entity_id)); return role === 'beast' || role === 'herbivore' || role === 'avatar' }
+        return {
+          kind: 'occupant',
+          title: 'Piorun',
+          instruction: 'Kliknij cel pioruna: bestię, stado albo awatara. Lud i miasta są poza jego zasięgiem.',
+          valid: (q, r, w) => w.occupantsAt(q, r).some((o) => target(o, w)),
+          validOccupant: target,
+        }
+      }
+      case 'flood':
+        return { kind: 'hex', title: 'Potop', instruction: 'Kliknij ląd, który zalewają wody. Przy 10+ stanie się wodą na zawsze.', valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' } }
+      case 'fire_rain':
+        return { kind: 'hex', title: 'Deszcz Ognia', instruction: 'Kliknij ląd, na który spada ogień.', valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' } }
+      case 'drought':
+        return { kind: 'hex', title: 'Susza', instruction: 'Kliknij ląd, nad którym stanie słońce: jego Żyzność spadnie do zera na dwie albo trzy noce.', valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' } }
+      case 'plague':
+        return {
+          kind: 'hex',
+          title: 'Plaga',
+          instruction: 'Kliknij pole, na którym ktoś żyje: miasto, stado albo bestię. Zaraza zabiera co noc dwoje mieszkańców.',
+          valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' && (!!w.cityAt(q, r) || w.occupantsAt(q, r).some((o) => { const e = w.entityById(o.entity_id); return e?.kind === 'creature' && !w.isSapient(e) })) },
+        }
       case 'bless_land':
-        return { kind: 'hex', title: 'Pobłogosław ziemię', instruction: `Kliknij ląd, który dostanie ${f.resource} ${RESOURCE_NAMES[f.resource] ?? 'surowiec'}. Góry też, woda nie; dotychczasowy surowiec zostanie zastąpiony.`, valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' } }
+        return { kind: 'hex', title: 'Błogosławienie Ziemi', instruction: `Kliknij ląd, który dostanie ${f.resource} ${RESOURCE_NAMES[f.resource] ?? 'surowiec'}. Góry też, woda nie; dotychczasowy surowiec zostanie zastąpiony.`, valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' } }
       case 'pour_river':
         return {
           kind: 'river',
-          title: 'Wylej Rzekę',
+          title: 'Wylanie Rzeki',
           instruction: 'Kliknij górę, z której wypływa rzeka, potem kolejne sąsiednie pola. Klik w wodę albo w inną rzekę kończy rzekę. Klik w ostatnie pole cofa je.',
           valid: (q, r, w, sel) => {
             const b = w.hexAt(q, r)?.biome
@@ -250,14 +246,30 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         const role = key === 'create_beast' ? 'beast' : 'herbivore'
         return { kind: 'hex', title: action.name, instruction: `Kliknij ląd (także góry) z wolnym miejscem ${role === 'beast' ? 'na dole heksa' : 'w lewym górnym rogu heksa'}, na którym pojawią się ${f.name.trim() || 'nowe istoty'}. Nie wodę.`, valid: (q, r, w) => { const h = w.hexAt(q, r); return !!h && h.biome !== 'woda' && w.slotFor(q, r, role) !== null } }
       }
-      case 'multiply':
-        return {
-          kind: 'occupant',
-          title: 'Rozmnożenie',
-          instruction: 'Kliknij istotę, która się rozmnoży: stado, bestię albo plemię z wolnym polem obok.',
-          valid: (q, r, w) => w.occupantsAt(q, r).some((o) => canMultiply(o, w)),
-          validOccupant: (o, w) => canMultiply(o, w),
+      case 'multiply': {
+        if (mapOrdinal === 0) {
+          return {
+            kind: 'occupant',
+            title: 'Rozmnożenie',
+            instruction: 'Kliknij istotę, która się rozmnoży: stado, bestię albo plemię z wolnym polem obok.',
+            valid: (q, r, w) => w.occupantsAt(q, r).some((o) => canMultiply(o, w)),
+            validOccupant: (o, w) => canMultiply(o, w),
+          }
         }
+        const src = world.entityById(f.speciesId)
+        const role = world.roleOf(src) ?? 'herbivore'
+        return {
+          kind: 'hex',
+          title: 'Rozmnożenie',
+          instruction: `Kliknij sąsiednie pole, na którym stanie kopia: ${src?.emoji ?? ''} ${src?.name ?? 'istoty'}. Wolne miejsce roli, bez tego gatunku.`,
+          valid: (q, r, w) => {
+            if (!f.from || hexDistance(f.from, { q, r }) !== 1) return false
+            const h = w.hexAt(q, r)
+            const landOk = role === 'tribe' ? !w.blocked(q, r) : !!h && h.biome !== 'woda'
+            return landOk && w.slotFor(q, r, role) !== null && !w.occupantsAt(q, r).some((o) => o.entity_id === f.speciesId)
+          },
+        }
+      }
       case 'create_sapient':
         return { kind: 'hex', title: action.name, instruction: `Kliknij ląd z wolnym dołem heksa, na którym pojawią się ${f.name.trim() || 'nowe istoty'}. Nie Wodę, nie Góry.`, valid: (q, r, w) => w.slotFor(q, r, 'tribe') !== null && !w.blocked(q, r) }
       case 'create_avatar':
@@ -267,32 +279,45 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         return {
           kind: 'occupant',
           title: 'Zmiana Istoty',
-          instruction: 'Kliknij istotę, która się odmieni. Zmienia się tylko ona, tylko na tym jednym heksie.',
+          instruction: 'Kliknij istotę, która się odmieni: cały jej gatunek, wszędzie, gdzie żyje.',
           valid: (q, r, w) => w.occupantsAt(q, r).some((o) => w.entityById(o.entity_id)?.kind === 'creature'),
           validOccupant: (o, w) => w.entityById(o.entity_id)?.kind === 'creature',
         }
-      case 'migrate':
+      case 'migrate': {
         if (mapOrdinal === 0) {
           return {
             kind: 'occupant',
             title: 'Migracja',
-            instruction: 'Kliknij istotę, która się rozprzestrzenia.',
+            instruction: 'Kliknij istotę, która rusza w drogę.',
             valid: (q, r, w) => w.occupantsAt(q, r).some((o) => w.entityById(o.entity_id)?.kind === 'creature'),
             validOccupant: (o, w) => w.entityById(o.entity_id)?.kind === 'creature',
           }
         }
+        const src = world.entityById(f.speciesId)
+        const role = world.roleOf(src) ?? 'herbivore'
+        const canEnter = (q: number, r: number, w: WorldView) => {
+          const h = w.hexAt(q, r)
+          if (!h || h.biome === 'woda') return false
+          if (w.occupantsAt(q, r).some((o) => o.entity_id === f.speciesId)) return false
+          if (role === 'herbivore') return w.slotFor(q, r, 'herbivore') !== null
+          if (role === 'tribe') {
+            if (w.blocked(q, r) || w.cityAt(q, r)) return false
+            const bottom = w.roleOf(w.entityById(w.bottomAt(q, r)?.entity_id))
+            return !bottom || bottom === 'beast'
+          }
+          // a beast: a free bottom, a beast or a tribe to fight, or a city to attack
+          if (w.cityAt(q, r)) return true
+          const bottom = w.roleOf(w.entityById(w.bottomAt(q, r)?.entity_id))
+          return !bottom || bottom === 'beast' || bottom === 'tribe'
+        }
         return {
           kind: 'hex',
           title: 'Migracja',
-          instruction: `Kliknij ląd, na który rozejdą się ${world.entityById(f.speciesId)?.name ?? 'istoty'}: wolne miejsce, bez tego gatunku. 1 Logos za każdy heks; świecą tylko te, na które cię stać.`,
-          valid: (q, r, w) => {
-            const role = w.roleOf(w.entityById(f.speciesId)) ?? 'herbivore'
-            const h = w.hexAt(q, r)
-            const landOk = role === 'tribe' ? !w.blocked(q, r) : !!h && h.biome !== 'woda'
-            return landOk && w.slotFor(q, r, role) !== null && !w.occupantsAt(q, r).some((o) => o.entity_id === f.speciesId) && reach(f.from ?? undefined, q, r)
-          },
+          instruction: `Kliknij heks, na który idą ${src?.name ?? 'istoty'}. 1 Logos za każdy heks; świecą tylko te, na które cię stać.${role === 'beast' ? ' Bestia może wejść na bestię, plemię albo napaść na miasto: wtedy walczy od razu.' : role === 'tribe' ? ' Plemię może wejść na bestię: wtedy walczy od razu.' : ''}`,
+          valid: (q, r, w) => canEnter(q, r, w) && reach(f.from ?? undefined, q, r),
           costFor: (sel) => (f.from && sel[0] ? hexDistance(f.from, sel[0]) : null),
         }
+      }
       case 'create_civilization':
         return {
           kind: 'hex',
@@ -301,10 +326,10 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           valid: (q, r, w) => !w.blocked(q, r) && !w.cityAt(q, r) && w.occupantsAt(q, r).some((o) => w.isSapient(w.entityById(o.entity_id))),
         }
       case 'develop_civilization':
-        return { kind: 'city', title: 'Rozwój Cywilizacji', instruction: 'Kliknij miasto, któremu niesiesz dar.', valid: (q, r, w) => !!w.cityAt(q, r) }
+        return { kind: 'city', title: 'Rozwój Cywilizacji', instruction: `Kliknij miasto, któremu awatar niesie dar.${reachNote}`, valid: (q, r) => !!world.cityAt(q, r) && inReach(q, r) }
       case 'exodus':
         if (mapOrdinal === 0) {
-          return { kind: 'city', title: 'Exodus', instruction: 'Kliknij miasto, w którym masz wyznawców.', valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && w.dotsOf(c.entity_id, me.id) > 0 } }
+          return { kind: 'city', title: 'Exodus', instruction: `Kliknij miasto, w którym masz wyznawców: awatar wejdzie do niego i wyprowadzi ich.${reachNote}`, valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && w.dotsOf(c.entity_id, me.id) > 0 && inReach(q, r) } }
         }
         return {
           kind: 'hex',
@@ -314,10 +339,10 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           costFor: (sel) => (srcCity && sel[0] ? hexDistance(srcCity, sel[0]) : null),
         }
       case 'convert':
-        return { kind: 'city', title: 'Nawracanie', instruction: 'Kliknij miasto, w którym inne bóstwo ma wyznawców.', valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && w.followersOf(c.entity_id).some((x) => x.player_id !== me.id) } }
+        return { kind: 'city', title: 'Nawracanie', instruction: `Kliknij miasto, w którym inne bóstwo ma wyznawców: awatar wejdzie do niego i będzie nawracać.${reachNote}`, valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && w.followersOf(c.entity_id).some((x) => x.player_id !== me.id) && inReach(q, r) } }
       case 'holy_war':
         if (mapOrdinal === 0) {
-          return { kind: 'city', title: 'Święta Wojna', instruction: 'Kliknij swoje miasto: to, w którym masz najwięcej wyznawców (co najmniej dwóch, bo jeden zostaje).', valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && w.holds(c.entity_id, me.id) && w.dotsOf(c.entity_id, me.id) >= 2 } }
+          return { kind: 'city', title: 'Święta Wojna', instruction: `Kliknij swoje miasto: to, w którym masz najwięcej wyznawców (co najmniej dwóch, bo jeden zostaje). Awatar wejdzie do niego i poprowadzi armię.${reachNote}`, valid: (q, r, w) => { const c = w.cityAt(q, r); return !!c && w.holds(c.entity_id, me.id) && w.dotsOf(c.entity_id, me.id) >= 2 && inReach(q, r) } }
         }
         return {
           kind: 'city',
@@ -365,7 +390,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         if (mapOrdinal === 0) {
           return {
             kind: 'occupant',
-            title: 'Pielgrzymka Awatara',
+            title: 'Pielgrzymka',
             instruction: 'Kliknij swojego awatara, który rusza w drogę.',
             valid: (q, r, w) => w.occupantsAt(q, r).some((o) => myIds.has(o.entity_id)),
             validOccupant: (o) => myIds.has(o.entity_id),
@@ -373,7 +398,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         }
         return {
           kind: 'hex',
-          title: 'Pielgrzymka Awatara',
+          title: 'Pielgrzymka',
           instruction: 'Kliknij heks, na który idzie awatar: wolne miejsce, nie Woda, nie Góry. 1 Logos za każdy heks; świecą tylko te, na które cię stać.',
           valid: (q, r, w) => !w.blocked(q, r) && w.slotFor(q, r, 'avatar') !== null && !!avatarOcc && reach(avatarOcc, q, r),
           costFor: (sel) => (avatarOcc && sel[0] ? hexDistance(avatarOcc, sel[0]) : null),
@@ -382,18 +407,6 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
       default:
         return null
     }
-  }
-
-  /** the same question, limited to the avatar's reach when it speaks the word */
-  function reachSpec(spec: Omit<MapMode, 'onFinish' | 'onCancel'> | null): Omit<MapMode, 'onFinish' | 'onCancel'> | null {
-    if (!spec || !viaOcc) return spec
-    const key = action.key
-    // the far end of a journey is not limited: only where the word begins
-    const unlimited = (key === 'migrate' && mapOrdinal === 0) || ((key === 'exodus' || key === 'holy_war') && mapOrdinal === 1)
-    if (unlimited) return spec
-    const valid = spec.valid
-    if (key === 'pour_river') return { ...spec, instruction: `${spec.instruction} Źródło w zasięgu awatara: do dwóch heksów od niego.`, valid: (q, r, w, sel) => (sel.length > 0 || inReach(q, r)) && valid(q, r, w, sel) }
-    return { ...spec, instruction: `${spec.instruction} W zasięgu awatara: do dwóch heksów od niego.`, valid: (q, r, w, sel) => inReach(q, r) && valid(q, r, w, sel) }
   }
 
   function applyPicks(picks: MapPick[]) {
@@ -411,20 +424,32 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           n.mouth = water && last ? { q: last.q, r: last.r } : null
           break
         }
+        case 'lightning': {
+          n.occupantId = p.occupantId ?? ''
+          const occ = world.occupantsAt(p.q, p.r).find((o) => o.id === p.occupantId)
+          n.speciesId = occ?.entity_id ?? ''
+          n.target = { q: p.q, r: p.r }
+          break
+        }
         case 'change_creature': {
           n.occupantId = p.occupantId ?? ''
           const occ = world.occupantsAt(p.q, p.r).find((o) => o.id === p.occupantId)
           const src = occ ? world.entityById(occ.entity_id) : undefined
           if (src) {
             n.speciesId = src.id
-            n.name = `${src.name} (odmiana)`
+            n.name = src.name
+            n.emoji = src.emoji ?? ''
+            n.description = src.description
           }
           break
         }
         case 'multiply': {
-          n.occupantId = p.occupantId ?? ''
-          const occ = world.occupantsAt(p.q, p.r).find((o) => o.id === p.occupantId)
-          n.speciesId = occ?.entity_id ?? ''
+          if (mapOrdinal === 0) {
+            n.occupantId = p.occupantId ?? ''
+            const occ = world.occupantsAt(p.q, p.r).find((o) => o.id === p.occupantId)
+            n.speciesId = occ?.entity_id ?? ''
+            n.from = { q: p.q, r: p.r }
+          } else n.target = { q: p.q, r: p.r }
           break
         }
         case 'migrate':
@@ -444,10 +469,12 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         case 'develop_civilization':
         case 'convert':
           n.cityId = p.cityId ?? ''
+          n.avatarId = nearestAvatar(p.q, p.r)?.entity.id ?? ''
           break
         case 'exodus':
           if (mapOrdinal === 0) {
             n.cityId = p.cityId ?? ''
+            n.avatarId = nearestAvatar(p.q, p.r)?.entity.id ?? ''
             const c = world.cityOf(p.cityId ?? '')
             const sap = c ? world.occupantsAt(c.q, c.r).map((o) => world.entityById(o.entity_id)).filter((e) => world.isSapient(e)) : []
             n.speciesId = sap[0]?.id ?? ''
@@ -478,6 +505,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         case 'holy_war':
           if (mapOrdinal === 0) {
             n.cityId = p.cityId ?? ''
+            n.avatarId = nearestAvatar(p.q, p.r)?.entity.id ?? ''
             n.army = Math.max(1, Math.min(n.army, world.dotsOf(p.cityId ?? '', me.id) - 1))
           } else {
             n.targetCityId = p.cityId ?? ''
@@ -495,7 +523,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   // hand the question to the map when a map step begins; take it back when the window goes
   useEffect(() => {
     if (step !== 'map') return
-    const spec = reachSpec(mapSpec())
+    const spec = mapSpec()
     if (!spec) {
       advance(stepIdx)
       return
@@ -517,7 +545,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     const { riverId, from } = reroute
     const done = () => {
       setReroute(null)
-      advance(stepIdx)
+      onClose()
     }
     setMode({
       kind: 'river',
@@ -551,7 +579,6 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   // ---------- the payload ----------
   function buildPayload(attr?: AttrKey): ActionPayload {
     const base: ActionPayload = {
-      via_avatar_id: f.viaAvatarId || undefined,
       summary: '',
       ...(action.roll ? { attr: attr ?? f.attr, prophecy_id: f.prophecyId ?? undefined } : {}),
     }
@@ -559,8 +586,13 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     switch (action.key) {
       case 'shape_land':
         return { ...base, biome: f.biome, hexes: f.hexes }
-      case 'catastrophe':
-        return { ...base, type: f.catastrophe.trim(), q: t.q, r: t.r, prophecy_id: f.prophecyId ?? undefined, after: f.after || undefined }
+      case 'lightning':
+        return { ...base, occupant_id: f.occupantId }
+      case 'flood':
+      case 'fire_rain':
+      case 'drought':
+      case 'plague':
+        return { ...base, q: t.q, r: t.r }
       case 'great_miracle':
         return base
       case 'bless_land':
@@ -571,25 +603,25 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
       case 'create_herd':
         return { ...base, entity: { op: 'create', name: f.name, traits: [], co_god_ids: f.co_god_ids }, emoji: f.emoji, q: t.q, r: t.r }
       case 'multiply':
-        return { ...base, occupant_id: f.occupantId }
+        return { ...base, occupant_id: f.occupantId, to: f.target ?? undefined }
       case 'create_sapient':
         return { ...base, entity: { op: 'create', name: f.name, traits: [SAPIENT_TRAITS[0]], co_god_ids: f.co_god_ids }, emoji: f.emoji, q: t.q, r: t.r }
       case 'create_avatar':
         return { ...base, entity: { op: 'create', name: f.name, conditions: [], co_god_ids: f.co_god_ids }, emoji: f.emoji, q: t.q, r: t.r }
       case 'change_creature': {
         const src = world.entityById(f.speciesId)
-        return { ...base, occupant_id: f.occupantId, entity: { op: 'create', name: f.name, traits: src && world.isSapient(src) ? [SAPIENT_TRAITS[0]] : [] }, emoji: f.emoji }
+        return { ...base, occupant_id: f.occupantId, entity: { op: 'update', name: f.name.trim(), description: f.description.trim() }, emoji: f.emoji && f.emoji !== (src?.emoji ?? '') ? f.emoji : undefined }
       }
       case 'migrate':
         return { ...base, entity_id: f.speciesId, from: f.from ?? undefined, to: f.target ?? undefined }
       case 'create_civilization':
         return { ...base, entity: { op: 'create', name: f.name, co_god_ids: f.co_god_ids }, q: t.q, r: t.r, species_id: f.speciesId }
       case 'develop_civilization':
-        return { ...base, city_id: f.cityId, gift: giftText }
+        return { ...base, city_id: f.cityId, gift: giftText, avatar_id: f.avatarId || undefined }
       case 'prophecy':
         return { ...base, avatar_id: f.avatarId, text: f.text.trim() }
       case 'exodus':
-        return { ...base, city_id: f.cityId, dots: f.dots, species_id: f.speciesId, to: f.target ?? undefined, name: f.name.trim(), description: '' }
+        return { ...base, city_id: f.cityId, dots: f.dots, species_id: f.speciesId, to: f.target ?? undefined, name: f.name.trim(), description: '', avatar_id: f.avatarId || undefined }
       case 'pilgrimage':
         return { ...base, avatar_id: f.avatarId, to: f.target ?? undefined }
       case 'resurrect_avatar':
@@ -613,8 +645,8 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   async function submit(attr?: AttrKey) {
     setBusy(true)
     setError(null)
-    // my window shows this throw: the table's dice window keeps quiet for me
-    if (action.roll) claim()
+    // my window shows this throw: the table's dice window keeps quiet for me (a migration may end in a fight)
+    if (action.roll || action.key === 'migrate') claim()
     try {
       const r = await rpc<ActionLog>('perform_action', { p_game_id: game.id, p_action_key: action.key, p_payload: buildPayload(attr) })
       setRow(r)
@@ -622,10 +654,14 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
       const cut = action.key === 'shape_land' && o && o.reroute && typeof o.reroute === 'object' ? (o.reroute as { river_id: string; from: HexRef }) : null
       if (cut && cut.river_id && cut.from) setReroute({ riverId: cut.river_id, from: cut.from })
       else if (action.roll) setRolled({ row: r, attr: attr ?? f.attr })
-      else advance(stepIdx)
+      else if (action.key === 'migrate' && o && o.fight) setFought(r)
+      else {
+        if (action.key === 'migrate') unclaim()
+        onClose()
+      }
     } catch (err) {
       setError((err as Error).message)
-      if (action.roll) unclaim()
+      if (action.roll || action.key === 'migrate') unclaim()
     } finally {
       setBusy(false)
     }
@@ -637,10 +673,10 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     claim()
     try {
       const payload = action.key === 'convert'
-        ? { city_id: f.cityId, defender_id: f.defenderId, attr, prophecy_id: f.prophecyId, via_avatar_id: f.viaAvatarId || undefined }
+        ? { city_id: f.cityId, defender_id: f.defenderId, attr, prophecy_id: f.prophecyId, avatar_id: f.avatarId || undefined }
         : action.key === 'avatar_duel'
           ? { attacker_avatar_id: f.avatarId, defender_avatar_id: f.enemyAvatarId, attr, prophecy_id: f.prophecyId }
-          : { source_city_id: f.cityId, army: f.army, target_city_id: f.targetCityId, defender_id: f.defenderId, attr, prophecy_id: f.prophecyId, via_avatar_id: f.viaAvatarId || undefined }
+          : { source_city_id: f.cityId, army: f.army, target_city_id: f.targetCityId, defender_id: f.defenderId, attr, prophecy_id: f.prophecyId, avatar_id: f.avatarId || undefined }
       const c = await rpc<Contest>('declare_contest', { p_game_id: game.id, p_kind: action.key, p_payload: payload })
       setRolled({ contest: c, attr })
     } catch (err) {
@@ -660,41 +696,12 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
 
   /** the dice have been read: the table may go on, the world shows what the word did */
   function finishRoll() {
-    if (!rolled) return onClose()
-    const c = rolled.contest
+    const c = rolled?.contest
     const declaredRow = c ? log.find((l) => l.action_key === 'contest_declared' && !!l.outcome && !Array.isArray(l.outcome) && (l.outcome as Record<string, unknown>).contest_id === c.id) : undefined
-    const rowId = rolled.row?.id ?? declaredRow?.id ?? c?.log_id ?? null
+    const rowId = rolled?.row?.id ?? fought?.id ?? declaredRow?.id ?? c?.log_id ?? null
     if (rowId) dismiss(rowId)
     unclaim()
     onClose()
-  }
-
-  // ---------- the verse ----------
-  const liveRow = row ? log.find((l) => l.id === row.id) ?? row : null
-  const drafted = useMemo(() => {
-    if (!liveRow) return ''
-    if (action.key === 'great_miracle') return draftDeedSummary(action, god, null)
-    return composeVerse(liveRow, ctx)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveRow, ctx, action.key])
-  useEffect(() => {
-    if (!verseEdited) setVerse(drafted)
-  }, [drafted, verseEdited])
-
-  async function saveVerse(text: string) {
-    if (!row) return onClose()
-    setBusy(true)
-    setError(null)
-    try {
-      await rpc('edit_log_summary', { p_log_id: row.id, p_summary: text })
-      const newThing = (action.entityOp === 'create' || (action.key === 'exodus' && f.target && !world.cityAt(f.target.q, f.target.r))) && row.entity_id
-      if (newThing) await rpc('edit_entity', { p_entity_id: row.entity_id, p_patch: { description: text } })
-      onClose()
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
   }
 
   // ---------- shell ----------
@@ -706,7 +713,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   )
 
   const shell = (children: ReactNode, closable: (() => void) | undefined, sealLabel: string, lead: ReactNode) => (
-    <Modal title={title} onClose={closable} wide={rules || !!action.entityKind || step === 'verse' || step === 'form' || step === 'roll'}>
+    <Modal title={title} onClose={closable} wide={rules || !!action.entityKind || step === 'form' || step === 'roll'}>
       <div className={styles.withRules}>
         <RulesAside action={action} era={era} open={rules} onHide={() => setRules(false)} />
         <div className={styles.main}>
@@ -718,7 +725,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
               </button>
               {lead}
             </div>
-            <CostSeal label={sealLabel} cost={action.distance ? Math.max(1, paid) : paid} have={me.logos} free={!!viaAv} />
+            <CostSeal label={sealLabel} cost={action.distance ? Math.max(1, paid) : paid} have={me.logos} />
           </div>
           {children}
         </div>
@@ -726,10 +733,11 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     </Modal>
   )
 
-  // who speaks: the god itself, or one of its avatars standing on the map (half the price, reach of two)
-  const viaRow = viaAv && (
+  // the avatar that speaks this word, and where it steps
+  const speakerRow = speaker && (
     <p className={styles.viaNote}>
-      Przez awatara {viaAv.entity.emoji ?? ''} {viaAv.entity.name}: {paid} zamiast {cost} Logos{action.key === 'great_miracle' ? '. Awatar spłonie w Wielkim Cudzie.' : '.'}
+      Słowo wypowiada awatar {speaker.entity.emoji ?? ''} {speaker.entity.name} (życie {speaker.entity.hp ?? 0} z {speaker.entity.max_hp ?? 3})
+      {ENTERS_CITY.has(action.key) && f.cityId ? `: wchodzi do miasta ${world.entityById(f.cityId)?.name ?? ''}${action.key === 'holy_war' ? ' i prowadzi armię, doliczając swoje życie do rzutu' : action.key === 'exodus' ? ' i idzie z ludem na nowe miejsce' : ''}.` : '.'}
     </p>
   )
 
@@ -741,50 +749,32 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   )
 
   // the map is asking, or the wrath is playing: the window steps aside
-  if (step === 'map' || reroute || (step === 'verse' && waitingDice)) return null
+  if (step === 'map' || reroute) return null
 
-  // ---------- via: who speaks the word ----------
-  if (step === 'via') {
-    const full = action.distance ? `${baseCost} + dystans` : String(baseCost)
-    const half = action.distance ? `${viaAvatarCost(baseCost)} + połowa dystansu` : String(viaAvatarCost(baseCost))
+  // ---------- a migration that ended in a fight: both throws, then the window closes ----------
+  if (fought) {
+    const o = (fought.outcome && !Array.isArray(fought.outcome) ? fought.outcome : {}) as Record<string, unknown>
+    const fight = (o.fight ?? {}) as Record<string, unknown>
+    const att = (fight.att ?? {}) as Record<string, number>
+    const def = (fight.def ?? {}) as Record<string, number>
+    const diff = Number(fight.diff ?? 0)
     return shell(
-      <div className={styles.form}>
-        <div className={styles.viaPick} role="radiogroup" aria-label="Kto wypowiada słowo">
-          <span className={labelClass}>Kto wypowiada słowo</span>
-          <label className={[styles.viaRow, !f.viaAvatarId ? styles.viaOn : ''].join(' ')}>
-            <input type="radio" name="via" checked={!f.viaAvatarId} onChange={() => set('viaAvatarId', '')} />
-            <span className={styles.viaWho}>
-              <b>{godLabel(me)}</b>
-              <small>Bóstwo samo, z nieba. Cel gdziekolwiek na świecie.</small>
-            </span>
-            <span className={styles.viaCost}>{full}</span>
-          </label>
-          {standing.map((a) => (
-            <label key={a.entity.id} className={[styles.viaRow, styles.viaAvatar, f.viaAvatarId === a.entity.id ? styles.viaOn : ''].join(' ')}>
-              <input type="radio" name="via" checked={f.viaAvatarId === a.entity.id} onChange={() => set('viaAvatarId', a.entity.id)} />
-              <span className={styles.viaWho}>
-                <b>{a.entity.emoji ?? ''} {a.entity.name} <small>życie {a.entity.hp ?? 0} z {a.entity.max_hp ?? 3}</small></b>
-                <small>
-                  Przez awatara: połowa ceny, cel najwyżej dwa heksy od niego.
-                  {action.key === 'great_miracle' ? ' Wielki Cud spali awatara.' : ''}
-                  {action.key === 'holy_war' ? ' Awatar poprowadzi armię: jego życie dolicza się do rzutu.' : ''}
-                  {action.key === 'exodus' ? ' Awatar pójdzie z ludem na nowe miejsce.' : ''}
-                </small>
-              </span>
-              <span className={[styles.viaCost, styles.viaCostHalf].join(' ')}>{half}</span>
-            </label>
-          ))}
-        </div>
-        {error && <Notice tone="error">{error}</Notice>}
-        {footer(
-          <StoneButton variant="gold" size="lg" disabled={busy} onClick={() => advance(stepIdx)}>
-            {flow[stepIdx + 1] === 'map' ? 'Dalej: wskaż na mapie' : 'Dalej'}
-          </StoneButton>,
-        )}
-      </div>,
-      onClose,
-      'Koszt',
-      <p className={styles.summary}>{action.summary}</p>,
+      <RollReveal
+        id={fought.id}
+        d1={Number(att.d1 ?? 0)}
+        d2={Number(att.d2 ?? 0)}
+        total={Number(att.total ?? 0)}
+        modifier={Number(att.modifier ?? 0)}
+        attr={null}
+        verdict={diff > 0 ? `Wygrana o ${diff}` : diff === 0 ? 'Remis' : `Przegrana o ${-diff}`}
+        consequence={`${fightLine(fought) ?? ''} Obrońca rzucił ${def.d1 ?? '?'} + ${def.d2 ?? '?'} ${Number(def.modifier ?? 0) < 0 ? '−' : '+'} ${Math.abs(Number(def.modifier ?? 0))} = ${def.total ?? '?'}.`}
+        what={`Walka: ${String(o.emoji ?? '')} ${String(o.name ?? '')}, 2k6 + siła`}
+        onDone={finishRoll}
+        doneLabel="Dalej"
+      />,
+      undefined,
+      'Zapłacono',
+      <p className={styles.summary}>Kości padły. Świat odpowie, gdy okno się zamknie.</p>,
     )
   }
 
@@ -794,11 +784,12 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     const { fields, ready } = renderForm(formOrdinal)
     return shell(
       <div className={styles.form}>
+        {speakerRow}
         {fields}
         {error && <Notice tone="error">{error}</Notice>}
         {footer(
           <StoneButton variant="gold" size="lg" disabled={!ready || busy} onClick={() => advance(stepIdx)}>
-            {flow[stepIdx + 1] === 'map' && !skipMap(stepIdx + 1) ? 'Dalej: wskaż na mapie' : 'Dalej'}
+            {flow[stepIdx + 1] === 'map' ? 'Dalej: wskaż na mapie' : 'Dalej'}
           </StoneButton>,
         )}
       </div>,
@@ -812,18 +803,17 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
   if (step === 'confirm') {
     return shell(
       <div className={styles.form}>
-        {viaRow}
+        {speakerRow}
         <ul className={styles.chosen}>
           {confirmLines().map((line, i) => (
             <li key={i}>{line}</li>
           ))}
         </ul>
         {distance > 0 && <p className={styles.hint}>Dystans: {distance} {distance === 1 ? 'heks' : 'heksów'}, czyli {distance} Logos{baseCost ? ` doliczone do ${baseCost}` : ''}.</p>}
-        {(action.key === 'develop_civilization' || action.key === 'catastrophe') && <ProphecyPicker prophecies={prophecies} value={f.prophecyId} onChange={(v) => set('prophecyId', v)} disabled={busy} />}
         {error && <Notice tone="error">{error}</Notice>}
         {footer(
-          <StoneButton variant="gold" size="lg" disabled={busy || !canPay} title={!canPay ? 'Za mało Logos. Odstąp albo wypowiedz słowo przez awatara.' : undefined} onClick={() => submit()}>
-            {busy ? 'Słowo pada…' : viaAv ? `Czyń przez awatara (${paid} Logos)` : `Zapłać ${paid} Logos`}
+          <StoneButton variant="gold" size="lg" disabled={busy || !canPay} title={!canPay ? 'Za mało Logos.' : undefined} onClick={() => submit()}>
+            {busy ? 'Słowo pada…' : `Zapłać ${action.distance ? Math.max(1, paid) : paid} Logos`}
           </StoneButton>,
         )}
       </div>,
@@ -853,7 +843,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           tier={tier}
           verdict={c ? 'Czekamy na obronę' : undefined}
           consequence={c ? `${godLabel(def)} wybiera obronę i rzuca u siebie. Twoja tura czeka na odpowiedź.` : rolled.row ? tierDetail(rolled.row) ?? (tier && action.roll.tiers ? action.roll.tiers[tier] : undefined) : undefined}
-          what={`${action.name}, 2k6 + ${ATTRIBUTE_BY_KEY[rolled.attr].name}${action.key === 'holy_war' ? ' + Armia' : ''}`}
+          what={`${action.name}, 2k6 + ${ATTRIBUTE_BY_KEY[rolled.attr].name}${action.key === 'holy_war' ? ' + Armia + życie awatara' : ''}`}
           onDone={finishRoll}
           doneLabel={c ? 'Zamknij' : 'Dalej'}
         />,
@@ -864,7 +854,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     }
     return shell(
       <div className={styles.form}>
-        {viaRow}
+        {speakerRow}
         <ul className={styles.chosen}>
           {confirmLines().map((line, i) => (
             <li key={i}>{line}</li>
@@ -881,7 +871,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           chosen={busy ? f.attr : null}
           disabled={busy || !canPay || (!!action.contested && !f.defenderId)}
           onChoose={choose}
-          label={busy ? 'Kości lecą…' : canPay ? `Czym to czynisz? Klik płaci ${paid} Logos i rzuca 2k6` : 'Za mało Logos. Odstąp albo wypowiedz słowo przez awatara.'}
+          label={busy ? 'Kości lecą…' : canPay ? `Czym to czynisz? Klik płaci ${paid} Logos i rzuca 2k6` : 'Za mało Logos. Odstąp.'}
         />
         {action.roll.tiers && (
           <dl className={styles.rulesTiers}>
@@ -901,25 +891,10 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
     )
   }
 
-  // ---------- verse: the dice everyone saw, the book's words, the player's last say ----------
-  const happened = liveRow ? describeEvent(liveRow, ctx) : ''
-  return shell(
-    <div className={styles.form}>
-      <Notice tone="ok">Słowo padło. {happened}</Notice>
-      <TextArea id="verse" label="Werset do Świętej Księgi" value={verse} onChange={(e) => { setVerse(e.target.value); setVerseEdited(e.target.value.trim() !== '') }} />
-      <p className={styles.draftHint}>{verseEdited ? 'Twoje słowa. Wyczyść pole, by wrócić do podpowiedzi.' : 'Podpowiedź księgi. Zmień ją, jeśli chcesz opowiedzieć to inaczej.'}</p>
-      {error && <Notice tone="error">{error}</Notice>}
-      <div className={styles.footer}>
-        <StoneButton disabled={busy} onClick={() => saveVerse(drafted)}>Zostaw jak jest</StoneButton>
-        <StoneButton variant="gold" size="lg" disabled={busy || !verse.trim()} onClick={() => saveVerse(verse.trim())}>
-          Zapisz do Świętej Księgi
-        </StoneButton>
-      </div>
-    </div>,
-    undefined,
-    'Zapłacono',
-    <p className={styles.summary}>Tak zapamięta to Święta Księga.</p>,
-  )
+  // a step the flow does not know: nothing to show
+  void row
+  void ctx
+  return null
 
   // ---------- per-key forms ----------
   function renderForm(ordinal: number): { fields: ReactNode; ready: boolean } {
@@ -946,34 +921,6 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
                   </button>
                 ))}
               </div>
-            </div>
-          ),
-        }
-      case 'catastrophe':
-        return {
-          ready: f.catastrophe.trim().length > 0,
-          fields: (
-            <div className={styles.fields}>
-              <label className={fieldClass}>
-                <span className={labelClass}>Rodzaj kataklizmu</span>
-                <select className={inputClass} value={CATASTROPHE_TYPES.includes(f.catastrophe) ? f.catastrophe : OWN_GIFT} onChange={(e) => set('catastrophe', e.target.value === OWN_GIFT ? '' : e.target.value)}>
-                  {CATASTROPHE_TYPES.map((t) => (
-                    <option key={t}>{t}</option>
-                  ))}
-                  <option value={OWN_GIFT}>Własny…</option>
-                </select>
-              </label>
-              {!CATASTROPHE_TYPES.includes(f.catastrophe) && <TextField id="cat_own" label="Nazwij kataklizm" value={f.catastrophe} onChange={(e) => set('catastrophe', e.target.value)} maxLength={60} />}
-              <label className={fieldClass}>
-                <span className={labelClass}>Co zostanie po zniszczeniu</span>
-                <select className={inputClass} value={f.after} onChange={(e) => set('after', e.target.value as FormState['after'])}>
-                  <option value="">Bez zmian</option>
-                  <option value="pustynia">Pustynia 🏜️</option>
-                  <option value="ziemia">Ugór 🪨</option>
-                  <option value="woda">Woda 🌊</option>
-                </select>
-              </label>
-              <p className={styles.hint}>Obrażenia: 2k6 + Gniew albo Żywioł (wybierzesz na końcu). Przy 10+ połowa wyniku, przy 7..9 ćwierć, przy 6- nic. Każde trafia losowo w wyznawcę miasta, istotę albo awatara. Teren zmieni się tylko przy 10+ i tylko wtedy, gdy na polu nikt nie przeżyje.</p>
             </div>
           ),
         }
@@ -1014,13 +961,16 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         }
       case 'change_creature': {
         const src = world.entityById(f.speciesId)
+        const used = new Set([...world.usedEmoji].filter((e) => e !== (src?.emoji ?? '')))
+        const changed = !!src && (f.name.trim() !== src.name || (f.emoji && f.emoji !== (src.emoji ?? '')) || f.description.trim() !== src.description)
         return {
-          ready: f.name.trim().length > 0 && !!f.emoji,
+          ready: f.name.trim().length > 0 && !!changed,
           fields: (
             <div className={styles.fields}>
-              {src && <p className={styles.hint}>Odmiana istot {src.emoji ?? ''} {src.name}: zmienia się tylko ta jedna, na swoim heksie. Czym różni się od pierwowzoru, opowiesz w wersecie.</p>}
-              <TextField id="ent_name" label="Nazwa odmiany" value={f.name} onChange={(e) => set('name', e.target.value)} maxLength={80} />
-              <EmojiPicker label="Nowy znak na mapie" options={src && world.isSapient(src) ? SAPIENT_EMOJI : world.roleOf(src) === 'beast' ? BEAST_EMOJI : world.roleOf(src) === 'herbivore' ? HERBIVORE_EMOJI : CREATURE_EMOJI} used={world.usedEmoji} value={f.emoji} onChange={(v) => set('emoji', v)} />
+              {src && <p className={styles.hint}>Odmieniają się wszystkie {src.emoji ?? ''} {src.name}, na każdym polu, gdzie żyją{world.roleOf(src) === 'beast' ? ` (siła ${strengthLabel(src.strength)})` : world.roleOf(src) === 'herbivore' ? ` (ranga ${strengthLabel(src.strength)})` : ''}. Zmień nazwę, znak albo opis; przy 10+ rosną też w siłę.</p>}
+              <TextField id="ent_name" label="Nazwa" value={f.name} onChange={(e) => set('name', e.target.value)} maxLength={80} />
+              <EmojiPicker label="Znak na mapie" options={src && world.isSapient(src) ? SAPIENT_EMOJI : world.roleOf(src) === 'beast' ? BEAST_EMOJI : world.roleOf(src) === 'herbivore' ? HERBIVORE_EMOJI : CREATURE_EMOJI} used={used} value={f.emoji} onChange={(v) => set('emoji', v)} />
+              <TextArea id="ent_desc" label="Opis" value={f.description} onChange={(e) => set('description', e.target.value)} rows={3} />
             </div>
           ),
         }
@@ -1052,7 +1002,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
       case 'develop_civilization': {
         const city = world.entityById(f.cityId)
         return {
-          ready: giftText.length > 0,
+          ready: giftText.length > 0 && !!f.avatarId,
           fields: (
             <div className={styles.fields}>
               {city && <p className={styles.hint}>Miasto {city.name}, {followersWord(world.cityDots(city.id))}, z tego twoich: {world.dotsOf(city.id, me.id)}.</p>}
@@ -1076,7 +1026,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         const mine = world.dotsOf(f.cityId, me.id)
         const sap = city ? world.occupantsAt(city.q, city.r).map((o) => world.entityById(o.entity_id)).filter((e): e is Entity => world.isSapient(e)) : []
         return {
-          ready: f.dots >= 1 && f.dots <= mine && !!f.speciesId && f.name.trim().length > 0,
+          ready: f.dots >= 1 && f.dots <= mine && !!f.speciesId && f.name.trim().length > 0 && !!f.avatarId,
           fields: (
             <div className={styles.fields}>
               {cityEnt && <p className={styles.hint}>Z miasta {cityEnt.name}, gdzie masz {followersWord(mine)}.</p>}
@@ -1102,7 +1052,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         const rivals = world.followersOf(f.cityId).filter((x) => x.player_id !== me.id)
         if (!f.defenderId && rivals[0]) set('defenderId', rivals[0].player_id)
         return {
-          ready: !!f.defenderId,
+          ready: !!f.defenderId && !!f.avatarId,
           fields: (
             <div className={styles.fields}>
               <label className={fieldClass}>
@@ -1125,7 +1075,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
           const mine = world.dotsOf(f.cityId, me.id)
           const max = Math.max(1, mine - 1)
           return {
-            ready: f.army >= 1 && f.army <= max,
+            ready: f.army >= 1 && f.army <= max && !!f.avatarId,
             fields: (
               <div className={styles.fields}>
                 <p className={styles.hint}>Z miasta {world.entityById(f.cityId)?.name ?? ''} masz {followersWord(mine)}. Co najmniej jeden zostaje w domu.</p>
@@ -1133,7 +1083,7 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
                   <span className={labelClass}>Wielkość Armii (1..{max})</span>
                   <input className={inputClass} type="number" min={1} max={max} value={f.army} onChange={(e) => set('army', Math.max(1, Math.min(max, Number(e.target.value) || 1)))} />
                 </label>
-                <p className={styles.hint}>Rzut: 2k6 + Gniew albo Podszept (wybierzesz na końcu) + Armia.</p>
+                <p className={styles.hint}>Rzut: 2k6 + Gniew albo Podszept (wybierzesz na końcu) + Armia + życie awatara.</p>
               </div>
             ),
           }
@@ -1197,11 +1147,20 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
 
   function confirmLines(): string[] {
     const at = f.target ? `heks (${f.target.q}, ${f.target.r})` : ''
+    const unit = world.entityById(f.speciesId)
     switch (action.key) {
       case 'shape_land':
         return [`Biom: ${BIOME_BY_KEY[f.biome].name}`, `Heksy: ${f.hexes.map((h) => `(${h.q}, ${h.r})`).join(' ')}`]
-      case 'catastrophe':
-        return [`Kataklizm: ${f.catastrophe}`, `Cel: ${at}`, 'Obrażenia: połowa z 2k6 + atrybut przy 10+, ćwierć przy 7..9', f.after ? `Gdy nikt nie przeżyje (tylko przy 10+): ${BIOME_BY_KEY[f.after].name}` : 'Teren bez zmian']
+      case 'lightning':
+        return [`Cel: ${unit?.emoji ?? ''} ${unit?.name ?? ''}${unit?.kind === 'avatar' ? ` (życie ${unit.hp ?? 0} z ${unit.max_hp ?? 3})` : ''}`, `Miejsce: ${at}`, '10+: 2 obrażenia, 7..9: 1, 6-: chybienie']
+      case 'flood':
+        return [`Zalewane pole: ${at}${f.target && world.cityAt(f.target.q, f.target.r) ? ` (miasto ${world.entityById(world.cityAt(f.target.q, f.target.r)!.entity_id)?.name ?? ''})` : ''}`, '10+: pole staje się wodą na zawsze, 7..9: trzy trafienia, 6-: nic']
+      case 'fire_rain':
+        return [`Pole: ${at}${f.target && world.cityAt(f.target.q, f.target.r) ? ` (miasto ${world.entityById(world.cityAt(f.target.q, f.target.r)!.entity_id)?.name ?? ''})` : ''}`, '10+: sześć trafień, 7..9: trzy, 6-: nic; pole bez żywych obraca się w ugór']
+      case 'drought':
+        return [`Pole: ${at} (Żyzność ${f.target ? world.fertilityOf(f.target.q, f.target.r) ?? 0 : 0})`, '10+: trzy noce suszy, 7..9: dwie, 6-: nic']
+      case 'plague':
+        return [`Pole: ${at}${f.target && world.cityAt(f.target.q, f.target.r) ? ` (miasto ${world.entityById(world.cityAt(f.target.q, f.target.r)!.entity_id)?.name ?? ''})` : ''}`, '10+: dwie noce zarazy, 7..9: jedna, 6-: nic']
       case 'great_miracle':
         return ['Coś WIELKIEGO na skalę całego świata. Opowiesz to w wersecie.']
       case 'bless_land':
@@ -1216,28 +1175,32 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
         return [`${f.emoji} ${f.name}`, 'Bestia: siłę da wynik rzutu', `Miejsce: ${at}`]
       case 'create_herd':
         return [`${f.emoji} ${f.name}`, 'Stado: rangę da wynik rzutu', `Miejsce: ${at}`]
-      case 'multiply': {
-        const sp = world.entityById(f.speciesId)
-        return [`${sp?.emoji ?? ''} ${sp?.name ?? 'Istoty'} mnożą się na wolne pola obok`]
-      }
+      case 'multiply':
+        return [`${unit?.emoji ?? ''} ${unit?.name ?? 'Istoty'} z (${f.from?.q}, ${f.from?.r})`, `Kopia staje na ${at}`]
       case 'create_sapient':
         return [`${f.emoji} ${f.name}`, `Miejsce: ${at}`]
       case 'create_avatar':
         return [`${f.emoji} ${f.name}`, `Miejsce: ${at}`]
       case 'change_creature':
-        return [`Odmiana: ${f.emoji} ${f.name}`]
-      case 'migrate':
-        return [`${world.entityById(f.speciesId)?.emoji ?? ''} ${world.entityById(f.speciesId)?.name ?? ''}: z (${f.from?.q}, ${f.from?.r}) na (${f.target?.q}, ${f.target?.r})`]
+        return [`${unit?.emoji ?? ''} ${unit?.name ?? ''} stają się: ${f.emoji} ${f.name}`]
+      case 'migrate': {
+        const target = f.target
+        const bottom = target ? world.roleOf(world.entityById(world.bottomAt(target.q, target.r)?.entity_id)) : null
+        const city = target ? world.cityAt(target.q, target.r) : undefined
+        const role = world.roleOf(unit)
+        const clash = role === 'beast' && city ? `Napad na miasto ${world.entityById(city.entity_id)?.name ?? ''}: walka wedle zasad nocy, bestia zostaje na swoim polu` : (role === 'beast' && (bottom === 'beast' || bottom === 'tribe')) || (role === 'tribe' && bottom === 'beast') ? 'Na celu ktoś stoi: walka wedle zasad nocy, zwycięzca bierze pole' : 'Wolne pole: istoty po prostu przechodzą'
+        return [`${unit?.emoji ?? ''} ${unit?.name ?? ''}: z (${f.from?.q}, ${f.from?.r}) na (${target?.q}, ${target?.r})`, clash]
+      }
       case 'create_civilization':
-        return [`Lud: ${f.name}`, `Z istoty: ${world.entityById(f.speciesId)?.name ?? ''}`, `Miejsce: ${at}`]
+        return [`Lud: ${f.name}`, `Z istoty: ${unit?.name ?? ''}`, `Miejsce: ${at}`]
       case 'develop_civilization':
         return [`Miasto: ${world.entityById(f.cityId)?.name ?? ''}`, `Dar: ${giftText}`]
       case 'exodus':
-        return [`Z miasta: ${world.entityById(f.cityId)?.name ?? ''}`, `${followersWord(f.dots)} i istota ${world.entityById(f.speciesId)?.name ?? ''}`, `Cel: ${at}${f.target && world.cityAt(f.target.q, f.target.r) ? ` (dołączają do miasta ${world.entityById(world.cityAt(f.target.q, f.target.r)!.entity_id)?.name})` : ` (nowe miasto ${f.name})`}`]
+        return [`Z miasta: ${world.entityById(f.cityId)?.name ?? ''}`, `${followersWord(f.dots)} i istota ${unit?.name ?? ''}`, `Cel: ${at}${f.target && world.cityAt(f.target.q, f.target.r) ? ` (dołączają do miasta ${world.entityById(world.cityAt(f.target.q, f.target.r)!.entity_id)?.name})` : ` (nowe miasto ${f.name})`}`]
       case 'convert':
         return [`Miasto: ${world.entityById(f.cityId)?.name ?? ''}`, `Nawracasz wyznawców: ${godLabel(players.find((p) => p.id === f.defenderId))}`]
       case 'holy_war':
-        return [`Z miasta: ${world.entityById(f.cityId)?.name ?? ''}, Armia: ${followersWord(f.army)}`, `Cel: ${world.entityById(f.targetCityId)?.name ?? ''}, broni: ${godLabel(players.find((p) => p.id === f.defenderId))}`, `Rzut: 2k6 + atrybut + ${f.army} (Armia)`]
+        return [`Z miasta: ${world.entityById(f.cityId)?.name ?? ''}, Armia: ${followersWord(f.army)}`, `Cel: ${world.entityById(f.targetCityId)?.name ?? ''}, broni: ${godLabel(players.find((p) => p.id === f.defenderId))}`, `Rzut: 2k6 + atrybut + ${f.army} (Armia) + ${speaker?.entity.hp ?? 0} (życie awatara)`]
       case 'pilgrimage':
         return [`Awatar: ${world.entityById(f.avatarId)?.emoji ?? ''} ${world.entityById(f.avatarId)?.name ?? ''}`, `Idzie na ${at}`]
       case 'resurrect_avatar':
@@ -1257,14 +1220,14 @@ export function ActionDialog({ action, me, onClose, preset }: { action: ActionDe
 }
 
 /** A marble medallion in the top right corner: only the cost, carved in gold. */
-function CostSeal({ label, cost, have, free }: { label: string; cost: number; have: number; free: boolean }) {
+function CostSeal({ label, cost, have }: { label: string; cost: number; have: number }) {
   const over = cost > have
   return (
     <div
-      className={[styles.seal, over ? styles.sealOver : '', free ? styles.sealFree : ''].join(' ')}
+      className={[styles.seal, over ? styles.sealOver : ''].join(' ')}
       role="status"
       aria-label={`${label}: ${cost} Logos, masz ${have}`}
-      title={free ? 'Darmowa akcja awatara' : over ? `Brakuje ${cost - have} Logos` : `${label}: ${cost} Logos (masz ${have})`}
+      title={over ? `Brakuje ${cost - have} Logos` : `${label}: ${cost} Logos (masz ${have})`}
     >
       <span className={styles.sealCost}>{cost}</span>
     </div>

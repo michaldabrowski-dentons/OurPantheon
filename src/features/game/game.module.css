@@ -875,6 +875,73 @@
   }
 }
 
+/* the two books of words: the sky's and the avatar's, each a fold-out colonnade */
+.actionsGroup {
+  display: grid;
+  gap: 10px;
+}
+.groupHead {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 3px;
+  text-align: left;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition: box-shadow var(--t-glow) ease, filter var(--t-glow) ease;
+}
+.groupHead:hover {
+  box-shadow: var(--marble-slab-shadow-lit);
+}
+.groupHeadOff {
+  filter: grayscale(0.6) brightness(0.7);
+}
+.groupTitle {
+  display: grid;
+  gap: 2px;
+}
+.groupTitle > b {
+  font-family: var(--font-display);
+  font-size: 0.86rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-shadow: var(--engraved-shadow);
+}
+.groupTitle > small {
+  font-size: 0.76rem;
+  font-style: italic;
+  color: var(--ink-soft);
+  line-height: 1.3;
+}
+.groupChevron {
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid var(--gold-dark);
+  border-bottom: 2px solid var(--gold-dark);
+  transform: rotate(45deg);
+  transition: transform var(--t-glow) ease;
+  margin-right: 4px;
+}
+.groupChevronOpen {
+  transform: rotate(-135deg);
+  margin-top: 6px;
+}
+.groupCount {
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  color: var(--gold-dark);
+}
+.groupBody {
+  display: grid;
+  gap: 14px;
+  padding-left: 4px;
+}
 .actionsCat {
   display: grid;
   gap: 8px;

@@ -110,7 +110,7 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
       {/* what the map or a contest asks of me right now */}
       <MapInstructionCard world={world} />
       <ContestBanner onError={onError} />
-      <VerseLockCard onError={onError} />
+      <VerseLockCard />
 
       {/* the dice everyone sees, and the two throws */}
       <section className={styles.sumBlock}>
@@ -174,7 +174,7 @@ export function SummaryPanel({ onError, chronicleOpen, onChronicle }: { onError:
               </span>
             ) : (
               myAvatars.map((a) => (
-                <span key={a.entity.id} className={[styles.chip, styles.chipGold].join(' ')} title={`${a.entity.name}: życie ${a.entity.hp ?? 0} z ${a.entity.max_hp ?? 3}. Słowa przez awatara kosztują połowę, cel do dwóch heksów od niego.`}>
+                <span key={a.entity.id} className={[styles.chip, styles.chipGold].join(' ')} title={`${a.entity.name}: życie ${a.entity.hp ?? 0} z ${a.entity.max_hp ?? 3}. Słowa awatara wypowiada tam, gdzie stoi: najwyżej dwa heksy od siebie.`}>
                   <AvatarIcon /> {a.entity.emoji ?? ''} {a.entity.name} {a.entity.hp ?? 0} z {a.entity.max_hp ?? 3}
                 </span>
               ))

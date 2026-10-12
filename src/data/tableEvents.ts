@@ -1,5 +1,5 @@
 import { ACTION_BY_KEY, TIER_LABEL, logActionKey } from './actions'
-import { prophecyBonus, rollScore, rollTier } from './dice'
+import { fightLine, prophecyBonus, rollScore, rollTier } from './dice'
 import { ATTRIBUTE_BY_KEY } from './pantheon'
 import type { AttrKey } from '@/lib/types'
 import { pastFor, logosWords } from './chronicle'
@@ -118,6 +118,20 @@ export function nightLine(l: ActionLog, ctx: EventContext): string {
       const city = ctx.entity(typeof o.city_id === 'string' ? o.city_id : null)?.name ?? String(o.name ?? '')
       return o.name_pending ? `Nowe miasto czeka na nazwę od bóstwa ${who}.` : `Nowe miasto: ${city}${o.placeholder ? ' (nazwa tymczasowa)' : ''}.`
     }
+    case 'night_plague': {
+      const lost = ((o.lost as { n: number }[] | undefined) ?? []).reduce((n, g) => n + g.n, 0)
+      const killed = o.killed as { name?: string; emoji?: string } | null | undefined
+      const left = Number(o.rounds_left ?? 0)
+      const tail = left > 0 ? ` Zaraza potrwa jeszcze ${left === 1 ? 'noc' : `${left} noce`}.` : ' Zaraza wygasa.'
+      if (o.name) return `Plaga w mieście ${o.name}: ${lost > 0 ? `umiera ${followersWord(lost)}` : 'nikt nie umiera'}${o.city_destroyed ? ', miasto obraca się w ruinę' : ''}.${tail}`
+      return killed ? `Plaga wybija ${killed.emoji ? `${killed.emoji} ` : ''}${killed.name ?? ''}.${tail}` : `Plaga nie znalazła nikogo.${tail}`
+    }
+    case 'night_drought': {
+      const killed = o.killed as { name?: string; emoji?: string } | null | undefined
+      const left = Number(o.rounds_left ?? 0)
+      const tail = left > 0 ? ` Susza potrwa jeszcze ${left === 1 ? 'noc' : `${left} noce`}.` : ' Susza mija.'
+      return killed ? `Susza wygubiła ${killed.emoji ? `${killed.emoji} ` : ''}${killed.name ?? ''}.${tail}` : `Susza${o.name ? ` pod miastem ${o.name}` : ''}: ziemia jałowa.${tail}`
+    }
     default:
       return l.summary
   }
@@ -189,6 +203,8 @@ export function describeEvent(l: ActionLog, ctx: EventContext): string {
     case 'night_fight':
     case 'night_city':
     case 'night_city_founded':
+    case 'night_plague':
+    case 'night_drought':
       return nightLine(l, ctx)
     case 'dots_reward':
       return 'Najwierniej czczone bóstwa dostały Logos od wyznawców.'
@@ -212,6 +228,8 @@ export function describeEvent(l: ActionLog, ctx: EventContext): string {
         const attr = ATTRIBUTE_BY_KEY[(o.attr ?? l.roll?.attr) as AttrKey]?.name
         const tier = rollTier(l)
         dice = ` Kości: ${o.d1} + ${o.d2} ${score < 0 ? '-' : '+'} ${Math.abs(score)}${attr ? ` (${attr})` : ''}${hold ? ` + ${hold} (proroctwo)` : ''} = ${o.total}${tier ? `: ${TIER_LABEL[tier].toLowerCase()}` : ''}.`
+      } else if (key === 'migrate' && l.roll?.att && l.roll?.def) {
+        dice = ` Walka: ${l.roll.att.total} przeciw ${l.roll.def.total}. ${fightLine(l) ?? ''}`
       }
       return `${G}: ${a.name}${e ? ` (${e.name})` : ''}${who}.${dice}`
     }

@@ -1,5 +1,6 @@
 // The dice a book row carries, whoever threw them: a Logos roll, a table 2k6, a word's own dice,
-// a contest. The summary slab shows the latest; the dice window plays every throw for the table.
+// a contest, a fight a migration ended in. The summary slab shows the latest; the dice window plays
+// every throw for the table.
 import type { ActionLog } from '@/lib/types'
 import { ACTION_BY_KEY, TIER_LABEL, logActionKey, type Tier } from './actions'
 import { logosWords } from './chronicle'
@@ -16,7 +17,7 @@ export interface ShownRoll {
   label: string
   /** what the total means, for the window */
   verdict?: string
-  /** a contest: both sides spelled out */
+  /** a contest or a fight: both sides spelled out */
   sides?: { attacker: string; defender: string }
 }
 
@@ -24,6 +25,7 @@ type O = Record<string, unknown>
 const outcomeOf = (l: ActionLog): O => (l.outcome && !Array.isArray(l.outcome) ? l.outcome : {}) as O
 const attrName = (a: unknown) => ATTRIBUTE_BY_KEY[a as AttrKey]?.name ?? ''
 const signed = (n: number) => `${n < 0 ? '−' : '+'} ${Math.abs(n)}`
+const num = (o: O, k: string) => Number(o[k] ?? 0)
 
 /** the prophecy added to a word's roll: a number since 0023, an object with a hold before */
 export function prophecyBonus(o: O): number {
@@ -48,18 +50,71 @@ export function rollTier(l: ActionLog): Tier | null {
   return null
 }
 
+const blows = (n: number) => `${n} ${n === 1 ? 'trafienie' : n < 5 ? 'trafienia' : 'trafień'}`
+
+/** one short line on what the blows of a cataclysm did */
+function strikeDetail(o: O): string {
+  const hits = (Array.isArray(o.hits) ? o.hits : []) as O[]
+  const dots = hits.filter((h) => h.t === 'dot' || h.t === 'dots').reduce((n, h) => n + (h.t === 'dots' ? num(h, 'n') : 1), 0)
+  const creatures = hits.filter((h) => h.t === 'creature').length
+  const avatars = hits.filter((h) => h.t === 'avatar').length
+  const parts: string[] = []
+  if (dots) parts.push(`${followersWord(dots)} ${dots === 1 ? 'zginął' : 'zginęło'}`)
+  if (creatures) parts.push(creatures === 1 ? 'jedna istota przepadła' : `${creatures} istoty przepadły`)
+  if (avatars) parts.push(avatars === 1 ? 'awatar ranny' : 'awatary ranne')
+  if (o.city_destroyed) parts.push('miasto w ruinie')
+  if (!parts.length) return 'nikogo tam nie było'
+  return parts.join(', ')
+}
+
+/** what a fight a migration ended in decided, in one line */
+export function fightLine(l: ActionLog): string | undefined {
+  const o = outcomeOf(l)
+  const f = o.fight && typeof o.fight === 'object' ? (o.fight as O) : null
+  if (!f) return undefined
+  const L = (f.left ?? {}) as O
+  const R = (f.right ?? {}) as O
+  const a = `${typeof L.emoji === 'string' ? `${L.emoji} ` : ''}${String(L.label ?? '')}`.trim()
+  const d = `${typeof R.emoji === 'string' ? `${R.emoji} ` : ''}${String(R.label ?? '')}`.trim()
+  const res = String(f.result ?? '')
+  const scene = String(f.scene ?? '')
+  if (scene === 'beast_city') {
+    const lost = ((Array.isArray(f.city_lost) ? f.city_lost : []) as O[]).reduce((n, g) => n + num(g, 'n'), 0)
+    if (res === 'city_hit') return `${a} napadają na miasto ${d}: ${lost === 1 ? 'ginie jeden mieszkaniec' : `ginie ${followersWord(lost)}`}${f.city_destroyed ? ', miasto pada' : ''}.`
+    if (res === 'return') return `${a} napadają na miasto ${d}, lecz mury wytrzymują.`
+    return `${a} napadają na miasto ${d}, lecz lud je ${res === 'eaten' ? 'wybija' : 'odpędza'}.`
+  }
+  if (res === 'eaten' && f.loser === 'right') return `${a} rzucają się na ${d} i ${f.extinct ? 'pożerają je do ostatniego' : 'pożerają je'}; biorą pole.`
+  if (res === 'eaten') return `${a} rzucają się na ${d}, lecz ${d} ${f.extinct ? 'ścierają je z ziemi' : 'rozszarpują napastnika'}.`
+  if (res === 'flee' && f.loser === 'right') return `${a} napadają na ${d}: te uciekają na sąsiednie pole, a ${a} biorą ich ziemię.`
+  if (res === 'fled_nowhere' && f.loser === 'right') return `${a} napadają na ${d}: te nie mają gdzie uciec i giną; ${a} biorą ich ziemię.`
+  if (res === 'flee' || res === 'fled_nowhere' || res === 'vanished') return `${a} napadają na ${d}, lecz zostają odparte i uciekają${res === 'fled_nowhere' ? ', nie mając gdzie: giną' : ''}.`
+  return `${a} stają przeciw ${d}, i nikt nie ustępuje: wracają.`
+}
+
 /** one short line on what the dice did to the world, for the verdict under the total */
 export function tierDetail(l: ActionLog): string | undefined {
   const key = logActionKey(l)
   if (!key) return undefined
   const o = outcomeOf(l)
   const tier = rollTier(l)
-  const n = (k: string) => Number(o[k] ?? 0)
+  const n = (k: string) => num(o, k)
   switch (key) {
-    case 'catastrophe': {
+    case 'fire_rain': {
       const dmg = n('damage')
-      return dmg === 0 ? 'Kataklizm wygasł: nikt nie został ranny.' : `${dmg} ${dmg === 1 ? 'obrażenie' : dmg < 5 ? 'obrażenia' : 'obrażeń'}${o.biome_after ? ', ziemia odmieniona' : ''}.`
+      if (dmg === 0) return 'Ogień zgasł w powietrzu: nikt nie został ranny.'
+      return `${blows(dmg)}: ${strikeDetail(o)}${o.biome_after ? '; ziemia obróciła się w ugór' : ''}.`
     }
+    case 'flood':
+      if (o.drowned) return `Pole zatonęło na zawsze: ${strikeDetail(o)}.`
+      return n('damage') === 0 ? 'Wody cofnęły się, nie czyniąc nic.' : `Woda zabrała ${blows(n('damage'))}: ${strikeDetail(o)}.`
+    case 'lightning':
+      if (!o.hit) return 'Piorun chybił.'
+      return o.role === 'avatar' ? `Awatar ${String(o.name ?? '')} traci ${n('damage') === 1 ? 'jedno życie' : 'dwa życia'}${o.killed ? ' i ginie' : ` (życie ${n('hp')})`}.` : `${String(o.emoji ?? '')} ${String(o.name ?? '')} ${o.extinct ? 'wyginęły' : 'znikają z tego pola'}.`
+    case 'drought':
+      return n('rounds') === 0 ? 'Chmury zebrały się i rozeszły.' : `Ziemia jałowa przez ${n('rounds') === 2 ? 'dwie noce' : 'trzy noce'}: Żyzność 0.`
+    case 'plague':
+      return n('rounds') === 0 ? 'Zaraza nie chwyciła.' : `Zaraza na ${n('rounds') === 1 ? 'jedną noc' : 'dwie noce'}: co noc umiera dwoje.`
     case 'bless_land':
       return `${resourceRankName(n('bonus'))} (Żyzność ${n('bonus') > 0 ? '+' : ''}${n('bonus')}).`
     case 'create_beast':
@@ -79,13 +134,13 @@ export function tierDetail(l: ActionLog): string | undefined {
       return g === 0 ? 'Lud nie osiadł.' : `Miasto rodzi się z ${followersWord(g)}.`
     }
     case 'migrate':
-      return o.arrived === false ? 'Nikt nie ruszył.' : o.moved ? 'Gatunek przeniósł się na nowe pole.' : 'Gatunek żyje odtąd w obu miejscach.'
+      return fightLine(l) ?? (o.moved ? 'Gatunek przeszedł na nowe pole.' : 'Nikt nie ruszył.')
     case 'multiply': {
       const c = n('count')
-      return c === 0 ? 'Nie przybyło nikogo.' : c === 1 ? 'Jedna kopia na polu obok.' : `${c} kopie na polach obok.`
+      return c === 0 ? 'Nie przybyło nikogo.' : o.weakened ? `Kopia staje obok, lecz gatunek słabnie (siła ${n('strength') > 0 ? '+' : ''}${n('strength')}).` : 'Kopia staje na wskazanym polu.'
     }
     case 'change_creature':
-      return o.created === false ? 'Istoty pozostały sobą.' : n('strength') > n('from_strength') ? 'Odmiana silniejsza od pierwowzoru.' : 'Odmiana o sile pierwowzoru.'
+      return o.changed === false || o.created === false ? 'Istoty pozostały sobą.' : n('strength') > n('from_strength') ? 'Istoty odmieniły się i urosły w siłę.' : 'Istoty odmieniły się.'
     case 'exodus':
       return o.left === false ? 'Nikt nie wyszedł z miasta.' : n('lost') > 0 ? `Jeden zginął w drodze; ${followersWord(n('dots'))} ${n('dots') === 1 ? 'doszedł' : 'doszło'}.` : `${followersWord(n('dots'))} ${n('dots') === 1 ? 'doszedł' : 'doszło'} do celu.`
     case 'prophecy':
@@ -120,6 +175,24 @@ export function rollOf(l: ActionLog): ShownRoll | null {
       sides: {
         attacker: att ? `Atakujący: 2k6 + ${attrName(att.attr)} = ${att.total}` : 'Atakujący: ?',
         defender: `Obrońca: 2k6 + ${attrName(r.def.attr)} = ${r.def.total}`,
+      },
+    }
+  }
+  // a migration that ended in a fight: the mover's dice, both sides spelled out
+  if (l.action_key === 'migrate' && r?.att && r?.def) {
+    const diff = r.att.total - r.def.total
+    const fight = o.fight && typeof o.fight === 'object' ? (o.fight as O) : {}
+    const R = (fight.right ?? {}) as O
+    return {
+      kind: '2d6',
+      d1: r.att.d1,
+      d2: r.att.d2,
+      total: r.att.total,
+      label: `Migracja: walka, ${String(o.emoji ?? '')} ${String(o.name ?? '')}, 2k6 ${signed(r.att.modifier)} siła`,
+      verdict: `${diff > 0 ? `Napastnik wygrywa o ${diff}` : diff === 0 ? 'Remis' : `Obrońca wygrywa o ${-diff}`}. ${fightLine(l) ?? ''}`.trim(),
+      sides: {
+        attacker: `${String(o.emoji ?? '')} ${String(o.name ?? '')}: 2k6 ${signed(r.att.modifier)} = ${r.att.total}`,
+        defender: `${typeof R.emoji === 'string' ? `${R.emoji} ` : ''}${String(R.label ?? 'Obrońca')}: 2k6 ${signed(r.def.modifier)} = ${r.def.total}`,
       },
     }
   }

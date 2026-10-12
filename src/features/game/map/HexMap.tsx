@@ -170,11 +170,12 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
             )
           })}
 
-          {/* what the land gives: its fertility at the top, its resource top-right */}
+          {/* what the land gives: its fertility at the top (a sun in a drought, the sign of sickness in a plague), its resource top-right */}
           {HEXES.map(({ q, r }) => {
             const hex = world.hexAt(q, r)
             if (!hex || hex.biome === 'woda') return null
             const f = world.fertilityOf(q, r)
+            const blight = (hex.plague_rounds ?? 0) > 0 ? '☣️' : (hex.drought_rounds ?? 0) > 0 ? '☀️' : null
             const { x, y } = axialToPixel(q, r, R)
             const fy = y + FERTILITY_OFFSET.y * R
             const rx = x + RESOURCE_OFFSET.x * R
@@ -184,10 +185,16 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
               <g key={`land-${hexKey(q, r)}`} className={styles.layer}>
                 {f !== null && (
                   <>
-                    <rect className={styles.fertPlate} x={x - R * 0.19} y={fy - R * 0.12} width={R * 0.38} height={R * 0.24} rx={R * 0.12} />
-                    <text className={styles.fertility} x={x} y={fy + 0.5} fontSize={R * 0.19} textAnchor="middle" dominantBaseline="central">
-                      {f}
-                    </text>
+                    <rect className={[styles.fertPlate, blight ? styles.fertPlateBlight : ''].join(' ')} x={x - R * 0.19} y={fy - R * 0.12} width={R * 0.38} height={R * 0.24} rx={R * 0.12} />
+                    {blight ? (
+                      <text className={styles.blight} x={x} y={fy + 0.5} fontSize={R * 0.2} textAnchor="middle" dominantBaseline="central" filter="url(#signShadow)">
+                        {blight}
+                      </text>
+                    ) : (
+                      <text className={styles.fertility} x={x} y={fy + 0.5} fontSize={R * 0.19} textAnchor="middle" dominantBaseline="central">
+                        {f}
+                      </text>
+                    )}
                   </>
                 )}
                 {hex.resource && (
@@ -267,7 +274,7 @@ export function HexMap({ world, inspected, onInspect }: { world: WorldView; insp
               )
             })}
           </AnimatePresence>
-          {burst && <Burst key={burst.id} q={burst.q} r={burst.r} />}
+          {burst && <Burst key={burst.id} q={burst.q} r={burst.r} kind={burst.kind} sign={burst.sign} />}
         </svg>
       </div>
 
@@ -303,27 +310,41 @@ function hashStr(s: string): number {
   return h
 }
 
-/** a gently winding path through the given points: every leg bends a little to one side */
-function riverPath(pts: { x: number; y: number }[], seed: string): string {
+type Pt = { x: number; y: number }
+
+/**
+ * A gently winding path through the given points. Every leg gets two bends, each to its own side, and
+ * the whole string of points is then drawn as one Catmull-Rom spline (cubic Béziers that share their
+ * tangents), so the water never breaks at a field's centre, whatever angle the next leg leaves at.
+ */
+function riverPath(pts: Pt[], seed: string): string {
   if (pts.length < 2) return ''
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`
+  const nodes: Pt[] = [pts[0]]
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i]
     const b = pts[i + 1]
-    const mx = (a.x + b.x) / 2
-    const my = (a.y + b.y) / 2
     const dx = b.x - a.x
     const dy = b.y - a.y
     const len = Math.hypot(dx, dy) || 1
     const nx = -dy / len
     const ny = dx / len
-    // two bends per leg, each to its own side, so the water truly meanders
     const h = hashStr(`${seed}:${i}`)
     const sign = h % 2 === 0 ? 1 : -1
-    const amp = R * (0.16 + ((h >> 3) % 5) * 0.03)
-    const q1 = { x: a.x + dx * 0.25 + nx * amp * sign, y: a.y + dy * 0.25 + ny * amp * sign }
-    const q2 = { x: a.x + dx * 0.75 - nx * amp * sign, y: a.y + dy * 0.75 - ny * amp * sign }
-    d += ` Q ${q1.x.toFixed(1)} ${q1.y.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)} Q ${q2.x.toFixed(1)} ${q2.y.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`
+    const amp = R * (0.12 + ((h >> 3) % 5) * 0.025)
+    nodes.push({ x: a.x + dx * 0.3 + nx * amp * sign, y: a.y + dy * 0.3 + ny * amp * sign })
+    nodes.push({ x: a.x + dx * 0.7 - nx * amp * sign, y: a.y + dy * 0.7 - ny * amp * sign })
+    nodes.push(b)
+  }
+  const f = (n: number) => n.toFixed(1)
+  let d = `M ${f(nodes[0].x)} ${f(nodes[0].y)}`
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const p0 = nodes[i - 1] ?? nodes[i]
+    const p1 = nodes[i]
+    const p2 = nodes[i + 1]
+    const p3 = nodes[i + 2] ?? p2
+    const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 }
+    const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 }
+    d += ` C ${f(c1.x)} ${f(c1.y)} ${f(c2.x)} ${f(c2.y)} ${f(p2.x)} ${f(p2.y)}`
   }
   return d
 }
@@ -428,25 +449,40 @@ function HpBar({ x, y, hp, max }: { x: number; y: number; hp: number; max: numbe
   )
 }
 
-/** the newest catastrophe, played once on its field, after the die's window has been dismissed */
-function useBurst(log: ActionLog[]): { id: string; q: number; r: number } | null {
+/** the words the map plays as a scene on their field once their dice have been read */
+type BurstKind = 'fire_rain' | 'lightning' | 'flood' | 'drought' | 'plague' | 'descent'
+const BURST_OF: Record<string, BurstKind> = { fire_rain: 'fire_rain', catastrophe: 'fire_rain', lightning: 'lightning', flood: 'flood', drought: 'drought', plague: 'plague', create_avatar: 'descent', resurrect_avatar: 'descent' }
+interface BurstSpec {
+  id: string
+  q: number
+  r: number
+  kind: BurstKind
+  /** the sign at the heart of the scene (an avatar's own emoji when it descends) */
+  sign?: string
+}
+
+/** the newest cataclysm or descent, played once on its field, after the dice's window has been dismissed */
+function useBurst(log: ActionLog[]): BurstSpec | null {
   const seen = useRef<string | null>(null)
-  const [queued, setQueued] = useState<{ id: string; q: number; r: number; at: number; tick: number } | null>(null)
-  const [burst, setBurst] = useState<{ id: string; q: number; r: number } | null>(null)
+  const [queued, setQueued] = useState<(BurstSpec & { at: number; tick: number }) | null>(null)
+  const [burst, setBurst] = useState<BurstSpec | null>(null)
   const open = useDiceGate((s) => s.open)
   const dismissed = useDiceGate((s) => s.dismissed)
   useEffect(() => {
-    const last = [...log].reverse().find((l) => l.action_key === 'catastrophe')
+    const last = [...log].reverse().find((l) => l.action_key in BURST_OF)
     if (!last || seen.current === last.id) return
     const first = seen.current === null
     seen.current = last.id
-    // only a cataclysm that just happened (not the one found on opening the game)
+    // only a word that just happened (not the one found on opening the game)
     if (first && Date.now() - new Date(last.created_at).getTime() > 15000) return
     const o = (last.outcome && !Array.isArray(last.outcome) ? last.outcome : {}) as Record<string, unknown>
     if (typeof o.q !== 'number' || typeof o.r !== 'number') return
-    setQueued({ id: last.id, q: o.q, r: o.r, at: Date.now(), tick: 0 })
+    const kind = BURST_OF[last.action_key]
+    // a failed descent lights nothing; a resurrection always shines
+    if (kind === 'descent' && o.created === false) return
+    setQueued({ id: last.id, q: o.q, r: o.r, kind, sign: kind === 'descent' && typeof o.emoji === 'string' ? o.emoji : undefined, at: Date.now(), tick: 0 })
   }, [log])
-  // the die tumbles in its window first (DiceOverlay); the fire falls once the table has clicked on
+  // the dice tumble in their window first; the scene plays once the table has clicked on
   useEffect(() => {
     if (!queued) return
     const ready = dismissed === queued.id || (open !== queued.id && Date.now() - queued.at > 5000)
@@ -454,7 +490,8 @@ function useBurst(log: ActionLog[]): { id: string; q: number; r: number } | null
       const t = window.setTimeout(() => setQueued((q) => (q ? { ...q, tick: q.tick + 1 } : q)), 500)
       return () => window.clearTimeout(t)
     }
-    setBurst({ id: queued.id, q: queued.q, r: queued.r })
+    const { at: _at, tick: _tick, ...spec } = queued
+    setBurst(spec)
     setQueued(null)
   }, [queued, open, dismissed])
   useEffect(() => {
@@ -465,13 +502,116 @@ function useBurst(log: ActionLog[]): { id: string; q: number; r: number } | null
   return burst
 }
 
-/** the wrath of a god: a flash over the world, fire raining on the field, rings running out of it */
-function Burst({ q, r }: { q: number; r: number }) {
+/** a jagged bolt from the top of the sky down to the field */
+function boltPoints(x: number, y: number, seed: number): string {
+  const top = VIEW.y - R * 0.5
+  const steps = 7
+  const pts: string[] = []
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const yy = top + (y - top) * t
+    const wobble = i === 0 || i === steps ? 0 : (((seed * 9301 + i * 49297) % 233280) / 233280 - 0.5) * R * 0.9
+    pts.push(`${(x + wobble).toFixed(1)},${yy.toFixed(1)}`)
+  }
+  return pts.join(' ')
+}
+
+/**
+ * The scenes of the map: fire raining on a field, a bolt from the sky, the waters rising, the sun
+ * standing still, a sickness spreading, an avatar descending in a column of light. A flash over the
+ * world, the scene on the field, rings running out of it, and the sign of the word at its heart.
+ */
+function Burst({ q, r, kind, sign }: { q: number; r: number; kind: BurstKind; sign?: string }) {
   const { x, y } = axialToPixel(q, r, R)
   const sparks = Array.from({ length: 10 }, (_, i) => {
     const a = (Math.PI * 2 * i) / 10
     return { dx: Math.cos(a) * R * 1.6, dy: Math.sin(a) * R * 1.6, delay: 0.3 + (i % 3) * 0.12 }
   })
+  const ring = (cls: string, rr: number) => <circle className={[styles.burstRing, cls].join(' ')} cx={x} cy={y} r={rr} />
+  const spark = (glyph: string, cls = styles.burstSpark, scale = 1) =>
+    sparks.map((sp, i) => (
+      <text key={i} className={cls} style={{ '--dx': `${sp.dx * scale}px`, '--dy': `${sp.dy * scale}px`, animationDelay: `${sp.delay}s` } as React.CSSProperties} x={x} y={y} fontSize={R * 0.34} textAnchor="middle" dominantBaseline="central">
+        {glyph}
+      </text>
+    ))
+  const heart = (glyph: string, cls = styles.burstSign) => (
+    <text className={cls} x={x} y={y} fontSize={R * 0.9} textAnchor="middle" dominantBaseline="central">
+      {glyph}
+    </text>
+  )
+
+  if (kind === 'lightning') {
+    return (
+      <g className={styles.burst}>
+        <rect className={[styles.burstFlash, styles.flashWhite].join(' ')} x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} />
+        <polyline className={[styles.bolt, styles.boltGlow].join(' ')} points={boltPoints(x, y, q * 7 + r * 13)} />
+        <polyline className={styles.bolt} points={boltPoints(x, y, q * 7 + r * 13)} />
+        {ring(styles.ringWhite, R * 0.9)}
+        {ring(styles.ringGold, R * 0.6)}
+        {spark('✦', styles.burstSpark, 0.8)}
+        {heart('⚡')}
+      </g>
+    )
+  }
+  if (kind === 'flood') {
+    return (
+      <g className={styles.burst}>
+        <rect className={[styles.burstFlash, styles.flashWater].join(' ')} x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} />
+        {ring(styles.ringWater, R * 1.1)}
+        {ring(styles.ringWater2, R * 0.8)}
+        {ring(styles.ringWater3, R * 0.6)}
+        {[0, 1, 2, 3].map((i) => (
+          <text key={`wave-${i}`} className={styles.wave} style={{ animationDelay: `${i * 0.18}s` }} x={x + (i - 1.5) * R * 0.5} y={y + R * 1.2} fontSize={R * 0.55} textAnchor="middle" dominantBaseline="central">
+            🌊
+          </text>
+        ))}
+        {heart('🌊')}
+      </g>
+    )
+  }
+  if (kind === 'drought') {
+    return (
+      <g className={styles.burst}>
+        <rect className={[styles.burstFlash, styles.flashSun].join(' ')} x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} />
+        <circle className={styles.sunGlow} cx={x} cy={y} r={R * 1.3} />
+        {[0, 1, 2].map((i) => (
+          <path key={`heat-${i}`} className={styles.heat} style={{ animationDelay: `${i * 0.35}s` }} d={`M ${x - R * 0.7} ${y + R * 0.5 - i * R * 0.25} q ${R * 0.18} -${R * 0.18} ${R * 0.35} 0 t ${R * 0.35} 0 t ${R * 0.35} 0 t ${R * 0.35} 0`} />
+        ))}
+        <text className={styles.sunRise} x={x} y={y + R * 0.3} fontSize={R * 0.8} textAnchor="middle" dominantBaseline="central">
+          ☀️
+        </text>
+      </g>
+    )
+  }
+  if (kind === 'plague') {
+    return (
+      <g className={styles.burst}>
+        <rect className={[styles.burstFlash, styles.flashSick].join(' ')} x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} />
+        <circle className={styles.miasma} cx={x} cy={y} r={R * 1.1} />
+        <circle className={[styles.miasma, styles.miasma2].join(' ')} cx={x + R * 0.3} cy={y - R * 0.2} r={R * 0.8} />
+        {spark('🦠', styles.burstSparkSlow, 0.9)}
+        {heart('☣️')}
+      </g>
+    )
+  }
+  if (kind === 'descent') {
+    return (
+      <g className={styles.burst}>
+        <defs>
+          <linearGradient id={`descent-${q}-${r}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#fff2c4" stopOpacity="0.95" />
+            <stop offset="1" stopColor="#f7d98f" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <rect className={[styles.burstFlash, styles.flashGold].join(' ')} x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} />
+        <rect className={styles.column} x={x - R * 0.55} y={VIEW.y - R} width={R * 1.1} height={y - VIEW.y + R * 0.9} fill={`url(#descent-${q}-${r})`} style={{ transformOrigin: `${x}px ${VIEW.y - R}px` }} />
+        {ring(styles.ringGold, R * 1.1)}
+        {ring(styles.ringWhite, R * 0.7)}
+        {spark('✨', styles.burstSparkUp, 0.9)}
+        {heart(sign ?? '✦', styles.descentSign)}
+      </g>
+    )
+  }
   return (
     <g className={styles.burst}>
       <rect className={styles.burstFlash} x={VIEW.x} y={VIEW.y} width={VIEW.w} height={VIEW.h} />
@@ -480,17 +620,11 @@ function Burst({ q, r }: { q: number; r: number }) {
           ☄️
         </text>
       ))}
-      <circle className={styles.burstRing} cx={x} cy={y} r={R * 1.1} />
-      <circle className={[styles.burstRing, styles.burstRing2].join(' ')} cx={x} cy={y} r={R * 0.8} />
-      <circle className={[styles.burstRing, styles.burstRing3].join(' ')} cx={x} cy={y} r={R * 0.6} />
-      {sparks.map((sp, i) => (
-        <text key={i} className={styles.burstSpark} style={{ '--dx': `${sp.dx}px`, '--dy': `${sp.dy}px`, animationDelay: `${sp.delay}s` } as React.CSSProperties} x={x} y={y} fontSize={R * 0.34} textAnchor="middle" dominantBaseline="central">
-          🔥
-        </text>
-      ))}
-      <text className={styles.burstSign} x={x} y={y} fontSize={R * 0.9} textAnchor="middle" dominantBaseline="central">
-        💥
-      </text>
+      {ring('', R * 1.1)}
+      {ring(styles.burstRing2, R * 0.8)}
+      {ring(styles.burstRing3, R * 0.6)}
+      {spark('🔥')}
+      {heart('💥')}
     </g>
   )
 }

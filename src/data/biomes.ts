@@ -81,6 +81,3 @@ export const BIOME_LOC: Record<BiomeKey, string> = {
   bagno: 'na bagnach',
   ziemia: 'na ugorach',
 }
-
-/** the kinds of Kataklizm a god may choose; the text is free, the list only helps */
-export const CATASTROPHE_TYPES = ['Deszcz ognia', 'Tsunami', 'Susza', 'Trzęsienie ziemi', 'Wybuch wulkanu', 'Meteor', 'Plaga', 'Pożar', 'Powódź', 'Mróz', 'Szarańcza']

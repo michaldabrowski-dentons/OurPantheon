@@ -22,7 +22,8 @@ Ery i Kartę Chaosu. Interfejs po polsku, w stylu kamiennej świątyni.
    `0006_chronicle_book.sql`, `0007_god_gender.sql`, `0008_login_and_guests.sql`, `0009_creation_sync.sql`,
    `0010_ensure_turn.sql`, `0011_playbooks.sql`, `0012_hex_map.sql`, `0013_ocean_start.sql`, `0014_biome_tiles.sql`, `0015_fix_biome_draw.sql`, `0016_colors_and_tiles.sql`, `0017_prices_and_ruins.sql`,
    `0018_verse_lock_avatars_prophecies.sql`, `0019_afterlife_avatar_hand.sql`, `0020_fertility_rivers_resources.sql`,
-   `0021_chaos_night.sql`, `0022_night_2d6_ranks_mutations.sql`, `0023_two_tiles_pbta.sql`.
+   `0021_chaos_night.sql`, `0022_night_2d6_ranks_mutations.sql`, `0023_two_tiles_pbta.sql`,
+   `0024_cataclysms_avatar_words.sql`.
    (Alternatywnie: `npx supabase link` i `npx supabase db push`.)
    Jeśli baza działała już wcześniej, wystarczy dograć brakujące pliki od końca listy. Migracja 0012 nie
    przenosi starych światów: gry zaczęte przed nią nie mają mapy i trzeba je założyć od nowa.
@@ -126,7 +127,7 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   z premiami (wyznawcy, premia z wyznawców na koniec Chaosu, skromność, awatar), Święta Księga / Paleta /
   Byty świata, a na samym dole Odpoczynek), kolumna akcji i mapa na reszcie ekranu. Przekaż Logos jest słowem
   w kategorii „Proroctwa i Słowa”; wyjście to ikona w prawym górnym rogu. Tabliczki bóstw u góry pokazują
-  Logos, liczbę wyznawców i premię do rzutu. Każdy rzut kośćmi na akcję (Rozwój, Kataklizm, starcia, 2k6 przy stole) otwiera u wszystkich
+  Logos, liczbę wyznawców i premię do rzutu. Każdy rzut kośćmi na akcję (Rozwój, kataklizmy, starcia, 2k6 przy stole) otwiera u wszystkich
   okno `DiceOverlay`: kości toczą się przez chwilę, dopiero potem pada wynik.
 - Cechy, specjalności, braki i uwarunkowania zniknęły: istota, cywilizacja i awatar mają tylko nazwę, znak
   i opis (opis nowego bytu to werset z księgi). Stworzenie Cywilizacji nie wymaga rzutu.
@@ -141,24 +142,41 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 - Wylej Rzekę (3 / 8 / 12, cena stała): klik w górę to źródło, potem kolejne sąsiednie pola (tryb mapy
   `river`: klik w ostatnie pole cofa je, woda albo cudza rzeka kończy); gdy nie ma dokąd płynąć, karta mapy
   każe przerwać. Przez awatara liczy się zasięg do źródła.
-- Dwa kafle i progi PbtA (0023): każde słowo poza Kształtowaniem Lądów, Wylej Rzekę, Pielgrzymką i
-  Wskrzeszeniem kończy się dwoma kwadratowymi kaflami atrybutów (`AttributeTiles`; pary w `roll.options`
-  w `src/data/actions.ts` i w `action_attrs()` w bazie). Kafel pokazuje grafikę, nazwę, zdanie o sposobie
-  wykonania i tylko modyfikator bóstwa (plus wypełnione proroctwo). Klik płaci Logos i rzuca 2k6 + atrybut
-  po stronie serwera; okno pokazuje kości i werdykt (`RollReveal`), zamyka się, i dopiero wtedy widać
+- Dwa kafle i progi PbtA (0023): każde słowo poza Kształtowaniem Lądów, Wylaniem Rzeki, Migracją,
+  Pielgrzymką i Wskrzeszeniem kończy się dwoma kwadratowymi kaflami atrybutów (`AttributeTiles`; pary w
+  `roll.options` w `src/data/actions.ts` i w `action_attrs()` w bazie). Kafel pokazuje grafikę, nazwę, zdanie
+  o sposobie wykonania i tylko modyfikator bóstwa (plus wypełnione proroctwo). Klik płaci Logos i rzuca 2k6 +
+  atrybut po stronie serwera; okno pokazuje kości i werdykt (`RollReveal`), zamyka się, i dopiero wtedy widać
   efekt na mapie. Progi: 10+ Pełen sukces, 7..9 Sukces z konsekwencjami, 6- Porażka: Logos przepada, świat
   nie zmienia się (wyjątek: Błogosławieństwo zostawia przeklęte złoże). Wykonujący nie widzi okna kości
-  stołu (zgłasza rzut przez `claim()` w `diceGate.ts`), pozostali gracze widzą je jak dotąd. Werset dopisuje
-  się potem z karty „Święta Księga czeka” na lewym panelu. Stare wiersze `create_creature` czyta
-  `logActionKey()` jako bestię albo stado.
-- Kataklizm (Gniew / Żywioł, domyślnie deszcz ognia): rodzaj, pole i co zostanie po zniszczeniu (bez zmian,
-  pustynia, ugór, woda). 10+: obrażeń jest połowa (w dół) wyniku, każde losowo w wyznawcę miasta, istotę
-  nierozumną albo awatara (−1 życia), a biom zmienia się, gdy na polu nikt nie przeżył (`outcome.biome_after`);
-  7..9: ćwierć wyniku (najmniej jedno), ziemia bez zmian; 6-: nikt nie ranny. Istoty rozumne giną dopiero bez
-  miasta. Ogień spada na pole, gdy okno z kośćmi się zamknie (`useBurst` czeka na `dismissed`).
-  Zniszczone miasto zostawia na polu czaszkę (`entities.attributes.ruin`).
-- Wielki Cud (Majestat / Mądrość): 10+ cud zachodzi, 7..9 zachodzi z ceną opisaną w wersecie, 6- nic; awatar
-  użyty jako ręka spala się tylko wtedy, gdy cud zaszedł.
+  stołu (zgłasza rzut przez `claim()` w `diceGate.ts`), pozostali gracze widzą je jak dotąd. Stare wiersze
+  `create_creature` czyta `logActionKey()` jako bestię albo stado, stare `catastrophe` jako Deszcz Ognia.
+- Święta Księga (0024): po każdym słowie, gdy okno słowa się zamknie i mapa odegra scenę (ok. 3,6 s),
+  samo otwiera się okno „Święta Księga: nazwa słowa” (`VerseDialog`) z podpowiedzią wersetu; „Zostaw jak
+  jest” albo „Zapisz do Świętej Księgi” zwalnia zamek tury. Przycisku „Dopisz werset” na panelu już nie ma;
+  pozostali gracze widzą kartę „X dopisuje werset”. Starcia piszą werset w swoim oknie (`ContestVerseDialog`).
+- Panel słów (0024): dwa akordeony, AKCJE BOSKIE (Terraformacja, Kataklizmy, Tworzenie Życia, Działanie w
+  Panteonie z Wielkim Cudem i Przekazaniem Logos, Zstąpienie na ziemię) i AKCJE AWATARA (Działalność
+  Awatara: Pielgrzymka, Rozwój Cywilizacji, Nawracanie, Exodus, Święta Wojna, Proroctwo, Walka Awatarów);
+  drugi jest szary i zwinięty, póki mój awatar nie stoi na mapie. Plansze słów w `public/actions/<klucz>.jpg`
+  i `-thumb.jpg` (512 i 160 px, wycięte z `src/img`).
+- Kataklizmy (0024, wszystkie Gniew / Żywioł, zamiast jednego Kataklizmu):
+  - Piorun (1 / 2 / 3): klik w bestię, stado albo awatara (nie lud). 10+ dwa obrażenia, 7..9 jedno, 6-
+    chybienie; bestia albo stado trafione znikają z pola (gatunek ginie bez innych pól), awatar traci życie.
+  - Potop (6 / 12 / 18): klik w ląd. 10+ pole staje się Wodą na zawsze (`drown_hex`: wyznawcy do zaświatów,
+    istoty toną, awatary giną, miasto zostawia czaszkę, surowiec przepada, rzeka urwana); 7..9 trzy losowe
+    trafienia (`strike_hex`: wyznawca, stado/bestia, życie awatara), ląd zostaje; 6- nic.
+  - Deszcz Ognia (6 / 12 / 18): klik w ląd. 10+ sześć losowych trafień, 7..9 trzy, 6- nic. Gdy po ogniu nikt
+    nie żyje na polu, staje się Ugorem (góry zostają). Istoty rozumne giną dopiero bez miasta.
+  - Susza (3 / 6 / 9): klik w ląd. 10+ trzy noce, 7..9 dwie (`hexes.drought_rounds`): u góry heksa ☀️
+    zamiast liczby, Żyzność 0 (`hex_fertility`, `fertilityOf`), a każdej nocy stado pasące się tam ginie.
+  - Plaga (9 / 5 / 8): klik w pole z miastem, stadem albo bestią. 10+ dwie noce, 7..9 jedna
+    (`hexes.plague_rounds`): u góry heksa ☣️, a każdej nocy w mieście umiera dwoje losowych mieszkańców
+    (bez miasta: stado albo bestia); miasto bez mieszkańców obraca się w ruinę.
+  Noc Chaosu zaczyna się od `night_blights` (wiersze `night_plague`, `night_drought`), które zbierają żniwo
+  i odliczają noce. Każdy kataklizm ma scenę na mapie (`Burst` w `HexMap.tsx`: piorun z nieba, fale, słońce i
+  żar, zielona miazma, deszcz meteorów), a Zesłanie i Wskrzeszenie Awatara kolumnę światła.
+- Wielki Cud (Majestat / Mądrość): 10+ cud zachodzi, 7..9 zachodzi z ceną opisaną w wersecie, 6- nic.
 - Pobłogosław ziemię (Łaska / Mądrość): 10+ surowiec o randze +1..+3 wedle wyniku, 7..9 pospolity (0), 6-
   przeklęte złoże (−1).
 - Stworzenie Bestii (Gniew / Żywioł) i Stworzenie Stada (Łaska / Żywioł): nazwa i emotikona z osobnej puli
@@ -166,40 +184,47 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   wyniku (9..10: +1, 11..12: +2, 13+: +3), 7..9: 0, 6-: nic nie powstaje (znak zostaje wolny). Istota
   Rozumna (Majestat / Mądrość): 10+ plemię na wskazanym polu i drugie na najżyźniejszym wolnym polu obok,
   7..9 jedno, 6- nic. Zesłanie Awatara (Majestat / Podszept): 10+ pełne życie, 7..9 o jedno mniej, 6- nic.
-- Zmiana Istoty (Podszept / Żywioł): klik w jedną istotę na jednym polu; 10+ odmiana o sile lub randze o jeden
-  wyższej (do +3), 7..9 o sile pierwowzoru, 6- nic (`variant_of`).
-- Migracja (Podszept / Żywioł, 3 / 1 / 3 plus 1 za heks): istota, potem pole docelowe; 10+ gatunek mnoży się
-  na nowe pole, 7..9 przenosi się (opuszcza stare), 6- nikt nie rusza, dystans zapłacony.
-- Rozmnożenie (Łaska / Żywioł, 5 / 2 / 6): klik w stado, bestię albo plemię z wolnym polem obok; 10+ kopie
-  na dwóch najżyźniejszych wolnych polach obok, 7..9 jedna na losowym, 6- nic. Kopie dziedziczą siłę gatunku
-  (`night_candidates` liczy wolne pola jak w nocy Chaosu).
+- Zmiana Istoty (Podszept / Żywioł): klik w istotę; zmienia się sam gatunek, wszędzie, gdzie żyje (nazwa,
+  znak, opis, `update entities`), bez nowego bytu. 10+ dodatkowo siła lub ranga o jeden wyżej (do +3), 7..9
+  sama zmiana, 6- nic.
+- Migracja (3 / 1 / 3 plus 1 za heks, bez rzutu): istota, potem pole docelowe; gatunek przenosi się (bez
+  kopii). Bestia wchodząca na pole z bestią albo plemieniem, albo napadająca na miasto, walczy od razu wedle
+  zasad nocy (`instant_fight`: 2k6 + siła po obu stronach, miasto swoją ludność; 3+ pożarcie / miasto traci
+  tyle grup, 1..2 ucieczka, remis powrót; zwycięska bestia bierze pole, miasta nie zajmuje). Plemię może wejść
+  na bestię (walka). Oba rzuty są w `roll.att/def` wiersza, w oknie słowa (`RollReveal`) i w oknie kości
+  stołu.
+- Rozmnożenie (Łaska / Żywioł, 5 / 2 / 6): klik w stado, bestię albo plemię, potem wolne pole obok; 10+ kopia
+  na wskazanym polu, 7..9 kopia, lecz gatunek słabnie o jeden (siła lub ranga, najmniej −1; siła należy do
+  gatunku, nie do stada), 6- nic.
 - Stworzenie Cywilizacji (Mądrość / Łaska): pole z istotą rozumną i nazwa; 10+ miasto z dwiema kropkami
   twórcy, 7..9 z jedną, 6- lud nie osiada.
-- Rozwój Cywilizacji (Łaska / Mądrość): miasto i dar z listy (`GIFTS` w `src/data/cities.ts`, albo własny);
-  10+ dwie kropki, 7..9 jedna, 6- nic (dar odnotowany jako odrzucony w `city_gifts`).
-- Exodus (Gniew / Podszept, 12 / 8 / 4 plus 1 za heks): miasto z moimi wyznawcami, ilu ich zabieram i którą
-  istotę rozumną, pole docelowe; 10+ wszyscy dochodzą, a nowe miasto dziedziczy dary; 7..9 jeden ginie w
-  drodze (gdy idzie ich co najmniej dwóch; dusza do zaświatów) i dary nie wędrują; 6- nikt nie wychodzi.
-  W zajętym polu wyznawcy dołączają do miasta.
+- Rozwój Cywilizacji (Mądrość / Podszept, słowo awatara): miasto najwyżej dwa heksy od mojego awatara i dar z
+  listy (`GIFTS` w `src/data/cities.ts`, albo własny); 10+ dwie kropki, 7..9 jedna, 6- nic (dar odnotowany
+  jako odrzucony w `city_gifts`). Awatar nie rusza się.
+- Exodus (Gniew / Podszept, 12 / 8 / 4 plus 1 za heks, słowo awatara): miasto z moimi wyznawcami najwyżej
+  dwa heksy od awatara (awatar wchodzi do niego, `avatar_enter`), ilu ich zabieram i którą istotę rozumną,
+  pole docelowe; 10+ wszyscy dochodzą, a nowe miasto dziedziczy dary; 7..9 jeden ginie w drodze (gdy idzie
+  ich co najmniej dwóch; dusza do zaświatów) i dary nie wędrują; 6- nikt nie wychodzi. W zajętym polu
+  wyznawcy dołączają do miasta. Awatar idzie z ludem, gdy jest miejsce.
 - Proroctwo (Majestat / Mądrość): 10+ nieuchronność +2, 7..9 +1, 6- prorok milczy.
-- Nawracanie i Święta Wojna to starcia (`contests`): atakujący deklaruje i płaci (`declare_contest`), księga
-  rzuca za niego; tura zamiera, aż obrońca u siebie wybierze atrybut i rzuci (`answer_contest`), potem atakujący
-  dopisuje werset (`commit_contest`) albo odwołuje starcie przed odpowiedzią (`cancel_contest`). Obie strony
-  wybierają atrybut dwoma kaflami (obrońca w `ContestOverlay`, pary w `defence.options` i w
-  `action_attrs(kind, 'defence')`); różnica rzutów decyduje. Nawracanie: atak 2k6 + Majestat albo Podszept,
-  obrona 2k6 + Majestat albo Mądrość; wygrana o 3+ przejmuje dwóch wyznawców, o 1..2 jednego. Wojna: armia to
-  moi wyznawcy z miasta, w którym rządzę (jeden zostaje), koszt 8 / 6 / 4 plus 1 za heks; atakujący 2k6 +
-  Gniew albo Podszept + armia, obrońca (Obrona Miasta) 2k6 + Łaska albo Gniew + swoje kropki w celu + życie
-  awatara na murach; skala zwycięstwa jak w briefie (pełne, pyrrusowe, remis bez oblężenia, odparcie, masakra).
-- Awatar jest ręką bóstwa na ziemi (0019): nie ma już darmowej akcji. Słowa Terraformacji, Tworzenia Życia
-  i Śmiertelników (także Nawracanie i Święta Wojna) można wypowiedzieć przez awatara za połowę ceny (w górę,
-  `via_avatar_id`), ale cel musi leżeć najwyżej dwa heksy od niego (wszystkie pola Kształtowania, pole
-  kataklizmu, miejsce istoty, miasto Rozwoju i Nawracania, miasto źródłowe Exodusu i Wojny; cel Migracji;
-  dalekie cele Exodusu i Wojny bez ograniczeń). Okno akcji zaczyna się od pytania „Kto wypowiada słowo”, kafle
-  pokazują obok ceny bóstwa cenę przez awatara (kolor żaru). Przy Exodusie awatar idzie z ludem na nowe pole
-  (gdy jest miejsce). Wielki Cud przez awatara spala go. Na wojnie awatar prowadzi lud: jego życie dolicza się
-  do rzutu armii; awatar obrońcy stojący w atakowanym mieście dolicza życie do obrony.
-- Pielgrzymka Awatara (zamiast Rozkazu): 1 Logos za heks, bez granicy, na pole z wolnym miejscem. Awatar
+- Nawracanie i Święta Wojna to starcia (`contests`) i słowa awatara: atakujący deklaruje i płaci
+  (`declare_contest`), księga rzuca za niego; tura zamiera, aż obrońca u siebie wybierze atrybut i rzuci
+  (`answer_contest`), potem atakujący dopisuje werset (`commit_contest`) albo odwołuje starcie przed
+  odpowiedzią (`cancel_contest`). Obie strony wybierają atrybut dwoma kaflami (obrońca w `ContestOverlay`, pary
+  w `defence.options` i w `action_attrs(kind, 'defence')`); różnica rzutów decyduje. Nawracanie: miasto z
+  cudzymi wyznawcami najwyżej dwa heksy od mojego awatara, który do niego wchodzi; atak 2k6 + Majestat albo
+  Podszept, obrona 2k6 + Majestat albo Mądrość; wygrana o 3+ przejmuje dwóch wyznawców, o 1..2 jednego. Wojna:
+  moje miasto najwyżej dwa heksy od awatara (awatar wchodzi do niego i prowadzi armię), armia to moi wyznawcy
+  z miasta, w którym rządzę (jeden zostaje), cel dowolne miasto, koszt 8 / 6 / 4 plus 1 za heks; atakujący
+  2k6 + Gniew albo Podszept + armia + życie awatara, obrońca (Obrona Miasta) 2k6 + Łaska albo Gniew + swoje
+  kropki w celu + życie awatara na murach; skala zwycięstwa jak w briefie (pełne, pyrrusowe, remis bez
+  oblężenia, odparcie, masakra). Po wygranej (także pyrrusowej) awatar staje w zdobytym mieście, gdy jest
+  miejsce (`outcome.attacker_avatar_to`); po przegranej o 3+ odnosi ranę (`attacker_avatar_wound`).
+- Awatar nie daje zniżki (0024): słowa kosztują tyle, ile kosztują, bez pytania „Kto wypowiada słowo”. Awatar
+  jest za to jedynym, kto wypowiada słowa Działalności Awatara, zawsze najwyżej dwa heksy od siebie
+  (`pick_avatar` bierze wskazanego albo najbliższego z moich; `avatar_enter` wprowadza go do miasta i podnosi
+  błąd, gdy stoją tam już dwa awatary). Wielki Cud nie spala awatara.
+- Pielgrzymka (zamiast Rozkazu): 1 Logos za heks, najmniej jeden, bez granicy, na pole z wolnym miejscem. Awatar
   rodzi się z 2 życiami (`entities.max_hp`), każde kolejne wcielenie (Wskrzeszenie 12 / 15 / 16 albo nowy awatar
   po śmierci poprzedniego) wraca o jedno życie silniejsze, najwyżej 12; sen Fazy Chaosu leczy jedno życie do
   maksimum (wiersz `avatars_heal`).
@@ -222,12 +247,12 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
   trafia do „Spełnione Proroctwa” na karcie bóstwa, a księga notuje „Słowa proroka X stały się ciałem: …”.
 - Koniec Chaosu (`end_chaos_phase`): każde miasto zyskuje kropkę dla bóstwa, które nim rządzi (remis losowo),
   a suma kropek daje +3, +2 i +1 Logos trzem najwierniej czczonym bóstwom.
-- Słowa bez rzutu kończą się krokiem wersetu w oknie; słowa z kaflami zamykają okno po kościach, a werset
-  dopisuje się z karty „Święta Księga czeka”. Księga układa werset z wyniku (`actions_log.outcome`,
-  `composeVerse`), gracz może go przepisać (`edit_log_summary`). Zapis do księgi jest ZAMKIEM tury
-  (`games.verse_pending_by`): póki gracz nie dopisze wersetu (albo nie zostawi podpowiedzi), tura nie przechodzi
-  dalej, a Faza Chaosu nie może się zacząć; po odświeżeniu strony karta „Święta Księga czeka” na lewym panelu
-  pozwala dokończyć zapis (`release_verse` zostawia podpowiedź).
+- Każde słowo zamyka swoje okno od razu po zapłacie (albo po kościach), a werset dopisuje się w oknie
+  „Święta Księga”, które otwiera się samo po scenie na mapie. Księga układa werset z wyniku
+  (`actions_log.outcome`, `composeVerse`), gracz może go przepisać (`edit_log_summary`). Zapis do księgi jest
+  ZAMKIEM tury (`games.verse_pending_by`): póki gracz nie dopisze wersetu (albo nie zostawi podpowiedzi), tura
+  nie przechodzi dalej, a Faza Chaosu nie może się zacząć; po odświeżeniu strony okno Księgi wraca samo
+  (`release_verse` zostawia podpowiedź).
 - Każdy rzut kośćmi otwiera u pozostałych graczy okno kości (toczenie, wynik i werdykt progu, przy starciach obie
   strony: „Atakujący: 2k6 + Gniew = 9 | Obrońca: 2k6 + Łaska = 7”) z przyciskiem „Kontynuuj” / „Zobacz wynik”;
   rzucający widzi kości we własnym oknie (`claim()`), a okna z wynikiem i decyzjami (werset starcia, podział
@@ -306,10 +331,12 @@ bóstwom; na koniec miasta rosną i najwierniej czczone bóstwa dostają Logos) 
 - Kości rzuca serwer (`log_dice_roll`, `roll_logos`, `reveal_chaos`), więc wszyscy widzą to samo.
 - Era: głosowanie w dowolnej rundzie; decyduje większość bóstw. Każdą nową Erę (i pierwszą) otwiera kurtyna
   z rysunkiem epoki; to, którą już widziano, pamięta `localStorage` na danym urządzeniu.
-- Akcje w panelu: Terraformacja (Kształtowanie Lądów, Kataklizm, Wielki Cud, Pobłogosław ziemię, Wylej Rzekę), Tworzenie Życia (Stworzenie
-  Bestii, Stworzenie Stada, Stworzenie Istoty Rozumnej, Zmiana Istoty, Migracja, Rozmnożenie), Śmiertelnicy (Stworzenie Cywilizacji, Rozwój
-  Cywilizacji, Exodus, Nawracanie, Święta Wojna), Działania Awatara (Zesłanie, Pielgrzymka, Wskrzeszenie, Walka Awatarów, Proroctwo), Proroctwa
-  i Słowa (Przekaż Logos); zawsze w tej kolejności, nigdy wg ceny. Akcje z warunkiem (np. „musi istnieć miasto”) są nieaktywne, póki mapa go nie spełnia.
+- Akcje w panelu: AKCJE BOSKIE: Terraformacja (Kształtowanie Lądów, Błogosławienie Ziemi, Wylanie Rzeki), Kataklizmy (Piorun, Potop,
+  Deszcz Ognia, Susza, Plaga), Tworzenie Życia (Stworzenie Bestii, Stworzenie Stada, Stworzenie Istoty Rozumnej, Migracja, Rozmnożenie,
+  Zmiana Istoty, Stworzenie Cywilizacji), Działanie w Panteonie (Wielki Cud, Przekazanie Logos), Zstąpienie na ziemię (Zesłanie Awatara,
+  Wskrzeszenie Awatara); AKCJE AWATARA: Działalność Awatara (Pielgrzymka, Rozwój Cywilizacji, Nawracanie, Exodus, Święta Wojna, Proroctwo,
+  Walka Awatarów); zawsze w tej kolejności, nigdy wg ceny. Akcje z warunkiem (np. „twój awatar najwyżej dwa heksy od miasta”) są nieaktywne,
+  póki mapa go nie spełnia.
 - Werset do Świętej Księgi powstaje na końcu każdej akcji z tego, co się stało (opener, wynik z mapy, zdanie
   o cechach); gracz może go przepisać; „Zostaw jak jest” zapisuje podpowiedź. Opis nowego bytu to ten sam
   werset.

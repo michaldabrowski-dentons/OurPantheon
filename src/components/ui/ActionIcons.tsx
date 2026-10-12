@@ -12,13 +12,51 @@ const SHAPES: Record<ActionKey, ReactNode> = {
       <circle cx="17.5" cy="5.5" r="1.8" />
     </>
   ),
+  // ---------- Kataklizmy ----------
   // a bolt striking down
-  catastrophe: (
+  lightning: (
     <>
       <path d="M13 2 6 13h5l-1.5 9L18 10h-5l1-8z" />
       <path d="M3 21l2.5-2.5M21 21l-2.5-2.5" />
     </>
   ),
+  // waves rising over a roof
+  flood: (
+    <>
+      <path d="M7 11V8l5-4 5 4v3" />
+      <path d="M2 15c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5" />
+      <path d="M2 19.5c2 0 2-1.5 4-1.5s2 1.5 4 1.5 2-1.5 4-1.5 2 1.5 4 1.5 2-1.5 4-1.5" />
+    </>
+  ),
+  // meteors falling on the ground
+  fire_rain: (
+    <>
+      <path d="M4 3l5 7M12 2l3 6M18 4l3 5" />
+      <circle cx="9.5" cy="11" r="1.4" />
+      <circle cx="15.5" cy="9" r="1.4" />
+      <path d="M2 21c3-4 6-4 9-1s7 3 11-1" />
+    </>
+  ),
+  // the sun over cracked earth
+  drought: (
+    <>
+      <circle cx="12" cy="8" r="3.2" />
+      <path d="M12 1.5v2M5.5 8h2M16.5 8h2M7.4 3.4l1.4 1.4M16.6 3.4l-1.4 1.4" />
+      <path d="M2 21h20M6 21l2-4 2 4M13 21l3-3 2 3" />
+    </>
+  ),
+  // the three blades of the sign of sickness
+  plague: (
+    <>
+      <circle cx="12" cy="12" r="2.2" />
+      <path d="M12 9.8V4.5a7.5 7.5 0 0 1 3.5 1" />
+      <path d="M10.1 13.1l-4.6 2.6a7.5 7.5 0 0 1-1-3.5" />
+      <path d="M13.9 13.1l4.6 2.6a7.5 7.5 0 0 1-2.5 2.5" />
+      <path d="M8.5 5.5a7.5 7.5 0 0 0-3 3M18.5 8.5a7.5 7.5 0 0 0-3-3M9.9 18.1a7.5 7.5 0 0 0 4.2 0" />
+    </>
+  ),
+
+  // ---------- Działanie w Panteonie ----------
   // the sun with all its rays
   great_miracle: (
     <>

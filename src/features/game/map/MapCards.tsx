@@ -1,14 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { rpc } from '@/lib/supabase'
-import { ACTION_BY_KEY, logActionKey } from '@/data/actions'
-import { composeVerse } from '@/data/chronicle'
-import { Modal, Notice, TextArea } from '@/components/ui/Primitives'
-import { useDiceGate } from '../diceGate'
+import { Notice } from '@/components/ui/Primitives'
 import type { WorldView } from '@/lib/world'
 import { followersWord } from '@/data/cities'
 import { godColor } from '@/data/pantheon'
 import { useUser } from '@/features/auth/AuthGate'
-import { useGameStore, godLabel, playerLabel, selectMyPlayer, selectPendingContest } from '@/store/useGameStore'
+import { useGameStore, godLabel, selectMyPlayer, selectPendingContest } from '@/store/useGameStore'
 import { StoneButton } from '@/components/ui/StoneButton'
 import { useMapMode, riverStuck } from './mapMode'
 import { neighbours } from '@/lib/hex'
@@ -117,105 +114,22 @@ export function GodLegend({ world }: { world: WorldView }) {
 }
 
 /**
- * The book waits for a verse before the turn moves on. The god who owes it sees this card when the
- * word's own window is gone (a reload, a closed tab): the verse can be written here, or left as the
- * book drafted it. Everyone else sees who the table is waiting for.
+ * The book waits for a verse before the turn moves on. The god who owes it gets the Holy Book window
+ * (VerseDialog) once the map has shown what the word did; everyone else sees here who the table is
+ * waiting for.
  */
-export function VerseLockCard({ onError }: { onError: (m: string | null) => void }) {
+export function VerseLockCard() {
   const { user } = useUser()
   const me = useGameStore(selectMyPlayer(user.id))
   const game = useGameStore((s) => s.game)!
   const players = useGameStore((s) => s.players)
-  const profiles = useGameStore((s) => s.profiles)
-  const entities = useGameStore((s) => s.entities)
-  const log = useGameStore((s) => s.log)
-  const verseDialog = useDiceGate((s) => s.verseDialog)
-  const [open, setOpen] = useState(false)
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  // a moment's patience: the word's own window may still be about to mount
-  const [settled, setSettled] = useState(false)
   const owing = game.verse_pending_by
-  useEffect(() => {
-    setSettled(false)
-    if (!owing) return
-    const t = window.setTimeout(() => setSettled(true), 1500)
-    return () => window.clearTimeout(t)
-  }, [owing])
-
-  const ctx = useMemo(
-    () => ({
-      god: (id: string | null) => {
-        const p = players.find((x) => x.id === id)
-        return { name: playerLabel(p, profiles), gender: p?.god_gender ?? ('n' as const) }
-      },
-      entity: (id: string | null) => (id ? entities.find((e) => e.id === id) : undefined),
-    }),
-    [players, profiles, entities],
-  )
-  const myRow = useMemo(() => (me ? [...log].reverse().find((l) => l.player_id === me.id && !!logActionKey(l)) ?? null : null), [log, me])
-
-  if (!owing || !me) return null
-  const mine = owing === me.id
-  if (!mine) {
-    const who = players.find((p) => p.id === owing)
-    return (
-      <div className={['marble', 'emerge-from-dark', styles.railPanel, styles.contest].join(' ')} role="status" aria-live="polite">
-        <h4>Święta Księga</h4>
-        <p>{godLabel(who)} dopisuje werset. Tura i Faza Chaosu czekają na ten zapis.</p>
-      </div>
-    )
-  }
-  if (verseDialog || !settled) return null
-  const drafted = myRow ? composeVerse(myRow, ctx) : ''
-
-  async function save(summary: string | null) {
-    setBusy(true)
-    setError(null)
-    onError(null)
-    try {
-      if (summary !== null && myRow) {
-        await rpc('edit_log_summary', { p_log_id: myRow.id, p_summary: summary })
-        // a thing made by this word carries the verse as its description
-        const key = logActionKey(myRow)
-        if (key && ACTION_BY_KEY[key].entityOp === 'create' && myRow.entity_id) await rpc('edit_entity', { p_entity_id: myRow.entity_id, p_patch: { description: summary } })
-      } else await rpc('release_verse', { p_game_id: game.id })
-      setOpen(false)
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
+  if (!owing || !me || owing === me.id) return null
+  const who = players.find((p) => p.id === owing)
   return (
-    <>
-      <div className={['marble', 'emerge-from-dark', styles.railPanel, styles.contest].join(' ')} role="status" aria-live="polite">
-        <h4>Święta Księga czeka</h4>
-        <p>Twoje ostatnie słowo nie ma jeszcze wersetu. Dopisz go, a tura ruszy dalej.</p>
-        <StoneButton variant="gold" size="sm" disabled={busy} onClick={() => { setText(drafted); setOpen(true) }}>
-          Dopisz werset
-        </StoneButton>
-      </div>
-      {open && (
-        <Modal title="Werset do Świętej Księgi" onClose={() => setOpen(false)}>
-          <div className={styles.contestBody}>
-            {myRow ? (
-              <TextArea id="lock_verse" label="Werset do Świętej Księgi" value={text} onChange={(e) => setText(e.target.value)} />
-            ) : (
-              <Notice>Księga nie znalazła tego słowa. Zostaw werset taki, jak go zapisała.</Notice>
-            )}
-            {error && <Notice tone="error">{error}</Notice>}
-            <div className={styles.footer}>
-              <StoneButton disabled={busy} onClick={() => save(null)}>Zostaw jak jest</StoneButton>
-              <StoneButton variant="gold" size="lg" disabled={busy || !myRow || !text.trim()} onClick={() => save(text.trim())}>
-                Zapisz do Świętej Księgi
-              </StoneButton>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </>
+    <div className={['marble', 'emerge-from-dark', styles.railPanel, styles.contest].join(' ')} role="status" aria-live="polite">
+      <h4>Święta Księga</h4>
+      <p>{godLabel(who)} dopisuje werset. Tura i Faza Chaosu czekają na ten zapis.</p>
+    </div>
   )
 }

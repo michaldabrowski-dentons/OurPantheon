@@ -16,6 +16,7 @@ import { ActionsPanel } from './actions/ActionsPanel'
 import { MapStage } from './map/MapStage'
 import { ContestOverlay } from './map/ContestOverlay'
 import { ContestVerseDialog } from './map/ContestVerseDialog'
+import { VerseDialog } from './map/VerseDialog'
 import { ChaosOverlay } from './chaos/ChaosOverlay'
 import { NightFightDialog } from './chaos/NightFightDialog'
 import { NightNamingDialog } from './chaos/NightNamingDialog'
@@ -97,6 +98,7 @@ export function GamePage() {
       {game.status === 'playing' && <NightNamingDialog />}
       {game.status === 'playing' && <NightMutationDialog />}
       {game.status === 'playing' && <ContestVerseDialog />}
+      {game.status === 'playing' && <VerseDialog />}
       {game.status === 'playing' && <DiceOverlay />}
       {chronicle && <ChronicleDrawer onClose={() => setChronicle(false)} />}
       {overture && game.status === 'playing' && <EraOverture era={overture} onEnter={enterEra} />}

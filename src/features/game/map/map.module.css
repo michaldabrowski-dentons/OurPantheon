@@ -277,12 +277,298 @@
 .ruin {
   opacity: 0.95;
 }
+
+/* ---------- the other scenes: a bolt, the waters, the sun, a sickness, a descent ---------- */
+.flashWhite {
+  fill: #fff8e7;
+  animation-duration: 1.1s;
+}
+.flashWater {
+  fill: #3f8fb5;
+  animation-duration: 2.4s;
+}
+.flashSun {
+  fill: #ffd76a;
+  animation-duration: 3s;
+}
+.flashSick {
+  fill: #6f9a3a;
+  animation-duration: 2.8s;
+}
+.flashGold {
+  fill: #ffe9a8;
+  animation-duration: 2.6s;
+}
+@keyframes boltStrike {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 1200;
+  }
+  8% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  18% {
+    opacity: 0.2;
+  }
+  26% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.bolt {
+  fill: none;
+  stroke: #fffbe6;
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 1200;
+  animation: boltStrike 1.6s ease-out forwards;
+  filter: drop-shadow(0 0 6px #ffe27a);
+}
+.boltGlow {
+  stroke: #f7c948;
+  stroke-width: 9;
+  opacity: 0.6;
+  filter: blur(3px);
+}
+.ringWhite {
+  stroke: #fff6d6;
+  animation-delay: 0.2s;
+}
+.ringGold {
+  stroke: var(--gold-light);
+  animation-delay: 0.45s;
+}
+.ringWater {
+  stroke: #7cc5e6;
+  animation-delay: 0.3s;
+  animation-duration: 2.6s;
+}
+.ringWater2 {
+  stroke: #3f8fb5;
+  animation-delay: 0.7s;
+  animation-duration: 2.6s;
+}
+.ringWater3 {
+  stroke: #c9ecf8;
+  animation-delay: 1.1s;
+  animation-duration: 2.6s;
+}
+@keyframes waveRise {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  70% {
+    transform: translateY(-62px) scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-80px) scale(1.2);
+    opacity: 0;
+  }
+}
+.wave {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: waveRise 2.2s ease-out forwards;
+}
+@keyframes sunGlow {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  30% {
+    opacity: 0.75;
+  }
+  70% {
+    opacity: 0.55;
+    transform: scale(1.25);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+.sunGlow {
+  fill: #ffd76a;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sunGlow 3s ease-out forwards;
+  filter: blur(6px);
+}
+@keyframes heatWave {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  30% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-38px);
+  }
+}
+.heat {
+  fill: none;
+  stroke: rgba(255, 240, 200, 0.9);
+  stroke-width: 1.6;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: heatWave 2.2s ease-out forwards;
+}
+@keyframes sunRise {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.5);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-10px) scale(1.15);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(-22px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.9);
+  }
+}
+.sunRise {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sunRise 3s ease-out forwards;
+  filter: drop-shadow(0 0 12px #ffd76a);
+}
+@keyframes miasma {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  30% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+.miasma {
+  fill: #7fb04a;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: miasma 2.8s ease-out forwards;
+  filter: blur(5px);
+}
+.miasma2 {
+  fill: #a7c957;
+  animation-delay: 0.5s;
+}
+.burstSparkSlow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: burstSpark 2.6s ease-out forwards;
+}
+@keyframes sparkUp {
+  0% {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), calc(var(--dy) - 50px)) scale(1.1);
+    opacity: 0;
+  }
+}
+.burstSparkUp {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sparkUp 2.2s ease-out forwards;
+}
+@keyframes column {
+  0% {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+  25% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(1);
+  }
+}
+.column {
+  animation: column 2.8s ease-out forwards;
+  filter: blur(1.5px);
+}
+@keyframes descentSign {
+  0% {
+    transform: translateY(-90px) scale(0.3);
+    opacity: 0;
+  }
+  45% {
+    transform: translateY(0) scale(1.35);
+    opacity: 1;
+  }
+  75% {
+    transform: translateY(0) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0;
+  }
+}
+.descentSign {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: descentSign 2.8s ease-out forwards;
+  animation-delay: 0.3s;
+  opacity: 0;
+  filter: drop-shadow(0 0 14px #ffe9a8);
+}
+.fertPlateBlight {
+  fill: rgba(10, 8, 7, 0.78);
+  stroke: var(--ember-light);
+}
+.blight {
+  pointer-events: none;
+  user-select: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .burstFlash,
   .burstRain,
   .burstRing,
   .burstSpark,
-  .burstSign {
+  .burstSparkSlow,
+  .burstSparkUp,
+  .burstSign,
+  .bolt,
+  .wave,
+  .sunGlow,
+  .heat,
+  .sunRise,
+  .miasma,
+  .column,
+  .descentSign {
     animation-duration: 0.01s;
     animation-delay: 0s;
   }
